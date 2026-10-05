@@ -8,6 +8,9 @@
 
 EmDash 内置 5 角色：**Subscriber / Contributor / Author / Editor / Admin**，权限随角色递增，且**内容归属（ownership）**影响操作范围。
 
+**角色等级（数值，存于 `users.role`）**：`10 Subscriber` · `20 Contributor` · `30 Author` · `40 Editor` · `50 Admin`
+（来源：`@emdash-cms/admin` 的 `ROLE_NAMES`；`VALID_ROLE_LEVELS = {10,20,30,40,50}`。下表自上而下即 10→50。）
+
 | 角色 | 阅读 | 写稿 | 提交待审 | 审核/通过 | 发布他人稿 | 管理分类/菜单 | 评论审核 | 用户/插件/设置 |
 | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
 | Subscriber | ✅ | | | | | | | |
@@ -31,6 +34,20 @@ EmDash 内置 5 角色：**Subscriber / Contributor / Author / Editor / Admin**�
 ### 用户管理能力（内置）
 - 邀请/禁用用户、分配角色、重置 Passkey。
 - 编辑锁（edit locking）：开启后同一文章被锁定，防止覆盖；过期保存会被拒绝。
+
+### Phase 1 已落地（本地验证）
+- **管理员**：本地用官方 dev-bypass 创建（`/_emdash/api/setup/dev-bypass`，`Dev Admin`，role 50）。生产用 Passkey 完成 setup。
+- **角色邀请**：经 `POST /_emdash/api/auth/invite`（Admin only）创建，落库于 `auth_tokens`（`type=invite`，含 `email`/`role`/`hash`）。已建：`editor@suda.im`(40)、`reporter@suda.im`(30)、`contributor@suda.im`(20)、`muse@suda.im`(20)、`dots@suda.im`(20)。
+  - 邀请的**完成**依赖 WebAuthn（Passkey）注册，需在浏览器打开邀请链接；无邮箱 provider 时接口返回"已发送"但不实际发信（Phase 3 接 Resend 后自动发信）。
+- **RBAC 边界验证**（临时改 `users.role` 实测，验后已还原为 50）：
+
+  | 操作 | Contributor(20) | Admin(50) |
+  | --- | :-: | :-: |
+  | 创建草稿 `POST /content/articles` | ✅ 201 | ✅ 201 |
+  | 发布 `POST /content/articles/{id}/publish` | ❌ 403 `FORBIDDEN` | ✅ 200 |
+  | 定时发布 `POST /content/articles/{id}/schedule` | ❌ 403 `FORBIDDEN` | — |
+
+- **两道独立闸门**：① RBAC（角色需 `content:publish`，Editor/Admin）→ 403；② `pulse-review` 策略（`review_status==="approved"`）→ 422 `PUBLISH_REJECTED`。二者互不替代。
 
 ---
 
@@ -142,16 +159,16 @@ import { Comments, CommentForm } from "emdash/ui/comments";
 
 ## 5. 后台配置清单（Phase 1 完成项）
 
-- [ ] 创建管理员账号（Passkey）。
-- [ ] 导入 seed：articles / pages / taxonomies / menus / widgets / bylines。
-- [ ] 配置站点设置：标题、标语、时区（`Asia/Shanghai`）、`siteUrl`。
-- [ ] 邀请编辑、记者、投稿者账号并分配角色。
-- [ ] **注册 author agent**（Muse/Dots…）：user + byline + scoped token。
-- [ ] 开启 articles 的 search 索引。
-- [ ] 安装并配置评论反垃圾 + **CF Workers AI 审核** + 通知插件。
-- [ ] 安装 `bulletin` + `emdash-plugin-resend` 并验证发信。
-- [ ] 配置 `pulse-review` 发布策略。
-- [ ] 验证：未审核稿件无法发布（含 MCP 与定时发布路径）。
+- [x] 创建管理员账号（本地 dev-bypass；生产 Passkey 待部署时完成）。
+- [x] 导入 seed：articles / pages / editions / assignments / taxonomies / menus / widgets / bylines。
+- [x] 配置站点设置：标题、标语、时区（`Asia/Shanghai`）。
+- [x] 邀请编辑、记者、投稿者账号并分配角色（invite 已建；Passkey 注册待浏览器完成）。
+- [ ] **注册 author agent**（Muse/Dots…）：user + byline + scoped token（Phase 4）。
+- [x] 开启 articles 的 search 索引（FTS 已建，5 articles + 4 pages 已索引）。
+- [ ] 安装并配置评论反垃圾 + **CF Workers AI 审核** + 通知插件（待 CF 凭证）。
+- [ ] 安装 `bulletin` + `emdash-plugin-resend` 并验证发信（待 Resend 凭证）。
+- [x] 配置 `pulse-review` 发布策略（沙箱加载，门禁生效）。
+- [x] 验证：未审核稿件无法发布（REST 路径已验；MCP/定时路径 Phase 4 复验）。
 
 ---
 
