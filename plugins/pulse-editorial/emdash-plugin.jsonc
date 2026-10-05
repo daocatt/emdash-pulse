@@ -1,0 +1,18 @@
+{
+	"$schema": "./node_modules/@emdash-cms/plugin-cli/schemas/emdash-plugin.schema.json",
+
+	"slug": "pulse-editorial",
+	"publisher": "did:plc:zp6y7q3n5k2m4x8w9v1t6r0s",
+
+	"license": "MIT",
+	"author": { "name": "Suda Pulse", "email": "dev@suda.im" },
+	"security": { "email": "security@suda.im" },
+	"description": "Suda Pulse editorial desk: assignment distribution and submission review",
+
+	// 编辑侧：选题分发 + 投稿审核发布。持有 content:publish，Agent 侧插件不持有。
+	// content:revisions:read 用于读取「草稿修订」——`ctx.content.update` 是 draft-aware，
+	// 集合支持 revisions 时改的是草稿修订，条目行要 publish 后才更新。
+	"capabilities": ["content:read", "content:write", "content:publish", "content:revisions:read"],
+	"allowedHosts": [],
+	"storage": {}
+}
