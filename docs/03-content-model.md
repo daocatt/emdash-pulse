@@ -40,7 +40,6 @@
 | `is_breaking` | 突发 | boolean | | | 头版角标 |
 | `is_featured` | 头条候选 | boolean | | | 头版头条 |
 | `priority` | 版面权重 | select | | | lead/high/normal |
-| `edition` | 归属期号 | reference | | | → `editions`（可选） |
 | `assignment` | 关联选题 | reference | | | → `assignments`（agent 投稿溯源） |
 | `author_agent` | 作者 agent | string | | | 如 `muse` / `dots`（审计用） |
 | `allow_comments` | 允许评论 | boolean | | | 覆盖集合默认 |
@@ -125,7 +124,11 @@
 }
 ```
 
-前台 `/editions/[slug]` 展示一期版面；文章通过 `edition` 引用归入期号。
+前台 `/editions/[slug]` 展示一期版面；文章通过 **taxonomy `edition`** 归入期号（**不是 reference 字段**，原因见下）。
+
+> **变更（Phase 2）**：原设计用 `edition` **reference 字段**关联期号。实测 EmDash **不支持按 reference 字段过滤/排序**（`getEmDashCollection({ where: { edition } })` 返回错误："it is a reference field bound to a relation, and its links are not stored on the entry"），因此期号页无法反查本期文章。改用 **taxonomy `edition`**（术语 = 期号 slug）：可按 `where: { edition: "2026-w40" }` 过滤、有计数、后台选择器友好。`editions` collection 仍保留，用于承载期号自身元数据（标题/封面/导读）与 `/editions/[slug]` 页面。二者通过 **slug 约定**关联（`editions.slug === edition 术语 slug`）。
+>
+> 同一限制也适用于 `assignment` reference 字段（同样不可过滤）；选题反查文章留待 Phase 4 用 `pulse-editorial` 的专用查询解决。
 
 > **已确认：周报优先**（`period_type=week`，`period_no` 为 ISO 周号）。月报在后续迭代扩展。
 
@@ -172,6 +175,7 @@
 | --- | --- | :---: | --- | --- |
 | `section` | 版块 | ✅ | articles | 要闻/国际/财经/科技/文化/体育/社会/评论 |
 | `tag` | 标签 | ❌ | articles | 自由关键词 |
+| `edition` | 期号 | ❌ | articles | 期号归属（术语 slug 与 `editions` collection 一致） |
 | `region` | 地区（可选） | ❌ | articles | 本地新闻分区 |
 
 ```json

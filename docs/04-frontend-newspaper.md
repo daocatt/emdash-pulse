@@ -232,3 +232,31 @@ const { entries: articles } = await getEmDashCollection("articles", {
 | ≥ 1200px | 3 栏（左署名 / 正文 / 右侧栏），头版 3~4 栏网格 |
 | 768–1199px | 2 栏，侧栏折叠到正文下方 |
 | < 768px | 单栏，报头精简，导航抽屉 |
+
+---
+
+## 12. 实施记录（Phase 2）
+
+### 已落地文件
+
+| 类别 | 文件 |
+| --- | --- |
+| 主题 | `src/styles/tokens.css`（报纸令牌）、`src/styles/theme.css`（身份覆盖 + 全局排版 + `.prose`） |
+| 布局 | `src/layouts/Base.astro`（报头/导航/页脚/灯箱/防闪烁/JSON-LD） |
+| 组件 | `Masthead`、`NavBar`、`Footer`、`Byline`、`ArticleMeta`、`StoryCard`、`LeadStory`、`SectionBlock`、`Gallery`、`Lightbox`、`PhotoGrid`、`Pagination`、`ArchiveNav`、`CorrectionNotice` |
+| 工具 | `date-range`（月/周）、`format`（时区/ISO 周/阅读时长）、`media`（图片/图集解析）、`types`、`text`、`archive`、`archive-nav`、`search`、`site-identity` |
+| 页面 | `index`、`articles/[slug]`、`sections/[slug]`、`tags/[slug]`、`editions/[slug]`、`pages/[slug]`、`archive/*`、`search`、`rss.xml`、`feed.json`、`404` |
+
+### 与原设计的偏差
+
+1. **期号归属改用 taxonomy**：`articles.edition` 由 **reference 字段** 改为 **taxonomy `edition`**（术语 slug 与 `editions` collection 的 slug 一致）。原因：EmDash 不支持按 reference 字段过滤/排序，期号页无法反查本期文章。详见 `03-content-model.md` §3 与 `10-phase0-report.md`。
+2. **中文搜索需要 trigram**：FTS 默认 `porter unicode61` 不支持中文分词；用 `scripts/configure-search.mjs` 切换为 `trigram`（≥3 字精确），并对 1–2 字查询提供内存回退。
+3. **归档分页用 `?page=`**：未引入 `/page/[n]` 路由，减少路由数；`Pagination` 组件统一生成 `?page=N`。
+4. **报头日期为动态**：`Masthead` 用 `Intl`（`Asia/Shanghai`）渲染当天日期，不依赖内容。
+
+### 待办（后续 Phase）
+
+- `/subscribe` 订阅页与 `SubscribeForm`（Phase 3）。
+- 评论样式细化（Phase 3，`emdash/ui/comments` 的 `--ec-*` 覆盖）。
+- 分版块 RSS `/sections/[slug]/rss.xml`（可选）。
+- 真实字体子集化（当前用系统衬线栈，零网络依赖）；真机移动端复核。

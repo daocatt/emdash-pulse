@@ -1,6 +1,6 @@
-# 10 · Phase 0/1 实施报告
+# 10 · Phase 0/1/2 实施报告
 
-> 脚手架、验证与内容模型阶段的记录。随实施推进更新。
+> 脚手架、验证、内容模型与报纸前台阶段的记录。随实施推进更新。
 
 ## 状态总览
 
@@ -16,6 +16,7 @@
 | Spike 3 | Resend 传输插件 | ⏳ 待凭证 |
 | Spike 4 | Cloudflare Workers AI 评论审核 | ⏳ 待 CF 账号/绑定 |
 | Spike 6 | R2 媒体上传/读取 | ⏳ 待 CF 账号（本地用 local storage，媒体管线已通） |
+| **Phase 2** | 报纸前台（主题/组件/页面/归档/搜索/Feed） | ✅ **完成**（见下） |
 
 ## Phase 1 结果（内容模型与后台）
 
@@ -40,6 +41,29 @@
 5. **注册表插件安装依赖 DoH**：`registry/publisher-handle.ts` 的 `boundedFetch` 对发布者主机做 SSRF 校验（DoH 解析），本环境 `cloudflare-dns.com` 被封 → `DID_RESOLUTION_FAILED`。官方插件走 npm 不受影响。
 6. **RBAC 与策略是两道独立闸门**：角色不足 → 403 `FORBIDDEN`；审核未过 → 422 `PUBLISH_REJECTED`。
 7. **媒体值形状**：写接口接受 `{id, src, alt}` 并归一化为含 `provider/filename/mimeType/width/height/blurhash/meta` 的对象；读接口返回的对象**没有** `src`（前端类型里 `src?` 可选）。
+
+## Phase 2 结果（报纸前台）
+
+| 项 | 状态 | 证据 |
+| --- | :-: | --- |
+| 报纸主题（tokens/theme） | ✅ | 衬线标题、深红强调色、`light-dark()`、`prefers-reduced-motion` |
+| 布局与组件 | ✅ | `Base` + `Masthead/NavBar/Footer/Byline/ArticleMeta/StoryCard/LeadStory/SectionBlock` |
+| 图片新闻组件 | ✅ | `PhotoGrid`（头版区块）+ `Gallery` + 全局 `Lightbox`（分组/键盘切换） |
+| 核心页面 | ✅ | `/`、`/articles/[slug]`、`/sections/[slug]`、`/tags/[slug]`、`/editions/[slug]`、`/pages/[slug]`、`/404` |
+| 归档（月/周） | ✅ | `/archive`、`/archive/[year]/[month]`、`/archive/[year]/week/[week]` + `ArchiveNav` + `?page=` 分页 |
+| 搜索 | ✅ | `/search` + 报头 `LiveSearch`；trigram 中文检索 + 短查询回退 |
+| Feed | ✅ | `/rss.xml`（RSS 2.0，5 items）+ `/feed.json`（JSON Feed 1.1，5 items） |
+| 冒烟测试 | ✅ | 26 条路由全部 200/404 符合预期；`npm run build` 通过（仅 chunk 体积警告） |
+
+### Phase 2 新增关键发现
+
+1. **reference 字段不可过滤/排序**（重要）：EmDash 明确拒绝 —— `Cannot filter or sort "articles" by "edition": it is a reference field bound to a relation, and its links are not stored on the entry.`。reference 边存于 `_emdash_content_references`（按 `translation_group` 连接），只支持「正向」读取（`getEmDashEntry(..., { references })` / `getEmDashReferences()`），**没有公开的反向（backlink）查询 API**。因此「期号 → 文章」这类反查必须改用 **taxonomy**（本项目的 `edition`）或自建查询。`assignment` reference 同理。
+2. **FTS 默认分词器不适合中文**：EmDash FTS 默认 `porter unicode61`，中文整段成词（`MATCH '审核'` 命中不了「内容审核工作流」）。EmDash 支持 `trigram` 分词器（`SEARCH_TOKENIZERS`），但 **seed/admin/REST 均未暴露 tokenizer 配置**，只能在程序内调 `FTSManager.enableSearch(slug, { tokenize: "trigram" })`。绕行方案（`scripts/configure-search.mjs`）：直接改 `_emdash_collections.search_config.tokenize`，再重跑 `emdash seed` —— `enableSearch` 会**沿用**已有 tokenize 并以 trigram 重建索引。
+3. **trigram 的查询下限是 3 个字符**：`MATCH '工作流'` 命中，`MATCH '审核'`（2 字）不命中。因此 `/search` 在 FTS 零结果时对 1–2 字查询做一次内存回退扫描（`src/utils/search.ts`，站点规模小，成本可接受）。
+4. **FTS 仅限 SQLite 方言**：`FTSManager` 在非 SQLite 方言下抛错；D1 属 SQLite 方言，理论可用（Phase 5 需在 D1 上复验 FTS5 虚拟表支持）。
+5. **布尔字段不能直接用于 `where`**：`WhereValue = string | string[] | WhereRange`，不含 boolean。首页「头条」改用 `where: { priority: "lead" }`（select 字符串）而非 `is_featured: true`。
+6. **`getDb()` 不是公开导出**：无法在脚本/路由里直接拿到 Kysely 实例（`FTSManager` 是公开的，但需要 db 句柄）。这限制了程序化的索引维护，故采用「改配置 + 重跑 seed」的绕行。
+7. **报头搜索的 `routeMap` 占位符**：`LiveSearch` 支持 `:collection` / `:id` / `:slug` / `:path`；本项目用 `{ articles: "/articles/:slug", pages: "/pages/:slug" }`。
 
 ## Spike 1 结果（已通过）
 

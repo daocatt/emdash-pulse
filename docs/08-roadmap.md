@@ -48,22 +48,23 @@
 
 **目标**：报纸版式前台完整可读，归档/搜索/图片新闻可用。
 
-- [ ] `tokens.css`/`theme.css`：报纸主题（衬线标题、单强调色）。
-- [ ] `Base.astro`：报头、页脚、`EmDashHead/BodyStart/BodyEnd`、主题防闪烁。
-- [ ] 组件：`Masthead`、`NavBar`、`LeadStory`、`StoryCard`、`SectionBlock`、`Byline`、`ArticleMeta`、`Footer`。
-- [ ] **图片新闻组件**：`Gallery`、`Lightbox`、`PhotoGrid`。
-- [ ] 头版 `/`：头条 + 次头条 + 版块区块 + **图片新闻区块** + 侧栏。
-- [ ] 文章页 `/articles/[slug]`：正文、图注、署名、标签、更正、评论；`article_type=photo` 走图集布局。
-- [ ] 版块页 `/sections/[slug]`、标签页 `/tags/[slug]`。
-- [ ] **期号页 `/editions/[slug]`**（**周报优先**，`period_type=week`）。
-- [ ] 静态页 `/pages/[slug]`、`/404`。
-- [ ] `src/utils/date-range.ts`：月/周边界。
-- [ ] 归档 `/archive`、`/archive/[year]/[month]`、`/archive/[year]/week/[week]` + 分页 + `ArchiveNav`。
-- [ ] 搜索 `/search` + 报头 `LiveSearch`。
-- [ ] RSS `/rss.xml` + **JSON Feed `/feed.json`**（+ 分版块可选）。
-- [ ] 缓存 `cacheHint`；响应式；无障碍；SEO/JSON-LD。
+- [x] `tokens.css`/`theme.css`：报纸主题（衬线标题、单一深红强调色 `#b3261e`、`light-dark()`）。
+- [x] `Base.astro`：报头、页脚、`EmDashHead/BodyStart/BodyEnd`、主题防闪烁、JSON-LD 注入。
+- [x] 组件：`Masthead`、`NavBar`、`LeadStory`、`StoryCard`、`SectionBlock`、`Byline`、`ArticleMeta`、`Footer`。
+- [x] **图片新闻组件**：`Gallery`、`Lightbox`、`PhotoGrid`。
+- [x] 头版 `/`：头条 + 次头条 + 版块区块 + **图片新闻区块** + 侧栏（`front-sidebar` widget area）。
+- [x] 文章页 `/articles/[slug]`：正文、图注、署名、标签、更正、评论；`article_type=photo` 走图集布局。
+- [x] 版块页 `/sections/[slug]`、标签页 `/tags/[slug]`。
+- [x] **期号页 `/editions/[slug]`**（周报优先，按版块分组；归属改用 taxonomy `edition`）。
+- [x] 静态页 `/pages/[slug]`、`/404`。
+- [x] `src/utils/date-range.ts`：月/周边界（+ `addMonths`/`isValidMonth`/`isValidWeek`）。
+- [x] 归档 `/archive`、`/archive/[year]/[month]`、`/archive/[year]/week/[week]` + 分页 + `ArchiveNav`（`?page=` offset 分页）。
+- [x] 搜索 `/search` + 报头 `LiveSearch`；**trigram 分词器**支持中文（≥3 字），1–2 字走内存回退（见 `10-phase0-report.md`）。
+- [x] RSS `/rss.xml` + **JSON Feed `/feed.json`**。
+- [x] 缓存 `cacheHint`（各查询均已 `Astro.cache.set()`）；响应式（3 断点）；语义标签/`skip-link`；文章页 `NewsArticle` JSON-LD + 首页 `WebSite` JSON-LD。
+- [ ] 分版块 RSS（可选）；`SubscribeForm`（Phase 3）；评论样式细化（Phase 3）。
 
-**验收**：可按月/周/版块/标签浏览；图片新闻正常；搜索可用；RSS/JSON Feed 校验通过；移动端良好。
+**验收**：可按月/周/版块/标签浏览 ✅；图片新闻正常 ✅；搜索可用 ✅（中文 ≥3 字精确、1–2 字模糊）；RSS/JSON Feed 校验通过 ✅；移动端良好（响应式已实现，待真机复核）。
 
 ---
 
