@@ -1,0 +1,209 @@
+---
+import { getEmDashCollection } from "emdash";
+import Base from "../../layouts/Base.astro";
+import { getArchiveIndex } from "../../utils/archive";
+import { formatMonthLabel, formatWeekLabel, formatDate } from "../../utils/format";
+
+const archive = await getArchiveIndex();
+const { years, byYear, cacheHint } = archive;
+if (cacheHint && Astro.cache?.enabled) Astro.cache.set(cacheHint);
+
+const { entries: recent, cacheHint: recentHint } = await getEmDashCollection("articles", {
+	orderBy: { published_at: "desc" },
+	limit: 8,
+});
+if (Astro.cache?.enabled) Astro.cache.set(recentHint);
+
+const currentYear = new Date().getFullYear();
+const latestYear = years[0] ?? currentYear;
+const latestPeriod = byYear.get(latestYear);
+const latestMonth = latestPeriod?.months.at(-1) ?? 1;
+const latestWeek = latestPeriod?.weeks.at(-1) ?? 1;
+---
+
+<Base
+	title="归档"
+	pageTitle="归档"
+	description="按月 / 按周浏览 Suda Pulse 的全部报道"
+	canonical={`${Astro.url.origin}/archive`}
+>
+	<div class="container archive">
+		<header class="archive__header">
+			<span class="kicker">全部报道</span>
+			<h1 class="archive__title">归档</h1>
+			<p class="archive__intro">按时间浏览过往报道，或切换到按月 / 按周视图。</p>
+			<div class="archive__modes">
+				<a class="archive__mode" href={`/archive/${latestYear}/${latestMonth}`}>按月</a>
+				<a class="archive__mode" href={`/archive/${latestYear}/week/${latestWeek}`}>按周</a>
+			</div>
+		</header>
+
+		<div class="archive__layout">
+			<div class="archive__years">
+				{years.length === 0 && <p class="archive__empty">暂无已发布内容。</p>}
+				{years.map((year) => {
+					const period = byYear.get(year)!;
+					return (
+						<section class="archive__year">
+							<h2 class="archive__year-title">{year}</h2>
+							<div class="archive__months">
+								{period.months.map((month) => (
+									<a class="archive__chip" href={`/archive/${year}/${month}`}>{formatMonthLabel(year, month)}</a>
+								))}
+							</div>
+							<div class="archive__weeks">
+								{period.weeks.map((week) => (
+									<a class="archive__chip archive__chip--week" href={`/archive/${year}/week/${week}`}>
+										{formatWeekLabel(year, week)}
+									</a>
+								))}
+							</div>
+						</section>
+					);
+				})}
+			</div>
+
+			<aside class="archive__recent">
+				<h2 class="archive__recent-title">最近发布</h2>
+				<ul class="archive__recent-list">
+					{recent.map((article) => (
+						<li class="archive__recent-item">
+							<a href={`/articles/${article.id}`}>{article.data.title}</a>
+							{article.data.publishedAt && <span>{formatDate(article.data.publishedAt)}</span>}
+						</li>
+					))}
+				</ul>
+			</aside>
+		</div>
+	</div>
+</Base>
+
+<style>
+	.archive {
+		padding-top: var(--spacing-8);
+	}
+
+	.archive__header {
+		padding-bottom: var(--spacing-6);
+		border-bottom: var(--rule-double);
+	}
+
+	.archive__title {
+		font-size: var(--font-size-5xl);
+		margin-top: var(--spacing-2);
+	}
+
+	.archive__intro {
+		margin: var(--spacing-3) 0 0;
+		color: var(--color-text-secondary);
+	}
+
+	.archive__modes {
+		display: flex;
+		gap: var(--spacing-3);
+		margin-top: var(--spacing-5);
+	}
+
+	.archive__mode {
+		font-family: var(--font-heading);
+		font-size: var(--font-size-lg);
+		padding: 4px 16px;
+		border: var(--rule-hairline);
+		color: var(--color-text);
+	}
+
+	.archive__mode:hover {
+		background: var(--color-brand);
+		border-color: var(--color-brand);
+		color: var(--color-on-brand);
+	}
+
+	.archive__layout {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--spacing-10);
+		padding-top: var(--spacing-8);
+	}
+
+	@media (min-width: 1000px) {
+		.archive__layout {
+			grid-template-columns: minmax(0, 1fr) 300px;
+		}
+	}
+
+	.archive__year {
+		padding-block: var(--spacing-6);
+		border-bottom: var(--rule-hairline);
+	}
+
+	.archive__year-title {
+		font-size: var(--font-size-3xl);
+		margin-bottom: var(--spacing-4);
+	}
+
+	.archive__months,
+	.archive__weeks {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--spacing-2);
+	}
+
+	.archive__weeks {
+		margin-top: var(--spacing-3);
+	}
+
+	.archive__chip {
+		font-size: var(--font-size-sm);
+		padding: 3px 12px;
+		border: var(--rule-hairline);
+		color: var(--color-text-secondary);
+	}
+
+	.archive__chip:hover {
+		border-color: var(--color-brand);
+		color: var(--color-brand);
+	}
+
+	.archive__chip--week {
+		font-size: var(--font-size-xs);
+		color: var(--color-muted);
+	}
+
+	.archive__recent-title {
+		font-size: var(--font-size-xl);
+		padding-bottom: var(--spacing-3);
+		border-bottom: var(--rule-hairline);
+		margin-bottom: var(--spacing-4);
+	}
+
+	.archive__recent-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.archive__recent-item {
+		padding: var(--spacing-3) 0;
+		border-bottom: var(--rule-hairline);
+	}
+
+	.archive__recent-item a {
+		font-family: var(--font-heading);
+		font-size: var(--font-size-base);
+	}
+
+	.archive__recent-item a:hover {
+		color: var(--color-brand);
+	}
+
+	.archive__recent-item span {
+		display: block;
+		margin-top: var(--spacing-1);
+		font-size: var(--font-size-xs);
+		color: var(--color-muted);
+	}
+
+	.archive__empty {
+		color: var(--color-muted);
+	}
+</style>

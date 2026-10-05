@@ -43,7 +43,7 @@ export const GET: APIRoute = async ({ url }) => {
 					slug: e.id,
 					title: e.data.title,
 					publishedAt: e.data.publishedAt,
-					review_status: (e.data as Record<string, unknown>).review_status ?? null,
+					review_status: e.data.review_status ?? null,
 				})),
 			},
 			null,

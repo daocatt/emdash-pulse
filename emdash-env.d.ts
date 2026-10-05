@@ -92,7 +92,6 @@ export interface Page {
 }
 
 export interface ArticleReferences {
-  edition: ReferencePage<Edition>;
   assignment: ReferencePage<Assignment>;
 }
 

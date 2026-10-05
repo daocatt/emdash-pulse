@@ -1,0 +1,376 @@
+---
+import {
+	getEmDashEntry,
+	getEmDashCollection,
+	getSiteSettings,
+	getSeoMeta,
+	decodeSlug,
+} from "emdash";
+import { PortableText, WidgetArea } from "emdash/ui";
+import { Comments, CommentForm } from "emdash/ui/comments";
+import Base from "../../layouts/Base.astro";
+import Byline from "../../components/Byline.astro";
+import ArticleMeta from "../../components/ArticleMeta.astro";
+import StoryCard from "../../components/StoryCard.astro";
+import Gallery from "../../components/Gallery.astro";
+import CorrectionNotice from "../../components/CorrectionNotice.astro";
+import { resolveSiteIdentity } from "../../utils/site-identity";
+import { resolveMediaUrl, resolveMediaAlt, resolveGallery } from "../../utils/media";
+import { estimateReadingTime } from "../../utils/format";
+
+const slug = decodeSlug(Astro.params.slug);
+if (!slug) return Astro.redirect("/404");
+
+const { entry: article, cacheHint } = await getEmDashEntry("articles", slug);
+if (!article) return Astro.redirect("/404");
+if (Astro.cache?.enabled) Astro.cache.set(cacheHint);
+
+const data = article.data;
+const settings = await getSiteSettings();
+const { siteTitle } = resolveSiteIdentity(settings);
+const seo = getSeoMeta(article, {
+	siteTitle,
+	siteUrl: Astro.url.origin,
+	path: Astro.url.pathname.replace(/\/$/, ""),
+});
+
+const section = data.terms?.section?.[0] ?? null;
+const editionTerm = data.terms?.edition?.[0] ?? null;
+const tags = data.terms?.tag ?? [];
+const isPhoto = data.article_type === "photo";
+const gallery = resolveGallery(data.gallery);
+const image = resolveMediaUrl(data.featured_image);
+const imageAlt = resolveMediaAlt(data.featured_image, data.title);
+const readingTime = estimateReadingTime(data.content);
+
+const relatedResult = section
+	? await getEmDashCollection("articles", {
+			where: { section: section.slug },
+			orderBy: { published_at: "desc" },
+			limit: 4,
+		})
+	: null;
+if (relatedResult && Astro.cache?.enabled) Astro.cache.set(relatedResult.cacheHint);
+const related = (relatedResult?.entries ?? []).filter((entry) => entry.id !== article.id).slice(0, 3);
+
+const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ?? siteTitle;
+const jsonLd = {
+	"@context": "https://schema.org",
+	"@type": "NewsArticle",
+	headline: data.title,
+	description: data.deck ?? data.excerpt ?? undefined,
+	datePublished: data.publishedAt ? new Date(data.publishedAt).toISOString() : undefined,
+	dateModified: data.updatedAt ? new Date(data.updatedAt).toISOString() : undefined,
+	author: [{ "@type": "Person", name: authorName }],
+	image: image ? [image] : undefined,
+	publisher: { "@type": "Organization", name: siteTitle },
+	mainEntityOfPage: Astro.url.href,
+	articleSection: section?.label,
+	keywords: tags.map((tag) => tag.label).join(", "),
+};
+---
+
+<Base
+	title={seo.title}
+	pageTitle={data.title}
+	description={seo.description}
+	image={seo.ogImage}
+	canonical={seo.canonical}
+	robots={seo.robots}
+	type="article"
+	publishedTime={data.publishedAt ? new Date(data.publishedAt).toISOString() : undefined}
+	modifiedTime={data.updatedAt ? new Date(data.updatedAt).toISOString() : undefined}
+	author={authorName}
+	jsonLd={jsonLd}
+	content={{ collection: "articles", id: data.id, slug }}
+>
+	<article class="container article">
+		<div class="article__grid">
+			<aside class="article__meta-col" aria-label="稿件信息">
+				<Byline bylines={data.bylines} authorAgent={data.author_agent} />
+				<ArticleMeta publishedAt={data.publishedAt} readingTime={readingTime} source={data.source} sourceUrl={data.source_url} />
+				{editionTerm && (
+					<a class="article__edition" href={`/editions/${editionTerm.slug}`}>本期：{editionTerm.label}</a>
+				)}
+				{data.review_status === "approved" && (
+					<p class="article__review"><span class="article__review-dot"></span>已通过编辑审核</p>
+				)}
+			</aside>
+
+			<div class="article__body">
+				<header class="article__header">
+					{section && <a class="kicker" href={`/sections/${section.slug}`}>{section.label}</a>}
+					<h1 class="article__title" {...article.edit.title}>{data.title}</h1>
+					{data.deck && <p class="article__deck">{data.deck}</p>}
+				</header>
+
+				{image && (
+					<figure class="article__hero">
+						<img src={image} alt={imageAlt} loading="eager" decoding="async" fetchpriority="high" />
+						{(data.image_caption || data.photo_credit) && (
+							<figcaption>
+								{data.image_caption}
+								{data.photo_credit && <span class="article__credit">{data.photo_credit}</span>}
+							</figcaption>
+						)}
+					</figure>
+				)}
+
+				<div class="prose prose--lede" {...article.edit.content}>
+					<PortableText value={data.content} />
+				</div>
+
+				{gallery.length > 0 && (
+					<section class="article__gallery" aria-label="图集">
+						<h2 class="article__gallery-title">图集</h2>
+						<Gallery items={gallery} groupId={`article-${article.id}`} />
+						{data.photo_credit && <p class="article__gallery-credit">摄影：{data.photo_credit}</p>}
+					</section>
+				)}
+
+				{data.correction && <CorrectionNotice text={data.correction} date={data.updatedAt} />}
+
+				{tags.length > 0 && (
+					<footer class="article__tags">
+						<span class="article__tags-label">标签</span>
+						{tags.map((tag) => (
+							<a class="article__tag" href={`/tags/${tag.slug}`}>{tag.label}</a>
+						))}
+					</footer>
+				)}
+			</div>
+
+			<aside class="article__aside" aria-label="侧栏">
+				<WidgetArea name="article-aside" />
+			</aside>
+		</div>
+
+		{isPhoto && gallery.length === 0 && (
+			<p class="article__note">本篇为图片新闻，图集待补充。</p>
+		)}
+
+		{data.allow_comments !== false && (
+			<section class="article__comments" id="comments">
+				<h2 class="article__comments-title">评论</h2>
+				<div class="article__comment-form">
+					<CommentForm collection="articles" contentId={data.id} />
+				</div>
+				<Comments collection="articles" contentId={data.id} threaded />
+			</section>
+		)}
+
+		{related.length > 0 && (
+			<section class="article__related" aria-label="相关报道">
+				<h2 class="article__related-title">相关报道</h2>
+				<div class="article__related-grid">
+					{related.map((entry) => (
+						<StoryCard article={entry} showImage size="sm" headingLevel="h3" />
+					))}
+				</div>
+			</section>
+		)}
+	</article>
+</Base>
+
+<style>
+	.article {
+		padding-top: var(--spacing-8);
+	}
+
+	.article__grid {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--spacing-6);
+	}
+
+	@media (min-width: 900px) {
+		.article__grid {
+			grid-template-columns: var(--meta-col-width) minmax(0, var(--content-width)) var(--gutter-width);
+			gap: var(--spacing-8);
+			justify-content: center;
+		}
+	}
+
+	.article__meta-col {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-3);
+	}
+
+	@media (min-width: 900px) {
+		.article__meta-col {
+			position: sticky;
+			top: var(--spacing-6);
+			align-self: start;
+			border-right: var(--rule-hairline);
+			padding-right: var(--spacing-5);
+		}
+	}
+
+	.article__review {
+		margin: 0;
+		display: inline-flex;
+		align-items: center;
+		gap: var(--spacing-2);
+		font-size: var(--font-size-xs);
+		color: var(--color-muted);
+	}
+
+	.article__edition {
+		font-size: var(--font-size-xs);
+		color: var(--color-brand);
+		letter-spacing: var(--tracking-wide);
+	}
+
+	.article__edition:hover {
+		text-decoration: underline;
+	}
+
+	.article__review-dot {
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: var(--color-brand);
+	}
+
+	.article__title {
+		font-size: var(--font-size-5xl);
+		margin-top: var(--spacing-3);
+	}
+
+	@media (max-width: 640px) {
+		.article__title {
+			font-size: var(--font-size-3xl);
+		}
+	}
+
+	.article__deck {
+		margin: var(--spacing-4) 0 0;
+		font-family: var(--font-heading);
+		font-size: var(--font-size-xl);
+		line-height: var(--leading-snug);
+		color: var(--color-text-secondary);
+	}
+
+	.article__hero {
+		margin: var(--spacing-8) 0;
+	}
+
+	.article__hero img {
+		width: 100%;
+	}
+
+	.article__hero figcaption {
+		display: flex;
+		justify-content: space-between;
+		gap: var(--spacing-4);
+		margin-top: var(--spacing-2);
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+
+	.article__credit {
+		white-space: nowrap;
+	}
+
+	.article__gallery {
+		margin-top: var(--spacing-10);
+		padding-top: var(--spacing-6);
+		border-top: var(--rule-double);
+	}
+
+	.article__gallery-title {
+		font-size: var(--font-size-2xl);
+	}
+
+	.article__gallery-credit {
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+
+	.article__tags {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--spacing-3);
+		margin-top: var(--spacing-10);
+		padding-top: var(--spacing-5);
+		border-top: var(--rule-hairline);
+	}
+
+	.article__tags-label {
+		font-size: var(--font-size-xs);
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide);
+		color: var(--color-muted);
+	}
+
+	.article__tag {
+		font-size: var(--font-size-sm);
+		padding: 2px 10px;
+		border: var(--rule-hairline);
+		color: var(--color-text-secondary);
+	}
+
+	.article__tag:hover {
+		border-color: var(--color-brand);
+		color: var(--color-brand);
+	}
+
+	.article__aside {
+		display: none;
+	}
+
+	@media (min-width: 1100px) {
+		.article__aside {
+			display: block;
+			border-left: var(--rule-hairline);
+			padding-left: var(--spacing-6);
+		}
+	}
+
+	.article__note {
+		margin-top: var(--spacing-6);
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+
+	.article__comments {
+		max-width: var(--content-width);
+		margin: var(--spacing-16) auto 0;
+		padding-top: var(--spacing-8);
+		border-top: var(--rule-thick);
+	}
+
+	.article__comments-title {
+		font-size: var(--font-size-2xl);
+		margin-bottom: var(--spacing-5);
+	}
+
+	.article__comment-form {
+		margin-bottom: var(--spacing-8);
+	}
+
+	.article__related {
+		margin-top: var(--spacing-16);
+		padding-top: var(--spacing-8);
+		border-top: var(--rule-double);
+	}
+
+	.article__related-title {
+		font-size: var(--font-size-2xl);
+		margin-bottom: var(--spacing-6);
+	}
+
+	.article__related-grid {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--spacing-6);
+	}
+
+	@media (min-width: 700px) {
+		.article__related-grid {
+			grid-template-columns: repeat(3, 1fr);
+		}
+	}
+</style>

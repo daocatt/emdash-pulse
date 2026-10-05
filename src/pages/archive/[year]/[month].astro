@@ -1,0 +1,111 @@
+---
+import { getEmDashCollection } from "emdash";
+import Base from "../../../layouts/Base.astro";
+import StoryCard from "../../../components/StoryCard.astro";
+import ArchiveNav from "../../../components/ArchiveNav.astro";
+import Pagination from "../../../components/Pagination.astro";
+import { monthRange, isValidMonth } from "../../../utils/date-range";
+import { getArchiveIndex } from "../../../utils/archive";
+import { buildMonthNav } from "../../../utils/archive-nav";
+import { formatMonthLabel } from "../../../utils/format";
+
+const PER_PAGE = 20;
+
+const year = Number.parseInt(Astro.params.year ?? "", 10);
+const month = Number.parseInt(Astro.params.month ?? "", 10);
+if (!Number.isInteger(year) || !isValidMonth(month)) return Astro.redirect("/archive");
+
+const page = Math.max(1, Number.parseInt(Astro.url.searchParams.get("page") ?? "1", 10) || 1);
+const range = monthRange(year, month);
+
+const [{ entries: articles, cacheHint, hasMore }, archive] = await Promise.all([
+	getEmDashCollection("articles", {
+		where: { published_at: range },
+		orderBy: { published_at: "desc" },
+		limit: PER_PAGE,
+		offset: (page - 1) * PER_PAGE,
+	}),
+	getArchiveIndex(),
+]);
+
+if (Astro.cache?.enabled) {
+	Astro.cache.set(cacheHint);
+	if (archive.cacheHint) Astro.cache.set(archive.cacheHint);
+}
+
+const nav = buildMonthNav(year, month, archive);
+const title = `${formatMonthLabel(year, month)} · 归档`;
+---
+
+<Base title={title} pageTitle={title} description={`${formatMonthLabel(year, month)}发布的全部报道`} canonical={`${Astro.url.origin}/archive/${year}/${month}`}>
+	<div class="container month-archive">
+		<header class="month-archive__header">
+			<span class="kicker">按月归档</span>
+			<h1 class="month-archive__title">{formatMonthLabel(year, month)}</h1>
+		</header>
+
+		<ArchiveNav
+			modeLinks={nav.modeLinks}
+			prevHref={nav.prevHref}
+			nextHref={nav.nextHref}
+			periodOptions={nav.periodOptions}
+			yearOptions={nav.yearOptions}
+		/>
+
+		{articles.length === 0 ? (
+			<p class="month-archive__empty">本月暂无已发布内容。</p>
+		) : (
+			<ul class="month-archive__list">
+				{articles.map((article) => (
+					<li>
+						<StoryCard article={article} showImage size="md" headingLevel="h2" />
+					</li>
+				))}
+			</ul>
+		)}
+
+		<Pagination page={page} hasMore={Boolean(hasMore)} basePath={`/archive/${year}/${month}`} />
+	</div>
+</Base>
+
+<style>
+	.month-archive {
+		padding-top: var(--spacing-8);
+	}
+
+	.month-archive__header {
+		padding-bottom: var(--spacing-4);
+	}
+
+	.month-archive__title {
+		font-size: var(--font-size-5xl);
+		margin-top: var(--spacing-2);
+	}
+
+	.month-archive__list {
+		list-style: none;
+		margin: var(--spacing-8) 0 0;
+		padding: 0;
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--spacing-8);
+	}
+
+	@media (min-width: 700px) {
+		.month-archive__list {
+			grid-template-columns: repeat(2, 1fr);
+		}
+	}
+
+	@media (min-width: 1000px) {
+		.month-archive__list {
+			grid-template-columns: repeat(3, 1fr);
+		}
+	}
+
+	.month-archive__empty {
+		padding: var(--spacing-16) 0;
+		text-align: center;
+		color: var(--color-muted);
+	}
+</style>

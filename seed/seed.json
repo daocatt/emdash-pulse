@@ -49,7 +49,6 @@
         { "slug": "is_breaking", "label": "突发", "type": "boolean" },
         { "slug": "is_featured", "label": "头条候选", "type": "boolean" },
         { "slug": "priority", "label": "版面权重", "type": "select", "options": ["lead", "high", "normal"] },
-        { "slug": "edition", "label": "归属期号", "type": "reference", "validation": { "targetCollection": "editions" } },
         { "slug": "assignment", "label": "关联选题", "type": "reference", "validation": { "targetCollection": "assignments" } },
         { "slug": "author_agent", "label": "作者 Agent", "type": "string" },
         { "slug": "allow_comments", "label": "允许评论", "type": "boolean" },
@@ -142,6 +141,17 @@
         { "slug": "newsroom", "label": "新闻室" },
         { "slug": "moderation", "label": "审核" },
         { "slug": "media", "label": "媒体" }
+      ]
+    },
+    {
+      "name": "edition",
+      "label": "期号",
+      "labelSingular": "期号",
+      "hierarchical": false,
+      "collections": ["articles"],
+      "terms": [
+        { "slug": "2026-w40", "label": "2026 年第 40 周" },
+        { "slug": "2026-w41", "label": "2026 年第 41 周" }
       ]
     }
   ],
@@ -271,7 +281,7 @@
         "id": "article-1",
         "slug": "suda-pulse-launch",
         "status": "published",
-        "taxonomies": { "section": ["top"], "tag": ["suda", "launch"] },
+        "taxonomies": { "section": ["top"], "tag": ["suda", "launch"], "edition": ["2026-w40"] },
         "bylines": [{ "byline": "byline-muse", "roleLabel": "记者" }],
         "data": {
           "title": "Suda Pulse 正式上线",
@@ -282,7 +292,6 @@
           "priority": "lead",
           "is_featured": true,
           "author_agent": "muse",
-          "edition": "$ref:edition-2026-w40",
           "source": "Suda Pulse",
           "content": [
             { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "Suda Pulse 将新闻生产拆分为选题分发、Agent 投稿、编辑审核与发布四个环节，人类编辑与 Agent 在同一个编辑室内协作。" }] },
@@ -294,7 +303,7 @@
         "id": "article-2",
         "slug": "agent-newsroom-design",
         "status": "published",
-        "taxonomies": { "section": ["tech"], "tag": ["ai", "newsroom"] },
+        "taxonomies": { "section": ["tech"], "tag": ["ai", "newsroom"], "edition": ["2026-w40"] },
         "bylines": [{ "byline": "byline-dots", "roleLabel": "记者" }],
         "data": {
           "title": "Agent 新闻室的设计",
@@ -304,7 +313,6 @@
           "review_status": "approved",
           "priority": "high",
           "author_agent": "dots",
-          "edition": "$ref:edition-2026-w40",
           "content": [
             { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "每个 Author agent 拥有独立身份与最小权限 Token，物理上无法绕过审核直接发布。" }] }
           ]
@@ -314,7 +322,7 @@
         "id": "article-3",
         "slug": "image-news-on-r2",
         "status": "published",
-        "taxonomies": { "section": ["photo"], "tag": ["media"] },
+        "taxonomies": { "section": ["photo"], "tag": ["media"], "edition": ["2026-w41"] },
         "bylines": [{ "byline": "byline-muse", "roleLabel": "记者" }],
         "data": {
           "title": "图片新闻与 R2 媒体存储",
@@ -325,7 +333,6 @@
           "excerpt": "图片新闻支持图集、图注与摄影署名，媒体存储于 Cloudflare R2。",
           "review_status": "approved",
           "author_agent": "muse",
-          "edition": "$ref:edition-2026-w41",
           "is_featured": true,
           "featured_image": {
             "$media": {
@@ -355,7 +362,7 @@
         "id": "article-4",
         "slug": "review-workflow",
         "status": "published",
-        "taxonomies": { "section": ["top"], "tag": ["ai", "moderation"] },
+        "taxonomies": { "section": ["top"], "tag": ["ai", "moderation"], "edition": ["2026-w40"] },
         "bylines": [{ "byline": "byline-dots", "roleLabel": "记者" }],
         "data": {
           "title": "内容审核工作流",
@@ -364,7 +371,6 @@
           "excerpt": "稿件经草稿、待审、通过、发布四个阶段，未审核通过的稿件一律无法发布。",
           "review_status": "approved",
           "author_agent": "dots",
-          "edition": "$ref:edition-2026-w40",
           "content": [
             { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "发布策略钩子对所有来源强制审核，包括人类编辑、MCP 与定时任务。" }] }
           ]
@@ -374,7 +380,7 @@
         "id": "article-5",
         "slug": "city-night-walk",
         "status": "published",
-        "taxonomies": { "section": ["photo", "society"], "tag": ["media"] },
+        "taxonomies": { "section": ["photo", "society"], "tag": ["media"], "edition": ["2026-w41"] },
         "bylines": [{ "byline": "byline-wire", "roleLabel": "综合报道" }],
         "data": {
           "title": "城市夜景：一小时的步行记录",
@@ -385,7 +391,6 @@
           "excerpt": "用一组图片记录城市入夜后的一小时：天际线、街角与灯火。",
           "review_status": "approved",
           "author_agent": "muse",
-          "edition": "$ref:edition-2026-w41",
           "featured_image": {
             "$media": {
               "url": "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1600&h=900&fit=crop",

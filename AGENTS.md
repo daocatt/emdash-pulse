@@ -11,6 +11,7 @@
 npm run dev                       # 构建插件 + 启动 Astro dev（SQLite data.db + ./uploads）
 npm run plugin:build              # 仅构建沙箱插件（plugins/pulse-review）
 npm run plugin:test               # 插件单测
+node scripts/configure-search.mjs # 中文搜索：切 trigram 分词器并重建索引（重建库后需重跑）
 npx emdash types                  # 从运行中的站点生成类型
 npx emdash secret                 # 生成加密密钥
 HOME=~/.wrangler-a npm run deploy # 构建并部署到 Cloudflare
