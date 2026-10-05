@@ -1,0 +1,207 @@
+---
+/**
+ * 读者订阅表单（渐进增强）。
+ *
+ * 提交由浏览器直接 POST 到 pulse-subscriptions 的公开路由 —— 该端点按客户端 IP
+ * 限流，必须由浏览器发起（SSR 代理会丢失真实 IP）。确认 / 退订邮件里的链接
+ * 走 SSR 页面，与此无关。
+ */
+import { SUBSCRIPTIONS_API_BASE } from "../utils/subscriptions";
+
+interface Props {
+	/** 订阅来源标记，写入订阅记录。 */
+	source?: string;
+	heading?: string;
+	description?: string;
+	/** 紧凑版（用于头版 / 侧栏）。 */
+	compact?: boolean;
+}
+
+const { source = "web", heading, description, compact = false } = Astro.props;
+const endpoint = `${SUBSCRIPTIONS_API_BASE}/subscribe/request`;
+const inputId = `subscribe-email-${Math.random().toString(36).slice(2, 8)}`;
+---
+
+<form
+	class:list={["subscribe-form", compact && "subscribe-form--compact"]}
+	data-subscribe-form
+	data-endpoint={endpoint}
+	data-source={source}
+>
+	{heading && <h2 class="subscribe-form__heading">{heading}</h2>}
+	{description && <p class="subscribe-form__desc">{description}</p>}
+
+	<div class="subscribe-form__row">
+		<label class="sr-only" for={inputId}>邮箱地址</label>
+		<input
+			id={inputId}
+			class="subscribe-form__input"
+			type="email"
+			name="email"
+			required
+			autocomplete="email"
+			inputmode="email"
+			placeholder="you@example.com"
+		/>
+		<button class="subscribe-form__button" type="submit">订阅</button>
+	</div>
+
+	<p class="subscribe-form__status" data-subscribe-status role="status" aria-live="polite"></p>
+	<noscript>
+		<p class="subscribe-form__status">需要启用 JavaScript 才能提交订阅。</p>
+	</noscript>
+</form>
+
+<script>
+	type Status = "pending" | "success" | "error";
+
+	const forms = document.querySelectorAll<HTMLFormElement>("[data-subscribe-form]");
+
+	for (const form of forms) {
+		const statusEl = form.querySelector<HTMLElement>("[data-subscribe-status]");
+		const button = form.querySelector<HTMLButtonElement>("button[type=submit]");
+		const input = form.querySelector<HTMLInputElement>("input[name=email]");
+		const endpoint = form.dataset.endpoint ?? "";
+		const source = form.dataset.source ?? "web";
+
+		const setStatus = (message: string, kind: Status): void => {
+			if (!statusEl) return;
+			statusEl.textContent = message;
+			statusEl.dataset.state = kind;
+		};
+
+		form.addEventListener("submit", async (event) => {
+			event.preventDefault();
+			if (!input || !button) return;
+
+			const email = input.value.trim();
+			if (!email) {
+				setStatus("请输入邮箱地址。", "error");
+				return;
+			}
+
+			button.disabled = true;
+			setStatus("提交中…", "pending");
+
+			try {
+				const response = await fetch(endpoint, {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ email, source }),
+				});
+				const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+
+				if (response.ok && data.status === "confirmed") {
+					setStatus("已订阅，感谢关注。", "success");
+					form.reset();
+				} else if (response.ok) {
+					setStatus(
+						data.delivered === false
+							? "订阅已记录。邮件服务尚未配置，暂时无法发送确认邮件。"
+							: "确认邮件已发送，请查收并点击链接完成订阅。",
+						"success",
+					);
+					form.reset();
+				} else if (response.status === 429) {
+					setStatus("提交过于频繁，请稍后再试。", "error");
+				} else if (data.error === "INVALID_INPUT") {
+					setStatus("邮箱格式不正确。", "error");
+				} else {
+					setStatus("提交失败，请稍后再试。", "error");
+				}
+			} catch {
+				setStatus("网络异常，请稍后再试。", "error");
+			} finally {
+				button.disabled = false;
+			}
+		});
+	}
+</script>
+
+<style>
+	.subscribe-form {
+		display: block;
+	}
+
+	.subscribe-form__heading {
+		font-size: var(--font-size-2xl);
+		margin: 0 0 var(--spacing-2);
+	}
+
+	.subscribe-form__desc {
+		margin: 0 0 var(--spacing-4);
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+		line-height: var(--leading-normal);
+	}
+
+	.subscribe-form__row {
+		display: flex;
+		gap: var(--spacing-3);
+	}
+
+	.subscribe-form__input {
+		flex: 1;
+		min-width: 0;
+		font: inherit;
+		padding: var(--spacing-3) var(--spacing-4);
+		background: var(--color-surface);
+		color: var(--color-text);
+		border: 2px solid var(--color-border-strong);
+	}
+
+	.subscribe-form__input:focus {
+		outline: none;
+		border-color: var(--color-brand);
+	}
+
+	.subscribe-form__button {
+		font-family: var(--font-heading);
+		font-weight: 700;
+		padding: 0 var(--spacing-6);
+		background: var(--color-brand);
+		color: var(--color-on-brand);
+		border: none;
+		cursor: pointer;
+		white-space: nowrap;
+	}
+
+	.subscribe-form__button:hover {
+		background: var(--color-brand-hover);
+	}
+
+	.subscribe-form__button:disabled {
+		opacity: 0.6;
+		cursor: progress;
+	}
+
+	.subscribe-form__status {
+		margin: var(--spacing-3) 0 0;
+		font-size: var(--font-size-sm);
+		min-height: 1.2em;
+		color: var(--color-muted);
+	}
+
+	.subscribe-form__status[data-state="success"] {
+		color: var(--color-brand);
+	}
+
+	.subscribe-form__status[data-state="error"] {
+		color: var(--color-text);
+		font-weight: 600;
+	}
+
+	.subscribe-form--compact .subscribe-form__heading {
+		font-size: var(--font-size-xl);
+	}
+
+	@media (max-width: 520px) {
+		.subscribe-form__row {
+			flex-direction: column;
+		}
+
+		.subscribe-form__button {
+			padding-block: var(--spacing-3);
+		}
+	}
+</style>

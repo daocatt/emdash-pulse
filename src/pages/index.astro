@@ -6,6 +6,7 @@ import LeadStory from "../components/LeadStory.astro";
 import StoryCard from "../components/StoryCard.astro";
 import SectionBlock from "../components/SectionBlock.astro";
 import PhotoGrid from "../components/PhotoGrid.astro";
+import SubscribeForm from "../components/SubscribeForm.astro";
 import { resolveSiteIdentity } from "../utils/site-identity";
 import { formatDate } from "../utils/format";
 
@@ -103,6 +104,15 @@ const jsonLd = {
 				<WidgetArea name="front-sidebar" />
 			</aside>
 		</div>
+
+		<section class="front__subscribe" aria-label="订阅">
+			<SubscribeForm
+				heading="订阅 Suda Pulse"
+				description="把最新报道送进邮箱，随时可退订。"
+				source="front-page"
+				compact
+			/>
+		</section>
 	</div>
 </Base>
 
@@ -197,5 +207,12 @@ const jsonLd = {
 			border-left: var(--rule-hairline);
 			padding-left: var(--spacing-8);
 		}
+	}
+
+	.front__subscribe {
+		margin-top: var(--spacing-12);
+		padding: var(--spacing-6);
+		background: var(--color-bg-subtle);
+		border-top: var(--rule-thick);
 	}
 </style>
