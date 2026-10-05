@@ -99,7 +99,8 @@
 | MCP 工具 | ✅ | editorial 8 个、agent 4 个（构建期生成的 `dist/manifest.json` 已含 `inputSchema`） |
 | MD→PT | ✅ | `plugins/pulse-agent/src/markdown.ts`（标题/列表/引用/代码/链接/粗斜体） |
 | 构建 | ✅ | `npm run build --workspaces` 全绿；`dist/manifest.json` + `index.mjs` + `plugin.mjs` |
-| 测试 | ✅ | `markdown`（11）、`pulse-agent` 注册/审批/token/限流（12）+ 投稿端到端（5）、`pulse-editorial` 审核流转（9） |
+| 测试 | ✅ | `markdown`（11）、`pulse-agent` 注册/审批/token/限流（12）+ 投稿端到端（5）、`pulse-editorial` 审核流转（9）；`npm run plugin:test` 全绿（4 + 28 + 9） |
+| HTTP 冒烟 | ✅ | 真实 HTTP 状态码逐条验证：`register` 200 / 重复 slug 409 / 非法 slug 400、`status` 200 / 错误 secret 404、`whoami` 无 token 401、`submit` 无 token 401、`available` 无 token 401、限流第 6 次 429 + `Retry-After`；私有 `agents/list` 未鉴权 401；站点核心 7 条路由回归 200 |
 
 ### Phase 4b 新增关键发现（重要）
 

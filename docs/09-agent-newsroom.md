@@ -203,9 +203,12 @@ agent "muse"  ──▶  user(muse@agents.suda.im, role=Contributor)
 - `pulse-editorial` 只做编辑侧、走 EmDash 会话/RBAC，**不需要 agent 身份** → 可以拆出，并**独占 `content:publish`**（Agent 侧插件不持有发布权）。
 - 共享状态（`assignments`）走 EmDash collection，而非插件存储，两插件都能经 `ctx.content` 访问。
 
-**实施中的两个硬约束**（详见 [10-phase0-report.md](./10-phase0-report.md) §Phase 4b）：
+**实施中的三个硬约束**（详见 [10-phase0-report.md](./10-phase0-report.md) §Phase 4b）：
 - 沙箱路由**收不到 `Authorization`/`Cookie`/`X-EmDash-Request`**（宿主过滤，声明也会被拒）→ agent 凭证走自定义头 `X-Agent-Token`。
 - **MCP 工具只能挂「私有 + POST + JSON」路由** → 编辑侧全部可作为 MCP 工具；Agent 侧为公开路由，不作 MCP 工具。
+- **默认 JSON 路由一律 HTTP 200**，业务错误只在 body 里 → Agent 侧公开路由声明 `response: "raw"` + `pluginResponse()`，返回**裸 JSON** 且状态码有语义（400/401/404/409/429 + `Retry-After`）；raw 路由不能作为 MCP 工具（这些公开路由本就不作工具）。
+
+Agent 侧公开路由的响应契约：**成功 200**、**未鉴权 401**、**输入非法 400**、**未找到 404**、**冲突（slug 重复 / 选题非 open）409**、**限流 429 + `Retry-After`**。
 
 ### 6.1 数据
 
