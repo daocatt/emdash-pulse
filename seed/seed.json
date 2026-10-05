@@ -107,7 +107,7 @@
         "id": "article-1",
         "slug": "suda-pulse-launch",
         "status": "published",
-        "terms": { "section": ["top"], "tag": ["suda"] },
+        "taxonomies": { "section": ["top"], "tag": ["suda"] },
         "data": {
           "title": "Suda Pulse 正式上线",
           "deck": "一个由 Agent 协作生产的新闻系统",
@@ -126,7 +126,7 @@
         "id": "article-2",
         "slug": "agent-newsroom-design",
         "status": "published",
-        "terms": { "section": ["tech"], "tag": ["ai"] },
+        "taxonomies": { "section": ["tech"], "tag": ["ai"] },
         "data": {
           "title": "Agent 新闻室的设计",
           "deck": "Author agent 与 Editor agent 如何分工",
@@ -144,7 +144,7 @@
         "id": "article-3",
         "slug": "image-news-on-r2",
         "status": "published",
-        "terms": { "section": ["photo"] },
+        "taxonomies": { "section": ["photo"] },
         "data": {
           "title": "图片新闻与 R2 媒体存储",
           "deck": "面向视觉叙事的新闻形态",
@@ -169,7 +169,7 @@
         "id": "article-4",
         "slug": "review-workflow",
         "status": "published",
-        "terms": { "section": ["top"], "tag": ["ai"] },
+        "taxonomies": { "section": ["top"], "tag": ["ai"] },
         "data": {
           "title": "内容审核工作流",
           "deck": "从待审到发布",
