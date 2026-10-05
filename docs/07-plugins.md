@@ -1,0 +1,122 @@
+# 07 · 插件选型
+
+EmDash 插件分两类：
+
+- **沙箱插件（Sandboxed）**：独立运行时，仅能使用声明的能力，可从注册表安装。**优先**。
+- **原生插件（Native）**：与站点同进程，可用 React admin、Portable Text 渲染组件、注入 HTML。需部署，仅信任依赖。
+
+> 原则：能用官方/社区插件就不自研；自研一律**沙箱**，除非确需 React admin / PT 组件 / 页面片段。
+
+---
+
+## 1. 采用清单（已确认）
+
+> 决策：D4 订阅用 **`bulletin`**；D5 邮件传输用 **Resend**；D14 评论 AI 审核用 **Cloudflare Workers AI**。
+
+| 需求 | 插件 | 来源 | 状态 | 说明 |
+| --- | --- | --- | :-: | --- |
+| **邮件传输** | `emdash-plugin-resend` | 官方 | ✅ **选定** | Resend，独占 `email:deliver` |
+| 邮件传输（备选） | `@msale.com/resend` / `@masonjames.com/emdash-smtp` / `@numoteq.com/forward-email` / `@cfreear.bsky.social/emdash-cf-email-sending` | 社区 | 备选 | 如需切换 |
+| **邮件订阅 / newsletter** | `@meekmedia.bsky.social/bulletin` | 社区 | ✅ **选定** | 双确认 + 文章转邮件，隐私优先 |
+| **评论 AI 审核** | `@emdash-cms/plugin-ai-moderation` | 官方 | ✅ **选定** | Cloudflare Workers AI / Llama Guard |
+| 评论反垃圾 | `@peachfinthemes.com/comment-spam-protection` | 社区 | ✅ | 敏感词/链接/语言/重复/限速（与 AI 审核互补） |
+| 评论通知 | `@lasymphonieagency.com/comment-notify` | 社区 | ✅ | 新评论邮件通知管理员 |
+| 审计日志 | `@emdash-cms/plugin-audit-log` | 官方 | ✅ | 内容/媒体变更审计 |
+| Webhook 通知 | `@emdash-cms/plugin-webhook-notifier` | 官方 | ✅ | 内容变更外发 |
+| 表单（联系/投稿） | `@emdash-cms/plugin-forms` | 官方 | ✅ | 表单 + 提交存储 + 邮件通知 |
+| 嵌入内容 | `@emdash-cms/plugin-embeds` | 官方 | ✅ | YouTube/Vimeo/Twitter/Bluesky 等 |
+| 发布前校验 | `@emdashplugins.bsky.social/publish-check` | 社区 | 可选 | 标题/描述/alt/链接检查 |
+| 发布策略 | `@jammaru.com/preflight` | 社区 | 可选 | 确定性发布策略 |
+| SEO 套件 | `@nookeshk.bsky.social/seo-suite` | 社区 | 可选 | JSON-LD / 重定向 / SEO 健康度 |
+| 图片优化 | `@verco.app/image-optimizer` | 社区 | 可选 | 媒体库图片体积优化 |
+| 分析 | `@eisbachcode.de/analytics` / `@shane.bsky.shas.am/emdash-umami-analytics` | 社区 | 可选 | Cloudflare / Umami |
+| AT 协议分发 | `@emdash-cms/plugin-atproto` | 官方 | 可选 | 同步 Bluesky/standard.site |
+| 字段增强 | `@emdash-cms/plugin-field-kit` / `plugin-color` | 官方 | 可选 | json 组件 / 颜色选择 |
+
+> ⚠️ 邮件传输类插件**独占** `email:deliver`，同时只能启用一个。本项目**选定 Resend**。
+
+---
+
+## 2. 自研插件清单
+
+| 插件 | 格式 | 职责 | 关键能力 | 优先级 |
+| --- | --- | --- | --- | :-: |
+| `pulse-editorial` | Sandboxed | **选题分发**：创建/领取/状态流转（assignments） | `content:read`、`content:write` | P0 |
+| `pulse-agent` | Sandboxed | **Agent 工具面**：投稿 / 阅读 / 审核 / 订阅封装 | `content:read`、`content:write`、`content:publish`、`taxonomies:read`、`email:send` | P0 |
+| `pulse-review` | Sandboxed | 审核策略：发布策略 + 评论审核策略 + 通知 | `hooks.content-policy:register`、`comments:moderate`（+`users:read`）、`content:read` | P0 |
+| ~~`pulse-subscriptions`~~ | — | **不做了**：改用社区 `bulletin` | — | — |
+| `pulse-digest` | Sandboxed | 摘要邮件（若 `bulletin` 的活动能力不足） | `content:read`、`email:send`、`cron` | P2（按需） |
+
+> 订阅（双确认/退订/文章转邮件）由 **`bulletin`** 承担，不重复自研。仅在需要**自定义摘要格式**时才做 `pulse-digest`。
+
+### 2.1 `pulse-editorial`
+- Storage/collection：`assignments`（`status`/`assignedAgent`/`deadline` 索引）、`agents`（`slug` 唯一）。
+- 路由/MCP：`listAssignments`、`claimAssignment`、`createAssignment`、`updateAssignmentStatus`。
+- cron：超期选题提醒。
+
+### 2.2 `pulse-agent`
+- 详见 [09-agent-newsroom.md](./09-agent-newsroom.md) 与 [06-mcp-agents.md](./06-mcp-agents.md)。
+- Author 面：`listAssignments`/`claimAssignment`/`submitArticle`/`mySubmissions`。
+- Editor 面：`reviewQueue`/`getSubmission`/`approveArticle`/`rejectArticle`。
+- Reader 面：`listArticles`/`getArticle`/`searchNews` + HTTP JSON API。
+- 订阅面：`subscribeToNews`/`unsubscribeFromNews`（薄封装 `bulletin`）。
+- 投稿强制 `pending_review`；`sourceUrl` 幂等；`author_agent` 取自认证身份。
+
+### 2.3 `pulse-review`
+- `content:beforePublish` / `beforeSchedule`：非 `approved` 拒绝（含人类 Author 与 Agent）。
+- `comment:moderate`（独占）：与 CF Workers AI 审核配合（AI 给出建议 → 规则/人工决策）。
+- 可选 `content:afterSave`：投稿进入 `pending_review` 时通知编辑。
+- 可选 Block Kit 后台页：待审队列 + 一键通过/驳回。
+
+---
+
+## 3. 插件 vs 原生决策表
+
+| 需求 | 需要 React admin？ | 需要 PT 渲染组件？ | 需要页面片段？ | 结论 |
+| --- | :-: | :-: | :-: | --- |
+| 审核策略 | 否 | 否 | 否 | Sandboxed |
+| 审核队列 UI | 否（Block Kit 足够） | 否 | 否 | Sandboxed |
+| MCP 工具 | 否 | 否 | 否 | Sandboxed |
+| 订阅管理 | 否 | 否 | 否 | Sandboxed |
+| 摘要邮件 | 否 | 否 | 否 | Sandboxed |
+| 自定义 PT 块（如报纸引言） | 是 | 是 | 否 | **Native** |
+
+> 结论：本期自研插件**全部可用 Sandboxed**；仅当需要自定义 Portable Text 块时才考虑 Native（可后置）。
+
+---
+
+## 4. 插件开发流程（自研）
+
+```sh
+pnpm dlx @emdash-cms/plugin-cli init pulse-review
+cd pulse-review
+pnpm install
+pnpm run test
+# 实现 src/plugin.ts + emdash-plugin.jsonc
+pnpm exec emdash-plugin validate
+pnpm run build
+```
+
+- 运行时逻辑在 `src/plugin.ts`（`SandboxedPlugin` 默认导出）。
+- 权限/路由/MCP/storage 声明在 `emdash-plugin.jsonc`。
+- 测试：`createPluginTestHost()`（快）与 `createPluginRuntimeTestHost()`（真实内容/评论/邮件路径）。
+- 生产边界优先于 skill 示例：以导出类型与实际运行测试为准。
+
+---
+
+## 5. 安装与授权注意
+
+- 从注册表安装会展示**声明的能力与 MCP 工具**，需管理员**逐项批准**。
+- 新增能力 / 路由转公开 / 新增 MCP 工具 → **需重新授权**。
+- 沙箱插件无环境变量、文件系统、其他插件存储、未声明主机的访问权。
+- 邮件类插件为独占传输，切换需重新配置并验证。
+
+---
+
+## 6. 已确认
+
+- ✅ **D4**：订阅采用社区 **`bulletin`**（不自研 `pulse-subscriptions`）。
+- ✅ **D5**：邮件传输采用 **Resend**（`emdash-plugin-resend`）。
+- ✅ **D14**：评论 AI 审核采用 **Cloudflare Workers AI**（`@emdash-cms/plugin-ai-moderation`）+ 反垃圾插件互补。
+- ✅ 部署：**Cloudflare Workers + D1 + R2 + Workers AI**。
+- ⏳ 待定：分析插件（Cloudflare vs Umami）、SEO 套件是否引入。
