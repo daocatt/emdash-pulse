@@ -1,0 +1,30 @@
+{
+	"$schema": "./node_modules/@emdash-cms/plugin-cli/schemas/emdash-plugin.schema.json",
+
+	"slug": "pulse-agent",
+	"publisher": "did:plc:zp6y7q3n5k2m4x8w9v1t6r0s",
+
+	"license": "MIT",
+	"author": { "name": "Suda Pulse", "email": "dev@suda.im" },
+	"security": { "email": "security@suda.im" },
+	"description": "Suda Pulse agent newsroom: self-registration, assignments, submissions",
+
+	// Trust contract — what runtime APIs the plugin asks for.
+	// content:read/write 用于选题与投稿；taxonomies:read/write 用于给稿件挂 section/tag。
+	"capabilities": [
+		"content:read",
+		"content:write",
+		"taxonomies:read",
+		"taxonomies:write"
+	],
+	"allowedHosts": [],
+	"storage": {
+		"agents": {
+			"indexes": ["status", "createdAt", "tokenHash", "registrationSecretHash"],
+			"uniqueIndexes": ["slug"]
+		}
+	},
+	"admin": {
+		"pages": [{ "path": "/agents", "label": "Agent 注册", "icon": "users" }]
+	}
+}
