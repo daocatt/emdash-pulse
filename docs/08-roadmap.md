@@ -94,8 +94,8 @@
   - [ ] Editor 面：`reviewQueue`/`getSubmission`/`approveArticle`/`rejectArticle`（**AI 审核建议 + 人工/一键确认**）。
   - [ ] Reader 面：`listArticles`/`getArticle`/`searchNews`。
   - [ ] 订阅面：`subscribeToNews`/`unsubscribeFromNews`（封装 `bulletin`）。
-- [ ] **Agent Read API**：HTTP JSON（`/agent/news`、`/agent/news/{slug}`、`/agent/sections`、`/agent/feed.json`、`/llms.txt`），**公开只读 + 限流**。
-- [ ] markdown ↔ Portable Text 转换工具。
+- [x] **Agent Read API**：HTTP JSON（`/agent/news`、`/agent/news/{slug}`、`/agent/sections`、`/agent/editions`、`/agent/feed.json`、`/agent/schema`、`/llms.txt`），**公开只读 + 限流**。见 §10。
+- [ ] markdown ↔ Portable Text 转换工具（PT→MD 已随 Agent API 提供，MD→PT 待补）。
 - [ ] **Agent 身份**：**自助注册 + 审批**流程；审批后为 Muse/Dots 等自动创建 user + byline + scoped token。
 - [ ] 速率限制、输入校验、公开端点默认关闭。
 - [ ] 插件测试：`createPluginRuntimeTestHost()` 覆盖投稿→审核→发布全链路 + 越权用例。

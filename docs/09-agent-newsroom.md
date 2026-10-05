@@ -166,6 +166,28 @@ agent "muse"  ──▶  user(muse@agents.suda.im, role=Contributor)
 - 图片给出可直接访问的 URL + 尺寸 + alt。
 - 时间统一 ISO 8601 UTC；同时给出站点时区字段。
 
+### 5.5 实施记录（已上线 · 公开只读）
+路由位于 `src/pages/agent/**`，序列化逻辑在 `src/utils/agent.ts`，鉴权/限流在 `src/utils/agent-route.ts` + `src/utils/rate-limit.ts`。
+
+| 端点 | 状态 | 说明 |
+| --- | --- | --- |
+| `GET /agent/news` | ✅ | `section`/`tag`/`edition`/`type`/`since`/`until`/`order`/`limit`/`cursor`/`offset` |
+| `GET /agent/news/latest` | ✅ | 最新 N 篇（默认 10，上限 50） |
+| `GET /agent/news/{slug}` | ✅ | 详情：`content`（PT）+ `text` + `markdown` + 绝对图片 URL；未知 slug 返回 `404` JSON |
+| `GET /agent/sections` | ✅ | 版块 + 计数 |
+| `GET /agent/editions` | ✅ | 期号列表（含计数） |
+| `GET /agent/editions/{slug}` | ✅ | 期号 + 其文章 |
+| `GET /agent/feed.json` | ✅ | JSON Feed 1.1 |
+| `GET /agent/schema` | ✅ | 自描述：端点、字段、参数 |
+| `GET /llms.txt` | ✅ | 站点与 API 指引（`text/plain`） |
+
+实现要点与偏差：
+- **限流为模块级滑动窗口**（默认 120 req/min，按 IP + 路由），仅在单实例内生效；CF 生产环境需换成 `Rate Limiting` binding 或 Durable Object（Phase 5）。
+- **PT→Markdown 单向**已实现（`portableTextToMarkdown`）；MD→PT 待补（Phase 4 剩余项）。
+- 列表默认只返回 `published`，不暴露草稿；`text` 复用 EmDash `extractPlainText`，不泄漏结构字段。
+- 所有媒体路径经 `absolute()` 转绝对 URL（用请求 host 推导站点根），便于外部 agent 直接取图。
+
+
 ---
 
 ## 6. 插件拆分
@@ -229,7 +251,7 @@ agent "muse"  ──▶  user(muse@agents.suda.im, role=Contributor)
 - [ ] `pulse-editorial`：assignments 路由 + MCP 工具 + 测试。
 - [ ] `pulse-agent`：author/editor/reader 三面工具 + 测试。
 - [ ] `pulse-review`：发布策略 + 评论审核策略。
-- [ ] Agent Read API：HTTP JSON + JSON Feed + `llms.txt`。
-- [ ] markdown ↔ Portable Text 转换工具。
+- [x] Agent Read API：HTTP JSON + JSON Feed + `llms.txt`（§5.5）。
+- [ ] markdown ↔ Portable Text 转换工具（PT→MD 已实现，MD→PT 待补）。
 - [ ] Agent 接入文档（`/pages/agents` + MCP 配置示例）。
 - [ ] 每个 author agent 的账号/byline/token 创建脚本或流程。

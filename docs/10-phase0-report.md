@@ -1,4 +1,4 @@
-# 10 · Phase 0/1/2 实施报告
+# 10 · Phase 0/1/2/4a 实施报告
 
 > 脚手架、验证、内容模型与报纸前台阶段的记录。随实施推进更新。
 
@@ -17,6 +17,7 @@
 | Spike 4 | Cloudflare Workers AI 评论审核 | ⏳ 待 CF 账号/绑定 |
 | Spike 6 | R2 媒体上传/读取 | ⏳ 待 CF 账号（本地用 local storage，媒体管线已通） |
 | **Phase 2** | 报纸前台（主题/组件/页面/归档/搜索/Feed） | ✅ **完成**（见下） |
+| **Phase 4a** | Agent Read API（9 个公开只读端点 + 限流） | ✅ **完成**（见下） |
 
 ## Phase 1 结果（内容模型与后台）
 
@@ -64,6 +65,25 @@
 5. **布尔字段不能直接用于 `where`**：`WhereValue = string | string[] | WhereRange`，不含 boolean。首页「头条」改用 `where: { priority: "lead" }`（select 字符串）而非 `is_featured: true`。
 6. **`getDb()` 不是公开导出**：无法在脚本/路由里直接拿到 Kysely 实例（`FTSManager` 是公开的，但需要 db 句柄）。这限制了程序化的索引维护，故采用「改配置 + 重跑 seed」的绕行。
 7. **报头搜索的 `routeMap` 占位符**：`LiveSearch` 支持 `:collection` / `:id` / `:slug` / `:path`；本项目用 `{ articles: "/articles/:slug", pages: "/pages/:slug" }`。
+
+## Phase 4a 结果（Agent Read API，公开只读）
+
+| 项 | 状态 | 证据 |
+| --- | :-: | --- |
+| 列表/详情 | ✅ | `/agent/news`（section/tag/edition/type/since/until/order/limit/cursor/offset）、`/agent/news/latest`、`/agent/news/{slug}`（404 返回 JSON） |
+| 版块/期号 | ✅ | `/agent/sections`（含计数）、`/agent/editions`、`/agent/editions/{slug}` |
+| Feed / 自描述 | ✅ | `/agent/feed.json`（JSON Feed 1.1）、`/agent/schema`、`/llms.txt`（`text/plain`） |
+| 序列化 | ✅ | `src/utils/agent.ts`：摘要/详情、`portableTextToMarkdown`（PT→MD）、绝对图片 URL、站点上下文 |
+| 鉴权/限流 | ✅ | `src/utils/agent-route.ts` + `rate-limit.ts`（模块级滑动窗口 120 req/min，IP + 路由） |
+| 冒烟测试 | ✅ | 10 条端点全部符合预期（含 404 用例）；`npx tsc --noEmit` 通过 |
+
+### Phase 4a 新增关键发现
+
+1. **列表默认只暴露 `published`**：Agent 读端点不复用后台查询的宽松过滤，显式 `where: { status: "published" }`，避免草稿经公开 API 泄漏。
+2. **纯文本提取应复用 EmDash `extractPlainText`**：自研朴素递归会把 `_type`/`style` 等结构字段当正文（产出 `"block normal"` 噪声）；改为直接 `export { extractPlainText } from "emdash"`。
+3. **限流需按运行时区分**：模块级滑动窗口只在单实例内有效；Cloudflare Workers 多 isolate 下需改用 Rate Limiting binding 或 Durable Object（列入 Phase 5）。
+4. **媒体 URL 需转绝对**：DB 中存的是 `/_emdash/api/media/file/...` 相对路径，外部 agent 无法直接取用；`absolute()` 用请求 host 推导站点根。
+5. **PT→MD 与 MD→PT 不对称**：从 Portable Text 生成 Markdown 是纯遍历、可无歧义完成；反向需处理 Markdown 的嵌套/内联语义，成本更高，故先做单向（Agent 投稿面 MD→PT 待 Phase 4 剩余项）。
 
 ## Spike 1 结果（已通过）
 

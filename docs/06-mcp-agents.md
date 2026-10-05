@@ -238,6 +238,6 @@ subscribe(email) ─▶ bulletin 存 pending + 生成确认 token ─▶ Resend 
 - [ ] 用 `search_docs` 核对内置 MCP 端点、scope、工具清单、`ctx.content.create` 返回结构。
 - [ ] `pulse-agent` / `pulse-editorial` 脚手架 + 路由 + MCP 工具 + 测试。
 - [ ] markdown ↔ Portable Text 转换工具。
-- [ ] Agent Read API（HTTP JSON + JSON Feed + `llms.txt`）。
+- [x] Agent Read API（HTTP JSON + JSON Feed + `llms.txt`）——见 [09-agent-newsroom.md §5.5](./09-agent-newsroom.md)。
 - [ ] 订阅封装（bulletin）+ 退订 token。
 - [ ] Agent 接入文档（`/pages/agents`）。
