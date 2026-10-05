@@ -3,7 +3,7 @@
 
 /// <reference types="emdash/locals" />
 
-import type { BylineSummary, ContentBylineCredit, TaxonomyTerm, PortableTextBlock } from "emdash";
+import type { BylineSummary, ContentBylineCredit, TaxonomyTerm, PortableTextBlock, ReferencePage } from "emdash";
 
 export interface Article {
   id: string;
@@ -12,10 +12,11 @@ export interface Article {
   title: string;
   deck?: string;
   content: PortableTextBlock[];
-  article_type?: string;
+  article_type: string;
   featured_image?: { id: string; src?: string; alt?: string; width?: number; height?: number; filename?: string; mimeType?: string; blurhash?: string; dominantColor?: string; focalX?: number; focalY?: number; provider?: string; previewUrl?: string; meta?: Record<string, unknown>; darkVariant?: { id: string; src?: string; alt?: string; width?: number; height?: number; filename?: string; mimeType?: string; blurhash?: string; dominantColor?: string; focalX?: number; focalY?: number; provider?: string; previewUrl?: string; meta?: Record<string, unknown> } };
   image_caption?: string;
   photo_credit?: string;
+  gallery?: { "image": { id: string; src?: string; alt?: string; width?: number; height?: number; filename?: string; mimeType?: string; blurhash?: string; dominantColor?: string; focalX?: number; focalY?: number; provider?: string; previewUrl?: string; meta?: Record<string, unknown>; darkVariant?: { id: string; src?: string; alt?: string; width?: number; height?: number; filename?: string; mimeType?: string; blurhash?: string; dominantColor?: string; focalX?: number; focalY?: number; provider?: string; previewUrl?: string; meta?: Record<string, unknown> } }; "caption"?: string | null; "credit"?: string | null }[];
   excerpt?: string;
   review_status: string;
   review_note?: string;
@@ -27,6 +28,47 @@ export interface Article {
   author_agent?: string;
   allow_comments?: boolean;
   correction?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  publishedAt: Date | null;
+  byline?: BylineSummary | null;
+  bylines?: ContentBylineCredit[];
+  terms?: Record<string, TaxonomyTerm[]>;
+}
+
+export interface Edition {
+  id: string;
+  slug: string | null;
+  status: string;
+  title: string;
+  period_type: string;
+  year: number;
+  period_no: number;
+  cover_image?: { id: string; src?: string; alt?: string; width?: number; height?: number; filename?: string; mimeType?: string; blurhash?: string; dominantColor?: string; focalX?: number; focalY?: number; provider?: string; previewUrl?: string; meta?: Record<string, unknown>; darkVariant?: { id: string; src?: string; alt?: string; width?: number; height?: number; filename?: string; mimeType?: string; blurhash?: string; dominantColor?: string; focalX?: number; focalY?: number; provider?: string; previewUrl?: string; meta?: Record<string, unknown> } };
+  summary?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  publishedAt: Date | null;
+  byline?: BylineSummary | null;
+  bylines?: ContentBylineCredit[];
+  terms?: Record<string, TaxonomyTerm[]>;
+}
+
+export interface Assignment {
+  id: string;
+  slug: string | null;
+  status: string;
+  title: string;
+  brief: string;
+  section?: string;
+  tags?: string;
+  assigned_agent?: string;
+  deadline?: string;
+  task_status: string;
+  priority?: string;
+  claimed_by?: string;
+  claimed_at?: string;
+  created_by?: string;
   createdAt: Date;
   updatedAt: Date;
   publishedAt: Date | null;
@@ -49,9 +91,24 @@ export interface Page {
   terms?: Record<string, TaxonomyTerm[]>;
 }
 
+export interface ArticleReferences {
+  edition: ReferencePage<Edition>;
+  assignment: ReferencePage<Assignment>;
+}
+
+export interface AssignmentReferences {
+  submitted_article: ReferencePage<Article>;
+}
+
 declare module "emdash" {
   interface EmDashCollections {
     articles: Article;
+    editions: Edition;
+    assignments: Assignment;
     pages: Page;
+  }
+  interface EmDashCollectionReferences {
+    articles: ArticleReferences;
+    assignments: AssignmentReferences;
   }
 }

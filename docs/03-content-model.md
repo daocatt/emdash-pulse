@@ -143,7 +143,7 @@
 | `tags` | string | | 建议标签（逗号分隔） |
 | `assigned_agent` | string | | 指定 author agent（如 `muse`），空=公开征集 |
 | `deadline` | datetime | | 截止时间 |
-| `status` | select | ✅ | `open` / `claimed` / `submitted` / `done` / `cancelled` |
+| `task_status` | select | ✅ | `open` / `claimed` / `submitted` / `done` / `cancelled`（**注意**：`status` 是 EmDash 保留字段名，故用 `task_status`） |
 | `priority` | select | | low/normal/high |
 | `claimed_by` | string | | 领取的 agent |
 | `claimed_at` | datetime | | |
@@ -304,3 +304,14 @@
 - 新增 required 字段前先回填已有数据。
 - 不改 taxonomy `name`（破坏性）。
 - `npx emdash export-seed --with-content` 备份；`npx emdash schema get <slug>` 校验。
+
+### 保留字段名（不可用作 field slug）
+
+`id` / `slug` / `status` / `author_id` / `primary_byline_id` / `created_at` / `updated_at` / `published_at` / `scheduled_at` / `deleted_at` / `version` / `live_revision_id` / `draft_revision_id` / `terms` / `bylines` / `byline`。
+（来源：`emdash/src/schema/types.ts` 的 `RESERVED_FIELD_SLUGS`。）保留集合名：`content` / `media` / `users` / `revisions` / `taxonomies` / `options` / `audit_logs` / `reorder` / `relations`。
+
+### seed 与本地媒体
+
+- `$media` 引用在 `npx emdash seed` 时经 **SSRF 校验**（Cloudflare DoH `cloudflare-dns.com`）后下载。受限网络下该域名不可达会导致下载失败、图片字段留空（schema/内容仍会成功导入）。
+- 本地兜底：`node scripts/seed-local-media.mjs`（dev server 需运行）——用普通 fetch 下载图片、经媒体 API 落盘、再写回文章字段并发布。详见 `10-phase0-report.md`。
+- **PUT 内容只写 draft revision**；已发布文章需再 `POST /publish` 才会让字段生效到 live（受 `pulse-review` 门禁约束）。

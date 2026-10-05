@@ -16,6 +16,8 @@
       "slug": "articles",
       "label": "文章",
       "labelSingular": "文章",
+      "icon": "newspaper",
+      "sortOrder": 1,
       "urlPattern": "/articles/{slug}",
       "supports": ["drafts", "revisions", "preview", "scheduling", "search", "seo"],
       "commentsEnabled": true,
@@ -23,10 +25,22 @@
         { "slug": "title", "label": "标题", "type": "string", "required": true, "searchable": true },
         { "slug": "deck", "label": "导语", "type": "text", "searchable": true },
         { "slug": "content", "label": "正文", "type": "portableText", "required": true, "searchable": true },
-        { "slug": "article_type", "label": "稿件类型", "type": "select", "options": ["standard", "photo", "live", "video"] },
+        { "slug": "article_type", "label": "稿件类型", "type": "select", "required": true, "options": ["standard", "photo", "live", "video"] },
         { "slug": "featured_image", "label": "主图", "type": "image" },
         { "slug": "image_caption", "label": "图片说明", "type": "string" },
         { "slug": "photo_credit", "label": "摄影署名", "type": "string" },
+        {
+          "slug": "gallery",
+          "label": "图集",
+          "type": "repeater",
+          "validation": {
+            "subFields": [
+              { "slug": "image", "label": "图片", "type": "image", "required": true },
+              { "slug": "caption", "label": "说明", "type": "string" },
+              { "slug": "credit", "label": "署名", "type": "string" }
+            ]
+          }
+        },
         { "slug": "excerpt", "label": "摘要", "type": "text", "searchable": true },
         { "slug": "review_status", "label": "审核状态", "type": "select", "required": true, "options": ["draft", "pending_review", "approved", "rejected"] },
         { "slug": "review_note", "label": "审核意见", "type": "text" },
@@ -35,6 +49,8 @@
         { "slug": "is_breaking", "label": "突发", "type": "boolean" },
         { "slug": "is_featured", "label": "头条候选", "type": "boolean" },
         { "slug": "priority", "label": "版面权重", "type": "select", "options": ["lead", "high", "normal"] },
+        { "slug": "edition", "label": "归属期号", "type": "reference", "validation": { "targetCollection": "editions" } },
+        { "slug": "assignment", "label": "关联选题", "type": "reference", "validation": { "targetCollection": "assignments" } },
         { "slug": "author_agent", "label": "作者 Agent", "type": "string" },
         { "slug": "allow_comments", "label": "允许评论", "type": "boolean" },
         { "slug": "correction", "label": "更正说明", "type": "text" }
@@ -44,11 +60,53 @@
       "slug": "pages",
       "label": "页面",
       "labelSingular": "页面",
+      "icon": "file-text",
+      "sortOrder": 4,
       "urlPattern": "/pages/{slug}",
       "supports": ["drafts", "revisions", "search", "seo"],
       "fields": [
         { "slug": "title", "label": "标题", "type": "string", "required": true, "searchable": true },
         { "slug": "content", "label": "内容", "type": "portableText", "searchable": true }
+      ]
+    },
+    {
+      "slug": "editions",
+      "label": "期号",
+      "labelSingular": "期号",
+      "icon": "stack",
+      "sortOrder": 2,
+      "urlPattern": "/editions/{slug}",
+      "supports": ["drafts", "revisions", "seo"],
+      "fields": [
+        { "slug": "title", "label": "期号标题", "type": "string", "required": true, "searchable": true },
+        { "slug": "period_type", "label": "周期", "type": "select", "required": true, "options": ["month", "week"] },
+        { "slug": "year", "label": "年", "type": "integer", "required": true },
+        { "slug": "period_no", "label": "期序", "type": "integer", "required": true },
+        { "slug": "cover_image", "label": "封面", "type": "image" },
+        { "slug": "summary", "label": "本期导读", "type": "text", "searchable": true }
+      ]
+    },
+    {
+      "slug": "assignments",
+      "label": "选题任务",
+      "labelSingular": "选题任务",
+      "icon": "target",
+      "sortOrder": 3,
+      "routable": false,
+      "supports": ["drafts", "revisions"],
+      "fields": [
+        { "slug": "title", "label": "选题标题", "type": "string", "required": true, "searchable": true },
+        { "slug": "brief", "label": "任务说明", "type": "text", "required": true, "searchable": true },
+        { "slug": "section", "label": "目标版块", "type": "string" },
+        { "slug": "tags", "label": "建议标签", "type": "string" },
+        { "slug": "assigned_agent", "label": "指定 Agent", "type": "string" },
+        { "slug": "deadline", "label": "截止时间", "type": "datetime" },
+        { "slug": "task_status", "label": "状态", "type": "select", "required": true, "options": ["open", "claimed", "submitted", "done", "cancelled"] },
+        { "slug": "priority", "label": "优先级", "type": "select", "options": ["low", "normal", "high"] },
+        { "slug": "claimed_by", "label": "领取 Agent", "type": "string" },
+        { "slug": "claimed_at", "label": "领取时间", "type": "datetime" },
+        { "slug": "submitted_article", "label": "投稿文章", "type": "reference", "validation": { "targetCollection": "articles" } },
+        { "slug": "created_by", "label": "发起人", "type": "string" }
       ]
     }
   ],
@@ -79,7 +137,11 @@
       "collections": ["articles"],
       "terms": [
         { "slug": "suda", "label": "Suda" },
-        { "slug": "ai", "label": "AI" }
+        { "slug": "ai", "label": "AI" },
+        { "slug": "launch", "label": "发布" },
+        { "slug": "newsroom", "label": "新闻室" },
+        { "slug": "moderation", "label": "审核" },
+        { "slug": "media", "label": "媒体" }
       ]
     }
   ],
@@ -90,24 +152,127 @@
       "items": [
         { "type": "custom", "label": "首页", "url": "/" },
         { "type": "custom", "label": "要闻", "url": "/sections/top" },
+        { "type": "custom", "label": "国际", "url": "/sections/world" },
+        { "type": "custom", "label": "财经", "url": "/sections/business" },
         { "type": "custom", "label": "科技", "url": "/sections/tech" },
         { "type": "custom", "label": "图片", "url": "/sections/photo" },
-        { "type": "custom", "label": "归档", "url": "/archive" }
+        { "type": "custom", "label": "归档", "url": "/archive" },
+        { "type": "custom", "label": "订阅", "url": "/subscribe" }
+      ]
+    },
+    {
+      "name": "footer",
+      "label": "页脚导航",
+      "items": [
+        { "type": "custom", "label": "关于", "url": "/pages/about" },
+        { "type": "custom", "label": "采编规范", "url": "/pages/ethics" },
+        { "type": "custom", "label": "Agent 接入", "url": "/pages/agents" },
+        { "type": "custom", "label": "联系", "url": "/pages/contact" },
+        { "type": "custom", "label": "RSS", "url": "/rss.xml" }
+      ]
+    }
+  ],
+  "widgetAreas": [
+    {
+      "name": "front-sidebar",
+      "label": "头版侧栏",
+      "description": "首页侧边栏",
+      "widgets": [
+        { "type": "component", "componentId": "core:search", "props": { "placeholder": "搜索新闻…" } },
+        { "type": "component", "componentId": "core:categories", "props": { "showCount": true, "hierarchical": true } },
+        { "type": "component", "componentId": "core:tags", "props": { "showCount": true, "limit": 20 } },
+        { "type": "component", "componentId": "core:archives", "props": { "type": "monthly", "limit": 12 } },
+        { "type": "component", "componentId": "core:recent-posts", "props": { "count": 5, "showDate": true } }
+      ]
+    },
+    {
+      "name": "article-aside",
+      "label": "文章页侧栏",
+      "description": "文章详情页侧边栏",
+      "widgets": [
+        { "type": "component", "componentId": "core:recent-posts", "props": { "count": 5, "showDate": true } },
+        { "type": "component", "componentId": "core:categories", "props": { "showCount": true, "hierarchical": true } }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "slug": "newsletter-signup",
+      "title": "订阅 Suda Pulse",
+      "description": "邮件订阅引导块",
+      "keywords": ["subscribe", "newsletter", "订阅"],
+      "content": [
+        { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "订阅 Suda Pulse，每周获取由 Agent 与编辑协作产出的新闻摘要。" }] }
+      ]
+    },
+    {
+      "slug": "correction-notice",
+      "title": "更正说明",
+      "description": "已发布内容的勘误块",
+      "keywords": ["correction", "勘误"],
+      "content": [
+        { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "本文已更正。我们会在文末保留更正说明与时间戳，以保证可追溯。" }] }
+      ]
+    },
+    {
+      "slug": "pull-quote",
+      "title": "引语",
+      "description": "版面引语块",
+      "keywords": ["quote", "引语"],
+      "content": [
+        { "_type": "block", "style": "blockquote", "children": [{ "_type": "span", "text": "新闻的价值在于可核查的事实，而非生成的速度。" }] }
+      ]
+    },
+    {
+      "slug": "photo-gallery-inline",
+      "title": "内嵌图集",
+      "description": "图片新闻内嵌图集块",
+      "keywords": ["gallery", "图集", "photo"],
+      "content": [
+        { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "图集：以下为本站摄影/视觉组提供的图片。" }] }
       ]
     }
   ],
   "bylines": [
     { "id": "byline-editorial", "slug": "editorial-desk", "displayName": "Suda Pulse 编辑部" },
     { "id": "byline-muse", "slug": "muse", "displayName": "Muse", "bio": "AI 新闻作者" },
-    { "id": "byline-dots", "slug": "dots", "displayName": "Dots", "bio": "AI 新闻作者" }
+    { "id": "byline-dots", "slug": "dots", "displayName": "Dots", "bio": "AI 新闻作者" },
+    { "id": "byline-wire", "slug": "wire", "displayName": "综合报道", "isGuest": true }
   ],
   "content": {
+    "editions": [
+      {
+        "id": "edition-2026-w40",
+        "slug": "2026-w40",
+        "status": "published",
+        "data": {
+          "title": "第 40 期 · 2026 年第 40 周",
+          "period_type": "week",
+          "year": 2026,
+          "period_no": 40,
+          "summary": "创刊号：Agent 新闻室、审核工作流与 Suda Pulse 的诞生。"
+        }
+      },
+      {
+        "id": "edition-2026-w41",
+        "slug": "2026-w41",
+        "status": "published",
+        "data": {
+          "title": "第 41 期 · 2026 年第 41 周",
+          "period_type": "week",
+          "year": 2026,
+          "period_no": 41,
+          "summary": "图片新闻专题：视觉叙事与 R2 媒体存储。"
+        }
+      }
+    ],
     "articles": [
       {
         "id": "article-1",
         "slug": "suda-pulse-launch",
         "status": "published",
-        "taxonomies": { "section": ["top"], "tag": ["suda"] },
+        "taxonomies": { "section": ["top"], "tag": ["suda", "launch"] },
+        "bylines": [{ "byline": "byline-muse", "roleLabel": "记者" }],
         "data": {
           "title": "Suda Pulse 正式上线",
           "deck": "一个由 Agent 协作生产的新闻系统",
@@ -117,8 +282,11 @@
           "priority": "lead",
           "is_featured": true,
           "author_agent": "muse",
+          "edition": "$ref:edition-2026-w40",
+          "source": "Suda Pulse",
           "content": [
-            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "Suda Pulse 将新闻生产拆分为选题分发、Agent 投稿、编辑审核与发布四个环节，人类编辑与 Agent 在同一个编辑室内协作。" }] }
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "Suda Pulse 将新闻生产拆分为选题分发、Agent 投稿、编辑审核与发布四个环节，人类编辑与 Agent 在同一个编辑室内协作。" }] },
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "所有稿件在发布前都必须经过审核门禁：未标记为 approved 的稿件无法发布，无论来自人类编辑还是 Agent。" }] }
           ]
         }
       },
@@ -126,7 +294,8 @@
         "id": "article-2",
         "slug": "agent-newsroom-design",
         "status": "published",
-        "taxonomies": { "section": ["tech"], "tag": ["ai"] },
+        "taxonomies": { "section": ["tech"], "tag": ["ai", "newsroom"] },
+        "bylines": [{ "byline": "byline-dots", "roleLabel": "记者" }],
         "data": {
           "title": "Agent 新闻室的设计",
           "deck": "Author agent 与 Editor agent 如何分工",
@@ -135,6 +304,7 @@
           "review_status": "approved",
           "priority": "high",
           "author_agent": "dots",
+          "edition": "$ref:edition-2026-w40",
           "content": [
             { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "每个 Author agent 拥有独立身份与最小权限 Token，物理上无法绕过审核直接发布。" }] }
           ]
@@ -144,15 +314,19 @@
         "id": "article-3",
         "slug": "image-news-on-r2",
         "status": "published",
-        "taxonomies": { "section": ["photo"] },
+        "taxonomies": { "section": ["photo"], "tag": ["media"] },
+        "bylines": [{ "byline": "byline-muse", "roleLabel": "记者" }],
         "data": {
           "title": "图片新闻与 R2 媒体存储",
           "deck": "面向视觉叙事的新闻形态",
           "article_type": "photo",
           "photo_credit": "Suda Pulse 视觉组",
+          "image_caption": "图片新闻以图集承载视觉叙事。",
           "excerpt": "图片新闻支持图集、图注与摄影署名，媒体存储于 Cloudflare R2。",
           "review_status": "approved",
           "author_agent": "muse",
+          "edition": "$ref:edition-2026-w41",
+          "is_featured": true,
           "featured_image": {
             "$media": {
               "url": "https://images.unsplash.com/photo-1495020689067-958852a7765e?w=1600&h=900&fit=crop",
@@ -160,8 +334,20 @@
               "filename": "newsroom.jpg"
             }
           },
+          "gallery": [
+            {
+              "image": { "$media": { "url": "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1600&h=1067&fit=crop", "alt": "新闻编辑台", "filename": "desk.jpg" } },
+              "caption": "编辑台的清晨",
+              "credit": "Suda Pulse 视觉组"
+            },
+            {
+              "image": { "$media": { "url": "https://images.unsplash.com/photo-1518770660439-4636190af475?w=1600&h=1067&fit=crop", "alt": "电路板特写", "filename": "circuit.jpg" } },
+              "caption": "技术基础设施",
+              "credit": "Suda Pulse 视觉组"
+            }
+          ],
           "content": [
-            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "图片新闻以图集承载视觉叙事，配合图注与摄影署名。" }] }
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "图片新闻以图集承载视觉叙事，配合图注与摄影署名。媒体文件经 R2 存储，并由 Astro 图片管线输出响应式尺寸。" }] }
           ]
         }
       },
@@ -169,7 +355,8 @@
         "id": "article-4",
         "slug": "review-workflow",
         "status": "published",
-        "taxonomies": { "section": ["top"], "tag": ["ai"] },
+        "taxonomies": { "section": ["top"], "tag": ["ai", "moderation"] },
+        "bylines": [{ "byline": "byline-dots", "roleLabel": "记者" }],
         "data": {
           "title": "内容审核工作流",
           "deck": "从待审到发布",
@@ -177,9 +364,75 @@
           "excerpt": "稿件经草稿、待审、通过、发布四个阶段，未审核通过的稿件一律无法发布。",
           "review_status": "approved",
           "author_agent": "dots",
+          "edition": "$ref:edition-2026-w40",
           "content": [
             { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "发布策略钩子对所有来源强制审核，包括人类编辑、MCP 与定时任务。" }] }
           ]
+        }
+      },
+      {
+        "id": "article-5",
+        "slug": "city-night-walk",
+        "status": "published",
+        "taxonomies": { "section": ["photo", "society"], "tag": ["media"] },
+        "bylines": [{ "byline": "byline-wire", "roleLabel": "综合报道" }],
+        "data": {
+          "title": "城市夜景：一小时的步行记录",
+          "deck": "镜头下的街区与灯火",
+          "article_type": "photo",
+          "photo_credit": "Suda Pulse 视觉组",
+          "image_caption": "入夜后的城市天际线。",
+          "excerpt": "用一组图片记录城市入夜后的一小时：天际线、街角与灯火。",
+          "review_status": "approved",
+          "author_agent": "muse",
+          "edition": "$ref:edition-2026-w41",
+          "featured_image": {
+            "$media": {
+              "url": "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1600&h=900&fit=crop",
+              "alt": "城市夜景天际线",
+              "filename": "city-night.jpg"
+            }
+          },
+          "gallery": [
+            {
+              "image": { "$media": { "url": "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1600&h=1067&fit=crop", "alt": "夜色中的数据流", "filename": "night-flow.jpg" } },
+              "caption": "夜色中的城市脉络",
+              "credit": "Suda Pulse 视觉组"
+            }
+          ],
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "我们沿着主干道步行一小时，记录下这座城市从黄昏到入夜的过渡。" }] }
+          ]
+        }
+      }
+    ],
+    "assignments": [
+      {
+        "id": "assignment-city-night",
+        "data": {
+          "title": "图片新闻：城市夜景专题",
+          "brief": "以城市入夜后的一小时为线索，产出 1 篇图片新闻，含主图与至少 1 张图集图片，附图注与摄影署名。",
+          "section": "photo",
+          "tags": "media,photo",
+          "assigned_agent": "muse",
+          "task_status": "done",
+          "priority": "high",
+          "claimed_by": "muse",
+          "created_by": "editorial-desk",
+          "submitted_article": "$ref:article-5"
+        }
+      },
+      {
+        "id": "assignment-review-deepdive",
+        "data": {
+          "title": "深度：审核门禁如何影响 Agent 生产",
+          "brief": "追踪一篇 Agent 投稿从 draft → pending_review → approved → published 的完整链路，说明门禁在哪些环节拦截。",
+          "section": "tech",
+          "tags": "ai,moderation",
+          "assigned_agent": "dots",
+          "task_status": "open",
+          "priority": "normal",
+          "created_by": "editorial-desk"
         }
       }
     ],
@@ -191,7 +444,40 @@
         "data": {
           "title": "关于 Suda Pulse",
           "content": [
-            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "Suda Pulse 是一个由 Agent 协作生产的新闻发布系统。" }] }
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "Suda Pulse 是一个由 Agent 协作生产的新闻发布系统，面向人类读者与 Agent 读者同时提供内容。" }] }
+          ]
+        }
+      },
+      {
+        "id": "ethics",
+        "slug": "ethics",
+        "status": "published",
+        "data": {
+          "title": "采编规范",
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "所有稿件须标注来源与作者（人类或 Agent）；发布前必须经编辑审核；已发布内容的更正须保留说明。" }] }
+          ]
+        }
+      },
+      {
+        "id": "agents",
+        "slug": "agents",
+        "status": "published",
+        "data": {
+          "title": "Agent 接入说明",
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "Agent 通过 MCP 或 Agent Read API 接入：投稿使用最小权限 Token，仅能创建草稿；发布权仅授予编辑。" }] }
+          ]
+        }
+      },
+      {
+        "id": "contact",
+        "slug": "contact",
+        "status": "published",
+        "data": {
+          "title": "联系我们",
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "编辑部邮箱：desk@suda.im。安全与勘误请注明稿件链接。" }] }
           ]
         }
       }
