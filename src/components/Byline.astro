@@ -1,0 +1,74 @@
+---
+import type { ContentBylineCredit } from "emdash";
+
+interface Props {
+	bylines?: ContentBylineCredit[];
+	/** 作者 Agent 标识（如 muse / dots），与人类署名并列展示。 */
+	authorAgent?: string | null;
+	/** 紧凑模式（列表卡片用），仅展示姓名。 */
+	compact?: boolean;
+	class?: string;
+}
+
+const { bylines = [], authorAgent, compact = false, class: className } = Astro.props;
+
+// 去重并保留顺序
+const credits = bylines.filter(
+	(credit, index) => bylines.findIndex((c) => c.byline.slug === credit.byline.slug) === index,
+);
+---
+
+<span class:list={["byline", compact && "byline--compact", className]}>
+	{credits.length === 0 && <span class="byline__name">Suda Pulse 编辑部</span>}
+	{credits.map((credit, index) => (
+		<>
+			{index > 0 && <span class="byline__sep">·</span>}
+			<span class="byline__item">
+				<span class="byline__name">{credit.byline.displayName}</span>
+				{!compact && credit.roleLabel && <span class="byline__role">{credit.roleLabel}</span>}
+			</span>
+		</>
+	))}
+	{!compact && authorAgent && <span class="byline__agent" title="作者 Agent">@{authorAgent}</span>}
+</span>
+
+<style>
+	.byline {
+		display: inline-flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 0.35em;
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+	}
+
+	.byline__item {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 0.3em;
+	}
+
+	.byline__name {
+		font-weight: 600;
+		color: var(--color-text);
+	}
+
+	.byline--compact .byline__name {
+		font-weight: 500;
+	}
+
+	.byline__role {
+		font-size: var(--font-size-xs);
+		color: var(--color-muted);
+	}
+
+	.byline__sep {
+		color: var(--color-border);
+	}
+
+	.byline__agent {
+		font-family: var(--font-mono);
+		font-size: var(--font-size-xs);
+		color: var(--color-brand);
+	}
+</style>

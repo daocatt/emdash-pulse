@@ -1,0 +1,58 @@
+---
+import { formatDate } from "../utils/format";
+
+interface Props {
+	publishedAt?: Date | string | null;
+	readingTime?: number | null;
+	source?: string | null;
+	sourceUrl?: string | null;
+	class?: string;
+}
+
+const { publishedAt, readingTime, source, sourceUrl, class: className } = Astro.props;
+const date = publishedAt ? new Date(publishedAt) : null;
+const iso = date && !Number.isNaN(date.getTime()) ? date.toISOString() : null;
+---
+
+<div class:list={["article-meta", className]}>
+	{iso && (
+		<time datetime={iso} class="article-meta__item">{formatDate(date)}</time>
+	)}
+	{readingTime ? <span class="article-meta__item">{readingTime} 分钟阅读</span> : null}
+	{source &&
+		(sourceUrl ? (
+			<a class="article-meta__item article-meta__source" href={sourceUrl} rel="noopener noreferrer" target="_blank">
+				来源：{source}
+			</a>
+		) : (
+			<span class="article-meta__item">来源：{source}</span>
+		))}
+</div>
+
+<style>
+	.article-meta {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5em 1em;
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+
+	.article-meta__item {
+		display: inline-flex;
+		align-items: center;
+	}
+
+	.article-meta__item + .article-meta__item::before {
+		content: "·";
+		margin-right: 1em;
+		color: var(--color-border);
+	}
+
+	.article-meta__source {
+		color: var(--color-text-secondary);
+		text-decoration: underline;
+		text-underline-offset: 2px;
+	}
+</style>

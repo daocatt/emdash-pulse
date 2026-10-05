@@ -1,0 +1,183 @@
+---
+/**
+ * 全屏灯箱（全局单例，挂在 Base 布局末尾）。
+ *
+ * 任何元素带以下属性即可触发：
+ *   data-lightbox
+ *   data-lightbox-src="<图片 URL>"
+ *   data-lightbox-caption="<说明，可选>"
+ *   data-lightbox-credit="<署名，可选>"
+ *   data-lightbox-group="<分组名，可选；同组可左右切换>"
+ */
+---
+
+<dialog id="suda-lightbox" class="lightbox" aria-label="图片查看器">
+	<button class="lightbox__close" type="button" data-lightbox-close aria-label="关闭">×</button>
+	<button class="lightbox__nav lightbox__nav--prev" type="button" data-lightbox-prev aria-label="上一张">‹</button>
+	<button class="lightbox__nav lightbox__nav--next" type="button" data-lightbox-next aria-label="下一张">›</button>
+
+	<figure class="lightbox__figure">
+		<img class="lightbox__image" data-lightbox-image alt="" />
+		<figcaption class="lightbox__caption" data-lightbox-caption hidden></figcaption>
+	</figure>
+</dialog>
+
+<style>
+	.lightbox {
+		border: none;
+		padding: 0;
+		margin: auto;
+		max-width: min(96vw, 1400px);
+		max-height: 94vh;
+		background: transparent;
+		color: #fff;
+		overflow: visible;
+	}
+
+	.lightbox::backdrop {
+		background: rgba(0, 0, 0, 0.88);
+	}
+
+	.lightbox__figure {
+		margin: 0;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: var(--spacing-3);
+	}
+
+	.lightbox__image {
+		max-width: min(96vw, 1400px);
+		max-height: 82vh;
+		width: auto;
+		height: auto;
+		object-fit: contain;
+	}
+
+	.lightbox__caption {
+		font-size: var(--font-size-sm);
+		line-height: var(--leading-snug);
+		color: rgba(255, 255, 255, 0.85);
+		text-align: center;
+		max-width: 70ch;
+	}
+
+	.lightbox__close,
+	.lightbox__nav {
+		position: fixed;
+		z-index: 2;
+		background: rgba(0, 0, 0, 0.5);
+		border: 1px solid rgba(255, 255, 255, 0.25);
+		color: #fff;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: background var(--transition-fast);
+	}
+
+	.lightbox__close:hover,
+	.lightbox__nav:hover {
+		background: rgba(0, 0, 0, 0.8);
+	}
+
+	.lightbox__close {
+		top: 16px;
+		right: 16px;
+		width: 40px;
+		height: 40px;
+		font-size: 1.6rem;
+		line-height: 1;
+		border-radius: 50%;
+	}
+
+	.lightbox__nav {
+		top: 50%;
+		transform: translateY(-50%);
+		width: 48px;
+		height: 72px;
+		font-size: 2rem;
+		line-height: 1;
+		border-radius: var(--radius);
+	}
+
+	.lightbox__nav--prev {
+		left: 12px;
+	}
+
+	.lightbox__nav--next {
+		right: 12px;
+	}
+</style>
+
+<script>
+	(() => {
+		const dialog = document.getElementById("suda-lightbox") as HTMLDialogElement | null;
+		if (!dialog || dialog.dataset.bound === "1") return;
+		dialog.dataset.bound = "1";
+
+		const imageEl = dialog.querySelector<HTMLImageElement>("[data-lightbox-image]");
+		const captionEl = dialog.querySelector<HTMLElement>("[data-lightbox-caption]");
+		let group: HTMLElement[] = [];
+		let index = 0;
+
+		const itemsInGroup = (el: HTMLElement): HTMLElement[] => {
+			const name = el.dataset.lightboxGroup;
+			if (!name) return [el];
+			return Array.from(
+				document.querySelectorAll<HTMLElement>(`[data-lightbox][data-lightbox-group="${CSS.escape(name)}"]`),
+			);
+		};
+
+		const render = () => {
+			const el = group[index];
+			if (!el || !imageEl) return;
+			imageEl.src = el.dataset.lightboxSrc ?? "";
+			imageEl.alt = el.dataset.lightboxCaption ?? "";
+			if (captionEl) {
+				const parts = [el.dataset.lightboxCaption, el.dataset.lightboxCredit].filter(Boolean);
+				captionEl.textContent = parts.join("　");
+				captionEl.hidden = parts.length === 0;
+			}
+			const multiple = group.length > 1;
+			dialog.querySelector("[data-lightbox-prev]")?.toggleAttribute("hidden", !multiple);
+			dialog.querySelector("[data-lightbox-next]")?.toggleAttribute("hidden", !multiple);
+		};
+
+		const step = (delta: number) => {
+			if (group.length === 0) return;
+			index = (index + delta + group.length) % group.length;
+			render();
+		};
+
+		document.addEventListener("click", (event) => {
+			const target = event.target as HTMLElement;
+			const trigger = target.closest<HTMLElement>("[data-lightbox]");
+			if (trigger) {
+				event.preventDefault();
+				group = itemsInGroup(trigger);
+				index = Math.max(0, group.indexOf(trigger));
+				render();
+				if (!dialog.open) dialog.showModal();
+				return;
+			}
+			if (target.closest("[data-lightbox-close]")) dialog.close();
+			if (target.closest("[data-lightbox-prev]")) step(-1);
+			if (target.closest("[data-lightbox-next]")) step(1);
+		});
+
+		// 点击背景关闭
+		dialog.addEventListener("click", (event) => {
+			if (event.target === dialog) dialog.close();
+		});
+
+		dialog.addEventListener("keydown", (event) => {
+			if (event.key === "ArrowLeft") step(-1);
+			if (event.key === "ArrowRight") step(1);
+		});
+
+		dialog.addEventListener("close", () => {
+			if (imageEl) imageEl.removeAttribute("src");
+		});
+	})();
+</script>

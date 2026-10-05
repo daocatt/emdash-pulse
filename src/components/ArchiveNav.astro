@@ -1,0 +1,141 @@
+---
+interface NavOption {
+	href: string;
+	label: string;
+	current?: boolean;
+}
+
+interface Props {
+	/** 模式切换链接：按月 / 按周。 */
+	modeLinks: { label: string; href: string; active: boolean }[];
+	/** 上一期 / 下一期链接（可选）。 */
+	prevHref?: string | null;
+	nextHref?: string | null;
+	/** 期间选择（月份或周）。 */
+	periodOptions: NavOption[];
+	/** 年份选择。 */
+	yearOptions: NavOption[];
+	class?: string;
+}
+
+const { modeLinks, prevHref, nextHref, periodOptions, yearOptions, class: className } = Astro.props;
+const periodCurrent = periodOptions.find((option) => option.current);
+const yearCurrent = yearOptions.find((option) => option.current);
+---
+
+<nav class:list={["archive-nav", className]} aria-label="归档导航">
+	<div class="archive-nav__modes" role="tablist">
+		{modeLinks.map((link) => (
+			<a class:list={["archive-nav__mode", link.active && "is-active"]} href={link.href} aria-current={link.active ? "page" : undefined}>
+				{link.label}
+			</a>
+		))}
+	</div>
+
+	<div class="archive-nav__controls">
+		{prevHref ? <a class="archive-nav__step" href={prevHref}>← 上一期</a> : <span class="archive-nav__step is-disabled">← 上一期</span>}
+
+		<form class="archive-nav__form" data-archive-form>
+			<label class="sr-only" for="archive-year">年份</label>
+			<select id="archive-year" class="archive-nav__select" data-archive-year>
+				{yearOptions.map((option) => (
+					<option value={option.href} selected={option.current}>{option.label}</option>
+				))}
+			</select>
+
+			<label class="sr-only" for="archive-period">期间</label>
+			<select id="archive-period" class="archive-nav__select" data-archive-period>
+				{periodOptions.map((option) => (
+					<option value={option.href} selected={option.current}>{option.label}</option>
+				))}
+			</select>
+		</form>
+
+		{nextHref ? <a class="archive-nav__step" href={nextHref}>下一期 →</a> : <span class="archive-nav__step is-disabled">下一期 →</span>}
+	</div>
+
+	<p class="archive-nav__current">
+		{yearCurrent?.label}{periodCurrent ? ` · ${periodCurrent.label}` : ""}
+	</p>
+</nav>
+
+<script>
+	(() => {
+		document.querySelectorAll<HTMLElement>("[data-archive-form]").forEach((form) => {
+			const year = form.querySelector<HTMLSelectElement>("[data-archive-year]");
+			const period = form.querySelector<HTMLSelectElement>("[data-archive-period]");
+			[year, period].forEach((select) => {
+				select?.addEventListener("change", () => {
+					if (select.value) window.location.href = select.value;
+				});
+			});
+		});
+	})();
+</script>
+
+<style>
+	.archive-nav {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-4);
+		padding-block: var(--spacing-5);
+		border-bottom: var(--rule-double);
+	}
+
+	.archive-nav__modes {
+		display: flex;
+		gap: var(--spacing-2);
+	}
+
+	.archive-nav__mode {
+		font-family: var(--font-heading);
+		font-size: var(--font-size-lg);
+		padding: 2px 12px;
+		border: var(--rule-hairline);
+		color: var(--color-text-secondary);
+	}
+
+	.archive-nav__mode.is-active {
+		background: var(--color-brand);
+		border-color: var(--color-brand);
+		color: var(--color-on-brand);
+	}
+
+	.archive-nav__controls {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--spacing-3);
+	}
+
+	.archive-nav__step {
+		font-size: var(--font-size-sm);
+		color: var(--color-brand);
+		white-space: nowrap;
+	}
+
+	.archive-nav__step.is-disabled {
+		color: var(--color-muted);
+	}
+
+	.archive-nav__form {
+		display: flex;
+		gap: var(--spacing-2);
+	}
+
+	.archive-nav__select {
+		font: inherit;
+		font-size: var(--font-size-sm);
+		padding: 4px 8px;
+		background: var(--color-surface);
+		color: var(--color-text);
+		border: var(--rule-hairline);
+		border-radius: var(--radius);
+	}
+
+	.archive-nav__current {
+		margin: 0;
+		font-family: var(--font-heading);
+		font-size: var(--font-size-xl);
+	}
+</style>

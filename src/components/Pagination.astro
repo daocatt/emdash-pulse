@@ -1,0 +1,72 @@
+---
+interface Props {
+	/** 当前页码（从 1 开始）。 */
+	page: number;
+	/** 是否还有下一页。 */
+	hasMore: boolean;
+	/** 基础路径，如 /archive/2026/10。 */
+	basePath: string;
+	/** 额外保留的查询参数。 */
+	params?: Record<string, string>;
+	class?: string;
+}
+
+const { page, hasMore, basePath, params = {}, class: className } = Astro.props;
+
+function href(target: number): string {
+	const search = new URLSearchParams(params);
+	if (target > 1) search.set("page", String(target));
+	const qs = search.toString();
+	return qs ? `${basePath}?${qs}` : basePath;
+}
+---
+
+{(page > 1 || hasMore) && (
+	<nav class:list={["pagination", className]} aria-label="分页">
+		{page > 1 ? (
+			<a class="pagination__link" href={href(page - 1)} rel="prev">← 上一页</a>
+		) : (
+			<span class="pagination__link pagination__link--disabled">← 上一页</span>
+		)}
+
+		<span class="pagination__status">第 {page} 页</span>
+
+		{hasMore ? (
+			<a class="pagination__link" href={href(page + 1)} rel="next">下一页 →</a>
+		) : (
+			<span class="pagination__link pagination__link--disabled">下一页 →</span>
+		)}
+	</nav>
+)}
+
+<style>
+	.pagination {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--spacing-4);
+		margin-top: var(--spacing-10);
+		padding-top: var(--spacing-5);
+		border-top: var(--rule-hairline);
+	}
+
+	.pagination__link {
+		font-family: var(--font-heading);
+		font-size: var(--font-size-base);
+		color: var(--color-brand);
+	}
+
+	.pagination__link:hover {
+		text-decoration: underline;
+	}
+
+	.pagination__link--disabled {
+		color: var(--color-muted);
+		cursor: not-allowed;
+	}
+
+	.pagination__status {
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+</style>

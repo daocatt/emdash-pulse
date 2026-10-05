@@ -1,0 +1,152 @@
+---
+import LiveSearch from "emdash/ui/search";
+import { formatMastheadDate } from "../utils/format";
+
+interface Props {
+	siteTitle: string;
+	siteTagline: string;
+	class?: string;
+}
+
+const { siteTitle, siteTagline, class: className } = Astro.props;
+const today = formatMastheadDate();
+const isHome = (Astro.url.pathname.replace(/\/$/, "") || "/") === "/";
+const BrandTag = isHome ? "h1" : "div";
+---
+
+<header class:list={["masthead", className]}>
+	<div class="masthead__utility">
+		<span class="masthead__date">{today}</span>
+		<div class="masthead__tools">
+			<a class="masthead__subscribe" href="/subscribe">订阅</a>
+			<button class="masthead__theme" type="button" data-theme-toggle aria-label="切换深浅色">
+				<span data-theme-icon aria-hidden="true">◐</span>
+			</button>
+		</div>
+	</div>
+
+	<div class="masthead__brand">
+		<BrandTag class="masthead__title">
+			<a class="masthead__title-link" href="/">{siteTitle}</a>
+		</BrandTag>
+		<p class="masthead__tagline">{siteTagline}</p>
+	</div>
+
+	<div class="masthead__search">
+		<LiveSearch
+			placeholder="搜索新闻…"
+			collections={["articles", "pages"]}
+			searchPage="/search"
+			routeMap={{ articles: "/articles/:slug", pages: "/pages/:slug" }}
+		/>
+	</div>
+</header>
+
+<script>
+	(() => {
+		const root = document.documentElement;
+		const button = document.querySelector("[data-theme-toggle]");
+		const icon = document.querySelector("[data-theme-icon]");
+
+		const syncIcon = () => {
+			const theme = root.getAttribute("data-theme") ?? "light";
+			if (icon) icon.textContent = theme === "dark" ? "☀" : "◐";
+		};
+		syncIcon();
+
+		button?.addEventListener("click", () => {
+			const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+			root.setAttribute("data-theme", next);
+			try {
+				localStorage.setItem("suda-pulse-theme", next);
+			} catch {}
+			syncIcon();
+		});
+	})();
+</script>
+
+<style>
+	.masthead {
+		border-bottom: var(--rule-double);
+		padding-top: var(--spacing-4);
+	}
+
+	.masthead__utility {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--spacing-4);
+		font-size: var(--font-size-xs);
+		color: var(--color-muted);
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide);
+	}
+
+	.masthead__tools {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-4);
+	}
+
+	.masthead__subscribe {
+		color: var(--color-brand);
+		font-weight: 700;
+	}
+
+	.masthead__theme {
+		background: none;
+		border: var(--rule-hairline);
+		border-radius: 50%;
+		width: 26px;
+		height: 26px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+		font-size: 0.8rem;
+		color: var(--color-text-secondary);
+	}
+
+	.masthead__brand {
+		text-align: center;
+		padding: var(--spacing-5) 0 var(--spacing-4);
+	}
+
+	.masthead__title {
+		margin: 0;
+		font-family: var(--font-heading);
+		font-size: var(--font-size-6xl);
+		font-weight: var(--font-weight-display);
+		letter-spacing: var(--tracking-tight);
+		line-height: 1;
+		color: var(--color-text);
+	}
+
+	.masthead__title-link {
+		display: inline-block;
+		color: inherit;
+	}
+
+	.masthead__title-link:hover {
+		color: var(--color-text);
+	}
+
+	@media (max-width: 640px) {
+		.masthead__title {
+			font-size: var(--font-size-4xl);
+		}
+	}
+
+	.masthead__tagline {
+		margin: var(--spacing-3) 0 0;
+		font-family: var(--font-heading);
+		font-style: italic;
+		font-size: var(--font-size-base);
+		color: var(--color-text-secondary);
+	}
+
+	.masthead__search {
+		max-width: 420px;
+		margin: 0 auto var(--spacing-4);
+	}
+</style>

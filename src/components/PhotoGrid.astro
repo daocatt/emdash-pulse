@@ -1,0 +1,176 @@
+---
+import type { ArticleEntry } from "../utils/types";
+import { resolveMediaUrl, resolveMediaAlt, resolveGallery } from "../utils/media";
+
+interface Props {
+	articles: ArticleEntry[];
+	title?: string;
+	href?: string;
+	class?: string;
+}
+
+const { articles, title = "图片新闻", href = "/sections/photo", class: className } = Astro.props;
+
+const cards = articles.map((article) => {
+	const data = article.data;
+	const gallery = resolveGallery(data.gallery);
+	return {
+		article,
+		href: `/articles/${article.id}`,
+		image: resolveMediaUrl(data.featured_image) ?? gallery[0]?.url ?? null,
+		alt: resolveMediaAlt(data.featured_image, data.title),
+		title: data.title,
+		caption: data.image_caption ?? data.deck ?? null,
+		count: gallery.length,
+	};
+});
+---
+
+{cards.length > 0 && (
+	<section class:list={["photo-grid", className]}>
+		<header class="photo-grid__header">
+			<h2 class="photo-grid__title"><a href={href}>{title}</a></h2>
+			<a class="photo-grid__more" href={href}>更多图片 →</a>
+		</header>
+
+		<div class="photo-grid__items">
+			{cards.map((card, index) => (
+				<a class:list={["photo-grid__card", index === 0 && "photo-grid__card--feature"]} href={card.href}>
+					<div class="photo-grid__media">
+						{card.image ? (
+							<img src={card.image} alt={card.alt} loading={index === 0 ? "eager" : "lazy"} decoding="async" />
+						) : (
+							<div class="photo-grid__placeholder" aria-hidden="true"></div>
+						)}
+						{card.count > 1 && <span class="photo-grid__count">图集 {card.count}</span>}
+					</div>
+					<div class="photo-grid__body">
+						<h3 class="photo-grid__headline">{card.title}</h3>
+						{card.caption && <p class="photo-grid__caption">{card.caption}</p>}
+					</div>
+				</a>
+			))}
+		</div>
+	</section>
+)}
+
+<style>
+	.photo-grid {
+		padding-block: var(--spacing-8);
+		border-top: var(--rule-double);
+	}
+
+	.photo-grid__header {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--spacing-4);
+		margin-bottom: var(--spacing-6);
+	}
+
+	.photo-grid__title {
+		font-size: var(--font-size-2xl);
+	}
+
+	.photo-grid__title a:hover {
+		color: var(--color-brand);
+	}
+
+	.photo-grid__more {
+		font-size: var(--font-size-sm);
+		color: var(--color-brand);
+	}
+
+	.photo-grid__items {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--spacing-4);
+	}
+
+	@media (min-width: 700px) {
+		.photo-grid__items {
+			grid-template-columns: repeat(2, 1fr);
+		}
+	}
+
+	@media (min-width: 1000px) {
+		.photo-grid__items {
+			grid-template-columns: repeat(3, 1fr);
+			grid-auto-rows: 1fr;
+		}
+
+		.photo-grid__card--feature {
+			grid-column: span 2;
+			grid-row: span 2;
+		}
+	}
+
+	.photo-grid__card {
+		display: flex;
+		flex-direction: column;
+		background: var(--color-surface);
+		border: var(--rule-hairline);
+		overflow: hidden;
+		transition: border-color var(--transition-fast);
+	}
+
+	.photo-grid__card:hover {
+		border-color: var(--color-brand);
+	}
+
+	.photo-grid__media {
+		position: relative;
+		overflow: hidden;
+		aspect-ratio: 16 / 10;
+		background: var(--color-bg-subtle);
+	}
+
+	.photo-grid__card--feature .photo-grid__media {
+		aspect-ratio: 16 / 9;
+	}
+
+	.photo-grid__media img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		transition: transform var(--transition-base);
+	}
+
+	.photo-grid__card:hover .photo-grid__media img {
+		transform: scale(1.03);
+	}
+
+	.photo-grid__placeholder {
+		width: 100%;
+		height: 100%;
+		background: repeating-linear-gradient(45deg, var(--color-bg-subtle), var(--color-bg-subtle) 10px, var(--color-border-subtle) 10px, var(--color-border-subtle) 20px);
+	}
+
+	.photo-grid__count {
+		position: absolute;
+		top: var(--spacing-2);
+		right: var(--spacing-2);
+		background: rgba(0, 0, 0, 0.7);
+		color: #fff;
+		font-size: var(--font-size-xs);
+		padding: 2px 8px;
+	}
+
+	.photo-grid__body {
+		padding: var(--spacing-4);
+	}
+
+	.photo-grid__headline {
+		font-size: var(--font-size-lg);
+	}
+
+	.photo-grid__card--feature .photo-grid__headline {
+		font-size: var(--font-size-2xl);
+	}
+
+	.photo-grid__caption {
+		margin: var(--spacing-2) 0 0;
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+	}
+</style>

@@ -1,0 +1,49 @@
+---
+import { formatDate } from "../utils/format";
+
+interface Props {
+	text: string;
+	date?: Date | string | null;
+	class?: string;
+}
+
+const { text, date, class: className } = Astro.props;
+---
+
+<aside class:list={["correction", className]} role="note" aria-label="更正说明">
+	<span class="correction__label">更正</span>
+	<p class="correction__text">{text}</p>
+	{date && <time class="correction__date" datetime={new Date(date).toISOString()}>{formatDate(date)}</time>}
+</aside>
+
+<style>
+	.correction {
+		margin: var(--spacing-8) 0;
+		padding: var(--spacing-4) var(--spacing-5);
+		border-left: 3px solid var(--color-brand);
+		background: var(--color-brand-subtle);
+	}
+
+	.correction__label {
+		display: inline-block;
+		font-size: var(--font-size-xs);
+		font-weight: 700;
+		letter-spacing: var(--tracking-wide);
+		color: var(--color-brand);
+		margin-bottom: var(--spacing-1);
+	}
+
+	.correction__text {
+		margin: 0;
+		font-size: var(--font-size-sm);
+		line-height: var(--leading-normal);
+		color: var(--color-text);
+	}
+
+	.correction__date {
+		display: block;
+		margin-top: var(--spacing-2);
+		font-size: var(--font-size-xs);
+		color: var(--color-muted);
+	}
+</style>

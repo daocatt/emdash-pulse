@@ -1,0 +1,102 @@
+---
+import type { GalleryItem } from "../utils/media";
+
+interface Props {
+	items: GalleryItem[];
+	/** 灯箱分组名（同组可左右切换）。 */
+	groupId: string;
+	class?: string;
+}
+
+const { items, groupId, class: className } = Astro.props;
+---
+
+{items.length > 0 && (
+	<div class:list={["gallery", className]}>
+		{items.map((item, index) => (
+			<figure class="gallery__item">
+				<button
+					type="button"
+					class="gallery__button"
+					data-lightbox
+					data-lightbox-src={item.url}
+					data-lightbox-caption={item.caption}
+					data-lightbox-credit={item.credit}
+					data-lightbox-group={groupId}
+					aria-label={`查看第 ${index + 1} 张图片`}
+				>
+					<img src={item.url} alt={item.alt} loading="lazy" decoding="async" />
+				</button>
+				{(item.caption || item.credit) && (
+					<figcaption class="gallery__caption">
+						{item.caption && <span class="gallery__text">{item.caption}</span>}
+						{item.credit && <span class="gallery__credit">{item.credit}</span>}
+					</figcaption>
+				)}
+			</figure>
+		))}
+	</div>
+)}
+
+<style>
+	.gallery {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--spacing-4);
+		margin: var(--spacing-8) 0;
+	}
+
+	@media (min-width: 640px) {
+		.gallery {
+			grid-template-columns: repeat(2, 1fr);
+		}
+	}
+
+	@media (min-width: 1000px) {
+		.gallery {
+			grid-template-columns: repeat(3, 1fr);
+		}
+	}
+
+	.gallery__item {
+		margin: 0;
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-2);
+	}
+
+	.gallery__button {
+		display: block;
+		width: 100%;
+		padding: 0;
+		border: none;
+		background: var(--color-bg-subtle);
+		cursor: zoom-in;
+		overflow: hidden;
+		aspect-ratio: 4 / 3;
+	}
+
+	.gallery__button img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		transition: transform var(--transition-base);
+	}
+
+	.gallery__button:hover img {
+		transform: scale(1.03);
+	}
+
+	.gallery__caption {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-between;
+		gap: var(--spacing-2);
+		font-size: var(--font-size-xs);
+		color: var(--color-muted);
+	}
+
+	.gallery__text {
+		color: var(--color-text-secondary);
+	}
+</style>

@@ -28,6 +28,22 @@ export function weekRange(year: number, week: number): DateRange {
 	return { gte: monday.toISOString(), lt: nextMonday.toISOString() };
 }
 
+/** 校验月份是否合法（1-12）。 */
+export function isValidMonth(month: number): boolean {
+	return Number.isInteger(month) && month >= 1 && month <= 12;
+}
+
+/** 校验 ISO 周是否合法（1..52/53）。 */
+export function isValidWeek(year: number, week: number): boolean {
+	return Number.isInteger(week) && week >= 1 && week <= isoWeeksInYear(year);
+}
+
+/** 相对某年月偏移若干月，返回 { year, month }。 */
+export function addMonths(year: number, month: number, delta: number): { year: number; month: number } {
+	const total = year * 12 + (month - 1) + delta;
+	return { year: Math.floor(total / 12), month: (total % 12) + 1 };
+}
+
 /** 某年的 ISO 周总数（52 或 53）。 */
 export function isoWeeksInYear(year: number): number {
 	const last = new Date(Date.UTC(year, 11, 28));
