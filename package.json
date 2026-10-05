@@ -7,10 +7,13 @@
     "seed": "seed/seed.json"
   },
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
-    "build:cf": "DEPLOY_TARGET=cloudflare astro build",
-    "deploy": "DEPLOY_TARGET=cloudflare astro build && wrangler deploy",
+    "plugin:install": "npm --prefix plugins/pulse-review install",
+    "plugin:build": "npm --prefix plugins/pulse-review run build",
+    "plugin:test": "npm --prefix plugins/pulse-review run test",
+    "dev": "npm run plugin:build && astro dev",
+    "build": "npm run plugin:build && astro build",
+    "build:cf": "npm run plugin:build && DEPLOY_TARGET=cloudflare astro build",
+    "deploy": "npm run plugin:build && DEPLOY_TARGET=cloudflare astro build && wrangler deploy",
     "preview": "astro preview",
     "start": "node ./dist/server/entry.mjs",
     "typecheck": "astro check"
@@ -27,6 +30,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
+    "@emdash-cms/sandbox-workerd": "^0.9.2",
     "wrangler": "^4.145.0"
   }
 }

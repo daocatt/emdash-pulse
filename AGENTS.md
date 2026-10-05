@@ -8,7 +8,9 @@
 ## Commands
 
 ```bash
-npm run dev                       # 启动 Astro dev（SQLite data.db + ./uploads）
+npm run dev                       # 构建插件 + 启动 Astro dev（SQLite data.db + ./uploads）
+npm run plugin:build              # 仅构建沙箱插件（plugins/pulse-review）
+npm run plugin:test               # 插件单测
 npx emdash types                  # 从运行中的站点生成类型
 npx emdash secret                 # 生成加密密钥
 HOME=~/.wrangler-a npm run deploy # 构建并部署到 Cloudflare
@@ -25,6 +27,7 @@ HOME=~/.wrangler-a npm run deploy # 构建并部署到 Cloudflare
 | `src/worker.ts` | Cloudflare Worker 入口 + scheduled |
 | `wrangler.jsonc` | D1 / R2 / Workers AI 绑定 + cron |
 | `seed/seed.json` | Schema + 示例内容 |
+| `plugins/pulse-review/` | 沙箱插件：发布门禁（`content:beforePublish`） |
 | `emdash-env.d.ts` | 生成的集合类型（dev 启动时自动更新） |
 
 ## Rules
@@ -36,6 +39,9 @@ HOME=~/.wrangler-a npm run deploy # 构建并部署到 Cloudflare
 - taxonomy 名称必须与 seed 的 `"name"` 完全一致（`section` / `tag`）。
 - Astro 路由缓存启用时，把查询返回的 `cacheHint` 传给 `Astro.cache.set()`；用 `*WithCacheHint` 变体。
 - 按月/周筛选：`where: { published_at: { gte, lt } }`（ISO 字符串，`lt` 为开区间）。
+- **沙箱插件改动后必须 `npm run plugin:build`**：沙箱 entry 内嵌的是**已构建的 `dist/*.mjs`**（读源码文本），指向 TS 会报错；插件 `exports` 需带 `default` 条件（`require.resolve` 解析）。
+- 本地沙箱 runner 用 `@emdash-cms/sandbox-workerd`（需 `workerd`），生产用 `@emdash-cms/cloudflare` 的 `sandbox()`。
+- 调 REST API 时写请求需 `X-EmDash-Request: 1` 头（CSRF）；更新内容用 `PUT`。
 
 ## Skills & Docs
 

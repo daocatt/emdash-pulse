@@ -11,11 +11,11 @@
 - [ ] 从 `~/codes/emdash` 复制工程结构到 `suda-pulse`（astro.config、worker.ts、live.config.ts、tsconfig、wrangler、.env.example、AGENTS.md）。
 - [ ] 配置站点标识：**Suda Pulse / ai.suda.im / Asia/Shanghai**。
 - [ ] `npm install`，`npm run dev` 跑通，admin 可访问；生成并保存 `EMDASH_ENCRYPTION_KEY`。
-- [ ] **Spike 1**：按月/周范围查询（`where: { published_at: { gte, lt } }`）返回正确。
+- [x] **Spike 1**：按月/周范围查询（`where: { published_at: { gte, lt } }`）返回正确。✅ 见 `10-phase0-report.md`
 - [ ] **Spike 2**：`bulletin` 插件安装 + 双确认订阅跑通（含 Resend 发信）。
 - [ ] **Spike 3**：Resend 传输插件（`emdash-plugin-resend`）发出测试邮件。
 - [ ] **Spike 4**：`@emdash-cms/plugin-ai-moderation` + CF Workers AI binding 生效。
-- [ ] **Spike 5**：`@emdash-cms/plugin-cli init` 生成沙箱插件并注册；验证 **scoped token** 权限边界（投稿 token 无发布权）。
+- [x] **Spike 5**：沙箱插件（`pulse-review`）注册并隔离加载；`content:beforePublish` 发布门禁端到端生效（未审核 422 / 通过 200）。✅ 见 `10-phase0-report.md`。**待补**：scoped token 权限边界（投稿 token 无发布权）留待 Phase 4。
 - [ ] **Spike 6**：R2 媒体上传/读取 + Astro `<Image>` 响应式输出。
 - [ ] 用 `search_docs` 核对：内置 MCP 端点/scope/工具、`ctx.content.create` 返回结构、`select` 选项键名、repeater `subFields`。
 

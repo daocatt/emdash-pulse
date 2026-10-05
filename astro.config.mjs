@@ -4,6 +4,7 @@ import react from "@astrojs/react";
 import { defineConfig } from "astro/config";
 import emdash, { local } from "emdash/astro";
 import { sqlite } from "emdash/db";
+import pulseReview from "pulse-review";
 
 const isCloudflare =
 	process.env.DEPLOY_TARGET === "cloudflare" ||
@@ -17,16 +18,21 @@ let emdashConfig = {
 		directory: "./uploads",
 		baseUrl: "/_emdash/api/media/file",
 	}),
+	// 沙箱插件：本地 Node 用 workerd runner，Cloudflare 用 CF 的 sandbox runner。
+	sandboxed: [pulseReview],
+	sandboxRunner: "@emdash-cms/sandbox-workerd/sandbox",
 };
 
 if (isCloudflare) {
 	const { default: cloudflare } = await import("@astrojs/cloudflare");
-	const { d1, r2 } = await import("@emdash-cms/cloudflare");
+	const { d1, r2, sandbox } = await import("@emdash-cms/cloudflare");
 	const configPath = existsSync("wrangler.prod.jsonc") ? "wrangler.prod.jsonc" : "wrangler.jsonc";
 	adapter = cloudflare({ configPath });
 	emdashConfig = {
 		database: d1({ binding: "DB", session: "auto" }),
 		storage: r2({ binding: "MEDIA" }),
+		sandboxed: [pulseReview],
+		sandboxRunner: sandbox(),
 	};
 }
 

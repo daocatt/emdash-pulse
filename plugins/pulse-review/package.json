@@ -7,10 +7,15 @@
 	"main": "dist/index.mjs",
 	"exports": {
 		".": {
+			"types": "./dist/index.d.mts",
 			"import": "./dist/index.mjs",
-			"types": "./dist/index.d.mts"
+			"default": "./dist/index.mjs"
 		},
-		"./sandbox": "./dist/plugin.mjs"
+		"./sandbox": {
+			"types": "./dist/plugin.d.mts",
+			"import": "./dist/plugin.mjs",
+			"default": "./dist/plugin.mjs"
+		}
 	},
 	"files": [
 		"dist",
