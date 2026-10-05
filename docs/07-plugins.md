@@ -41,28 +41,37 @@ EmDash 插件分两类：
 
 | 插件 | 格式 | 职责 | 关键能力 | 优先级 |
 | --- | --- | --- | --- | :-: |
-| `pulse-editorial` | Sandboxed | **选题分发**：创建/领取/状态流转（assignments） | `content:read`、`content:write` | P0 |
-| `pulse-agent` | Sandboxed | **Agent 工具面**：投稿 / 阅读 / 审核 / 订阅封装 | `content:read`、`content:write`、`content:publish`、`taxonomies:read`、`email:send` | P0 |
+| `pulse-editorial` | Sandboxed | **编辑台**：选题分发（创建/列出/结束）+ 投稿审核发布 | `content:read`、`content:write`、`content:publish` | P0 |
+| `pulse-agent` | Sandboxed | **Agent 侧**：注册/审批、选题领取、投稿、订阅意向 | `content:read`、`content:write`、`taxonomies:read`、`taxonomies:write` | P0 |
 | `pulse-review` | Sandboxed | 审核策略：发布策略 + 评论审核策略 + 通知 | `hooks.content-policy:register`、`comments:moderate`（+`users:read`）、`content:read` | P0 |
 | ~~`pulse-subscriptions`~~ | — | **不做了**：改用社区 `bulletin` | — | — |
 | `pulse-digest` | Sandboxed | 摘要邮件（若 `bulletin` 的活动能力不足） | `content:read`、`email:send`、`cron` | P2（按需） |
 
 > 订阅（双确认/退订/文章转邮件）由 **`bulletin`** 承担，不重复自研。仅在需要**自定义摘要格式**时才做 `pulse-digest`。
 
-### 2.1 `pulse-editorial`
-- Storage/collection：`assignments`（`status`/`assignedAgent`/`deadline` 索引）、`agents`（`slug` 唯一）。
-- 路由/MCP：`listAssignments`、`claimAssignment`、`createAssignment`、`updateAssignmentStatus`。
-- cron：超期选题提醒。
+### 2.1 拆分原则（**实施后修订**）
 
-### 2.2 `pulse-agent`
-- 详见 [09-agent-newsroom.md](./09-agent-newsroom.md) 与 [06-mcp-agents.md](./06-mcp-agents.md)。
-- Author 面：`listAssignments`/`claimAssignment`/`submitArticle`/`mySubmissions`。
-- Editor 面：`reviewQueue`/`getSubmission`/`approveArticle`/`rejectArticle`。
-- Reader 面：`listArticles`/`getArticle`/`searchNews` + HTTP JSON API。
-- 订阅面：`subscribeToNews`/`unsubscribeFromNews`（薄封装 `bulletin`）。
-- 投稿强制 `pending_review`；`sourceUrl` 幂等；`author_agent` 取自认证身份。
+- **身份必须与使用它的路由同处一个插件**：沙箱插件的 storage 按插件 ID 隔离，两个插件无法共享 agent 注册表。因此 `pulse-agent` 独占身份（`agents` 存储），并承载全部 Agent 侧路由。
+- **`pulse-editorial` 只做编辑侧**，走 EmDash 会话/令牌 + RBAC，**不需要** agent 身份 → 可以拆出，且**独占 `content:publish`**（Agent 侧插件不持有发布权，最小权限）。
+- **共享状态**是 EmDash `assignments` collection（两插件都经 `ctx.content` 访问），不是插件存储。
+- **凭证头**：沙箱路由收不到 `Authorization`/`Cookie`，agent token 走自定义头 `X-Agent-Token`（路由 `request.headers` 显式声明）。
+- **MCP 限制**：MCP 工具只能挂「私有 + POST + JSON」路由 → 编辑侧全部可作为 MCP 工具；Agent 侧是公开路由，**不作** MCP 工具（改由 HTTP 调用）。
 
-### 2.3 `pulse-review`
+### 2.2 `pulse-editorial`（编辑台）
+
+- 路由（全部私有）：`assignments/create`(`content:create`)、`assignments/list`(`content:read`)、`assignments/close`(`content:edit_any`)、`review/queue`(`content:read_drafts`)、`review/get`(`content:read_drafts`)、`review/approve`(`content:publish_any`)、`review/reject`(`content:edit_any`)、`review/request-changes`(`content:edit_any`)。
+- MCP 工具：`createAssignment`/`listAssignments`/`closeAssignment`/`reviewQueue`/`getSubmission`/`approveArticle`/`rejectArticle`/`requestArticleChanges`。
+- `review/approve` = 设 `review_status=approved` → `getVersioned` → `publish`（受 `pulse-review` 策略约束）。
+
+### 2.3 `pulse-agent`（Agent 侧）
+
+- 存储：`agents`（唯一 `slug`；索引 `status`/`createdAt`/`tokenHash`/`registrationSecretHash`）。
+- 公开路由（`X-Agent-Token` + 限流）：`agents/register`、`agents/status`、`agents/whoami`、`assignments/available`、`assignments/claim`、`submissions/submit`、`submissions/mine`、`subscriptions/subscribe|unsubscribe`。
+- 私有路由（`plugins:manage`）：`agents/list`、`agents/approve`、`agents/reject`、`agents/revoke`，以及 Block Kit 后台审批页 `/agents`。
+- MCP 工具：`listAgentRegistrations`/`approveAgent`/`rejectAgent`/`revokeAgent`。
+- 投稿强制 `pending_review`；`source_url` 幂等；`author_agent` 取自身份；`body` 为 markdown（插件内转 Portable Text）。
+
+### 2.4 `pulse-review`
 - `content:beforePublish` / `beforeSchedule`：非 `approved` 拒绝（含人类 Author 与 Agent）。
 - `comment:moderate`（独占）：与 CF Workers AI 审核配合（AI 给出建议 → 规则/人工决策）。
 - 可选 `content:afterSave`：投稿进入 `pending_review` 时通知编辑。
@@ -151,6 +160,30 @@ audit-log 写入证据（建一篇草稿后 `_plugin_storage` 出现一条 `entr
 > 结论：**在能访问 Cloudflare DoH 的网络（或部署到 CF）重试注册表安装**；本地开发可先用 npm 官方插件与自研沙箱插件。
 
 **`emdash-plugin` CLI 可用命令**：`search` / `info`（只读发现），`init` / `build` / `dev` / `bundle` / `validate`（自研），`publish` / `release`（发布到 atproto 注册表）。**无本地安装命令** —— 安装走 Admin UI / registry API。
+
+---
+
+## 5.2 Phase 4b 自研插件实测（本地）
+
+三个自研沙箱插件经 npm workspaces 链接，`npm run plugin:build`（`--workspaces`）与 `npm run plugin:test` 全绿。
+
+| 插件 | 路由数 | MCP 工具 | 测试 |
+| --- | :-: | :-: | :-: |
+| `pulse-review` | 0（仅 hooks） | — | 4 用例（发布门禁） |
+| `pulse-editorial` | 8 | 8 | 9 用例（审核流转 + 选题） |
+| `pulse-agent` | 14 | 4 | 12 用例（注册/审批/token/限流）+ 11 用例（MD→PT） |
+
+HTTP 冒烟（`/_emdash/api/plugins/<slug>/<route>`）：
+
+| 调用 | 结果 |
+| --- | --- |
+| `POST /pulse-agent/agents/register` | `200`，返回 `agent_id` + 一次性 `registration_secret` |
+| `GET /pulse-agent/agents/whoami`（无 token） | `200` + `{ok:false,error:"UNAUTHORIZED"}`（应用级错误） |
+| `GET /pulse-agent/submissions/mine`（无 token） | 同上 |
+| `POST /pulse-editorial/review/queue`（未登录） | `401 UNAUTHORIZED`（宿主强制鉴权） |
+
+注意：公开路由的响应被 EmDash 包在 `{ success: true, data }` 信封里；私有路由未通过宿主鉴权时直接 `401`。
+
 
 ---
 

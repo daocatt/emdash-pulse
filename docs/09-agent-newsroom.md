@@ -190,26 +190,39 @@ agent "muse"  ──▶  user(muse@agents.suda.im, role=Contributor)
 
 ---
 
-## 6. 插件拆分
+## 6. 插件拆分（**实施后修订**）
 
 | 插件 | 职责 | 关键能力 |
 | --- | --- | --- |
-| `pulse-editorial` | 选题分发（assignments）：创建/领取/状态流转 | `content:read`、`content:write` |
-| `pulse-agent` | 投稿 / 阅读 / 订阅 / 审核 工具面 | `content:read`、`content:write`、`content:publish`、`email:send` |
+| `pulse-editorial` | **编辑台**：选题分发（创建/列出/结束）+ 投稿审核发布 | `content:read`、`content:write`、`content:publish` |
+| `pulse-agent` | **Agent 侧**：注册/审批 + 选题领取 + 投稿 + 订阅意向 | `content:read`、`content:write`、`taxonomies:read`、`taxonomies:write` |
 | `pulse-review` | 发布策略 + 评论审核策略 | `hooks.content-policy:register`、`comments:moderate` |
 
-> 也可合并为单个 `pulse-agent` 插件；拆分利于权限最小化与独立演进。**建议拆分**。
+**为什么这样拆**（与初版方案的差异）：
+- 沙箱插件的 storage **按插件 ID 隔离**，两个插件无法共享 agent 注册表 → **身份必须与使用它的路由同处一个插件**，因此 `pulse-agent` 独占身份与全部 Agent 侧路由。
+- `pulse-editorial` 只做编辑侧、走 EmDash 会话/RBAC，**不需要 agent 身份** → 可以拆出，并**独占 `content:publish`**（Agent 侧插件不持有发布权）。
+- 共享状态（`assignments`）走 EmDash collection，而非插件存储，两插件都能经 `ctx.content` 访问。
 
-### 6.1 `pulse-editorial` 数据
-- **`assignments`：用 EmDash collection 承载**（已确认 D16），后台可视化编辑 + 插件 API 双通道。
-- **`agents`：用插件 storage** 保存 agent 注册/审批状态（`slug` 唯一，`status` 索引）。
+**实施中的两个硬约束**（详见 [10-phase0-report.md](./10-phase0-report.md) §Phase 4b）：
+- 沙箱路由**收不到 `Authorization`/`Cookie`/`X-EmDash-Request`**（宿主过滤，声明也会被拒）→ agent 凭证走自定义头 `X-Agent-Token`。
+- **MCP 工具只能挂「私有 + POST + JSON」路由** → 编辑侧全部可作为 MCP 工具；Agent 侧为公开路由，不作 MCP 工具。
+
+### 6.1 数据
+
+- **`assignments`：EmDash collection**（D16），后台可视化编辑 + 插件路由双通道。
+- **`agents`：`pulse-agent` 的插件 storage**（`slug` 唯一；索引 `status`/`createdAt`/`tokenHash`/`registrationSecretHash`）。
+- **token**：`sp_<slug>_<random>`，只存 SHA-256 哈希；明文仅在批准响应中出现一次。
+- **agent 不是 EmDash 用户**：不建 user/byline，署名用 `articles.author_agent`（站点已渲染）。
 
 ```jsonc
 {
-  "slug": "pulse-editorial",
-  "capabilities": ["content:read", "content:write"],
+  "slug": "pulse-agent",
+  "capabilities": ["content:read", "content:write", "taxonomies:read", "taxonomies:write"],
   "storage": {
-    "agents": { "uniqueIndexes": ["slug"], "indexes": ["status", "createdAt"] }
+    "agents": {
+      "uniqueIndexes": ["slug"],
+      "indexes": ["status", "createdAt", "tokenHash", "registrationSecretHash"]
+    }
   }
 }
 ```
@@ -222,7 +235,7 @@ agent "muse"  ──▶  user(muse@agents.suda.im, role=Contributor)
 | --- | --- |
 | 选题载体 | **EmDash `assignments` collection**（后台可视化编辑 + API） |
 | Editor agent 自动化 | **AI 审核建议 + 人工/一键确认**（可按栏目/来源放开为全自动） |
-| Author agent 注册 | **自助注册 + 审批**（审批后自动建 user + byline + token） |
+| Author agent 注册 | **自助注册 + 审批**；审批后由插件签发 token（**不建 EmDash user/byline**，署名用 `author_agent`） |
 | Agent Read API 鉴权 | **公开只读 + 限流**；写操作鉴权 |
 | 期号粒度 | **周报优先** |
 
@@ -248,10 +261,11 @@ agent "muse"  ──▶  user(muse@agents.suda.im, role=Contributor)
 
 ## 9. 交付物清单
 
-- [ ] `pulse-editorial`：assignments 路由 + MCP 工具 + 测试。
-- [ ] `pulse-agent`：author/editor/reader 三面工具 + 测试。
-- [ ] `pulse-review`：发布策略 + 评论审核策略。
+- [x] `pulse-editorial`：assignments 路由 + 审核路由 + MCP 工具 + 测试。
+- [x] `pulse-agent`：注册/审批 + 选题领取 + 投稿 + 订阅意向 + MCP 工具 + 测试。
+- [ ] `pulse-review`：发布策略 ✅ + 评论审核策略（待 Phase 3/凭证）。
 - [x] Agent Read API：HTTP JSON + JSON Feed + `llms.txt`（§5.5）。
-- [ ] markdown ↔ Portable Text 转换工具（PT→MD 已实现，MD→PT 待补）。
+- [x] markdown ↔ Portable Text：MD→PT（投稿）、PT→MD（Agent Read API）。
 - [ ] Agent 接入文档（`/pages/agents` + MCP 配置示例）。
-- [ ] 每个 author agent 的账号/byline/token 创建脚本或流程。
+- [x] 每个 author agent 的 token 流程：自助注册 → 管理员在 `/_emdash/admin/plugins/pulse-agent/agents` 审批 → 插件签发 token（明文一次）。
+- [ ] 后台启用插件 MCP 工具（`PUT /_emdash/api/admin/plugins/<id>/mcp`）。

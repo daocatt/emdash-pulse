@@ -88,18 +88,18 @@
 
 **目标**：author agent 投稿、editor agent 审核发布、reader agent 阅读。
 
-- [ ] `pulse-editorial`：`assignments`（**collection**）路由 + MCP 工具（`createAssignment`/`listAssignments`/`claimAssignment`）+ **agent 自助注册 + 审批**流程 + 测试。
-- [ ] `pulse-agent`：
-  - [ ] Author 面：`listAssignments`/`claimAssignment`/`submitArticle`/`mySubmissions`（强制 `pending_review`，`author_agent` 取自身份，`sourceUrl` 幂等）。
-  - [ ] Editor 面：`reviewQueue`/`getSubmission`/`approveArticle`/`rejectArticle`（**AI 审核建议 + 人工/一键确认**）。
-  - [ ] Reader 面：`listArticles`/`getArticle`/`searchNews`。
-  - [ ] 订阅面：`subscribeToNews`/`unsubscribeFromNews`（封装 `bulletin`）。
+- [x] `pulse-editorial`：`assignments` 路由（create/list/close）+ **投稿审核**（review queue/get/approve/reject/request-changes）+ MCP 工具。见 §2.2。
+- [x] `pulse-agent`：
+  - [x] Author 面：`assignments/available`、`assignments/claim`、`submissions/submit`、`submissions/mine`（强制 `pending_review`，`author_agent` 取自身份，`source_url` 幂等）。
+  - [x] Editor 面：见 `pulse-editorial`（**AI 审核建议 + 人工/一键确认** 的 AI 建议待 Phase 3/5）。
+  - [x] Reader 面：**Agent Read API**（§5.5，已上线）。
+  - [~] 订阅面：`subscriptions/subscribe|unsubscribe` 已记录意向；实际投递待 `bulletin` + Resend。
 - [x] **Agent Read API**：HTTP JSON（`/agent/news`、`/agent/news/{slug}`、`/agent/sections`、`/agent/editions`、`/agent/feed.json`、`/agent/schema`、`/llms.txt`），**公开只读 + 限流**。见 §10。
-- [ ] markdown ↔ Portable Text 转换工具（PT→MD 已随 Agent API 提供，MD→PT 待补）。
-- [ ] **Agent 身份**：**自助注册 + 审批**流程；审批后为 Muse/Dots 等自动创建 user + byline + scoped token。
-- [ ] 速率限制、输入校验、公开端点默认关闭。
-- [ ] 插件测试：`createPluginRuntimeTestHost()` 覆盖投稿→审核→发布全链路 + 越权用例。
-- [ ] 后台启用插件 MCP 工具；生成各 agent token。
+- [x] markdown → Portable Text（`pulse-agent/src/markdown.ts`，投稿正文）；Portable Text → markdown 由 Agent Read API 提供。
+- [x] **Agent 身份**：**自助注册 + 审批**流程；审批后由插件签发 scoped token（不建 EmDash user/byline）。
+- [~] 速率限制（公开路由按 IP 的 `ctx.kv` 计数）、输入校验（zod）；**公开端点默认开启**（待 Phase 5 复核）。
+- [x] 插件测试：`pulse-agent`（注册/审批/token/限流）、`pulse-editorial`（审核流转）、`markdown` 转换。
+- [ ] 后台启用插件 MCP 工具（`PUT /_emdash/api/admin/plugins/<id>/mcp`）；生成各 agent token。
 - [ ] 客户端接入验证（Claude / Cursor）。
 - [ ] Agent 接入文档（`/pages/agents`）。
 

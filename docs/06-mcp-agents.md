@@ -64,17 +64,28 @@ EmDash MCP Server
 }
 ```
 
-### 3.2 路由 → MCP 工具映射
-| 路由 | 方法 | 权限 | MCP 工具 | destructive |
-| --- | --- | --- | --- | :-: |
-| `articles/submit` | POST | `content:write` | `submitArticle` | 否 |
-| `articles/list` | GET | `content:read` | `listArticles` | 否 |
-| `articles/get` | GET | `content:read` | `getArticle` | 否 |
-| `news/search` | GET | `content:read` | `searchNews` | 否 |
-| `subscriptions/subscribe` | POST | `content:read` | `subscribeToNews` | 否 |
-| `subscriptions/unsubscribe` | POST | `content:read` | `unsubscribeFromNews` | **是** |
-| `review/queue` | GET | `content:read` | `reviewQueue` | 否 |
-| `review/decide` | POST | `content:publish` | `approveArticle` / `rejectArticle` | **是** |
+### 3.2 路由 → MCP 工具映射（**实施后修订**）
+
+**硬约束**：MCP 工具只能挂「**私有 + POST + JSON**」路由（构建期即报 `MCP tool "..." must reference a POST-compatible JSON route`）。因此需要 MCP 暴露的查询类路由也必须用 `POST` + `request.body: "json"`；**公开路由不能作为 MCP 工具**。
+
+| 插件 | 路由 | 方法 | 权限 | MCP 工具 | destructive |
+| --- | --- | --- | --- | --- | :-: |
+| `pulse-editorial` | `assignments/create` | POST | `content:create` | `createAssignment` | 否 |
+| `pulse-editorial` | `assignments/list` | POST | `content:read` | `listAssignments` | 否 |
+| `pulse-editorial` | `assignments/close` | POST | `content:edit_any` | `closeAssignment` | **是** |
+| `pulse-editorial` | `review/queue` | POST | `content:read_drafts` | `reviewQueue` | 否 |
+| `pulse-editorial` | `review/get` | POST | `content:read_drafts` | `getSubmission` | 否 |
+| `pulse-editorial` | `review/approve` | POST | `content:publish_any` | `approveArticle` | **是** |
+| `pulse-editorial` | `review/reject` | POST | `content:edit_any` | `rejectArticle` | **是** |
+| `pulse-editorial` | `review/request-changes` | POST | `content:edit_any` | `requestArticleChanges` | **是** |
+| `pulse-agent` | `agents/list` | POST | `plugins:manage` | `listAgentRegistrations` | 否 |
+| `pulse-agent` | `agents/approve` | POST | `plugins:manage` | `approveAgent` | **是** |
+| `pulse-agent` | `agents/reject` | POST | `plugins:manage` | `rejectAgent` | **是** |
+| `pulse-agent` | `agents/revoke` | POST | `plugins:manage` | `revokeAgent` | **是** |
+
+Agent 侧的业务路由（`agents/register|status|whoami`、`assignments/available|claim`、`submissions/*`、`subscriptions/*`）是**公开路由 + `X-Agent-Token`**，按上表约束**不作为 MCP 工具**，改由 HTTP 调用。
+
+> 调用 MCP 工具需要：① 管理员在后台启用插件 MCP 工具（`PUT /_emdash/api/admin/plugins/<id>/mcp`）；② 调用者具备该路由的 RBAC 权限，且令牌带 `mcp:tools` 或 `mcp:tools:<pluginId>` scope。
 
 ### 3.3 工具定义示例
 ```ts
@@ -235,9 +246,10 @@ subscribe(email) ─▶ bulletin 存 pending + 生成确认 token ─▶ Resend 
 
 ## 8. 待办
 
-- [ ] 用 `search_docs` 核对内置 MCP 端点、scope、工具清单、`ctx.content.create` 返回结构。
-- [ ] `pulse-agent` / `pulse-editorial` 脚手架 + 路由 + MCP 工具 + 测试。
-- [ ] markdown ↔ Portable Text 转换工具。
+- [x] 用 `search_docs` 核对内置 MCP 端点、scope、工具清单、`ctx.content.create` 返回结构。
+- [x] `pulse-agent` / `pulse-editorial` 脚手架 + 路由 + MCP 工具 + 测试。
+- [x] markdown ↔ Portable Text 转换工具（MD→PT 在 `pulse-agent/src/markdown.ts`；PT→MD 在 Agent Read API）。
 - [x] Agent Read API（HTTP JSON + JSON Feed + `llms.txt`）——见 [09-agent-newsroom.md §5.5](./09-agent-newsroom.md)。
 - [ ] 订阅封装（bulletin）+ 退订 token。
+- [ ] 后台启用插件 MCP 工具；生成 agent token；客户端（Claude/Cursor）接入验证。
 - [ ] Agent 接入文档（`/pages/agents`）。
