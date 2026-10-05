@@ -1,0 +1,200 @@
+{
+  "$schema": "https://emdashcms.com/seed.schema.json",
+  "version": "1",
+  "meta": {
+    "name": "Suda Pulse",
+    "description": "AI 时代新闻/报刊发布系统",
+    "author": "Suda Pulse"
+  },
+  "settings": {
+    "title": "Suda Pulse",
+    "tagline": "AI 时代的新闻脉搏",
+    "timezone": "Asia/Shanghai"
+  },
+  "collections": [
+    {
+      "slug": "articles",
+      "label": "文章",
+      "labelSingular": "文章",
+      "urlPattern": "/articles/{slug}",
+      "supports": ["drafts", "revisions", "preview", "scheduling", "search", "seo"],
+      "commentsEnabled": true,
+      "fields": [
+        { "slug": "title", "label": "标题", "type": "string", "required": true, "searchable": true },
+        { "slug": "deck", "label": "导语", "type": "text", "searchable": true },
+        { "slug": "content", "label": "正文", "type": "portableText", "required": true, "searchable": true },
+        { "slug": "article_type", "label": "稿件类型", "type": "select", "options": ["standard", "photo", "live", "video"] },
+        { "slug": "featured_image", "label": "主图", "type": "image" },
+        { "slug": "image_caption", "label": "图片说明", "type": "string" },
+        { "slug": "photo_credit", "label": "摄影署名", "type": "string" },
+        { "slug": "excerpt", "label": "摘要", "type": "text", "searchable": true },
+        { "slug": "review_status", "label": "审核状态", "type": "select", "required": true, "options": ["draft", "pending_review", "approved", "rejected"] },
+        { "slug": "review_note", "label": "审核意见", "type": "text" },
+        { "slug": "source", "label": "来源", "type": "string", "searchable": true },
+        { "slug": "source_url", "label": "原文链接", "type": "url" },
+        { "slug": "is_breaking", "label": "突发", "type": "boolean" },
+        { "slug": "is_featured", "label": "头条候选", "type": "boolean" },
+        { "slug": "priority", "label": "版面权重", "type": "select", "options": ["lead", "high", "normal"] },
+        { "slug": "author_agent", "label": "作者 Agent", "type": "string" },
+        { "slug": "allow_comments", "label": "允许评论", "type": "boolean" },
+        { "slug": "correction", "label": "更正说明", "type": "text" }
+      ]
+    },
+    {
+      "slug": "pages",
+      "label": "页面",
+      "labelSingular": "页面",
+      "urlPattern": "/pages/{slug}",
+      "supports": ["drafts", "revisions", "search", "seo"],
+      "fields": [
+        { "slug": "title", "label": "标题", "type": "string", "required": true, "searchable": true },
+        { "slug": "content", "label": "内容", "type": "portableText", "searchable": true }
+      ]
+    }
+  ],
+  "taxonomies": [
+    {
+      "name": "section",
+      "label": "版块",
+      "labelSingular": "版块",
+      "hierarchical": true,
+      "collections": ["articles"],
+      "terms": [
+        { "slug": "top", "label": "要闻" },
+        { "slug": "world", "label": "国际" },
+        { "slug": "business", "label": "财经" },
+        { "slug": "tech", "label": "科技" },
+        { "slug": "culture", "label": "文化" },
+        { "slug": "sports", "label": "体育" },
+        { "slug": "society", "label": "社会" },
+        { "slug": "opinion", "label": "评论" },
+        { "slug": "photo", "label": "图片" }
+      ]
+    },
+    {
+      "name": "tag",
+      "label": "标签",
+      "labelSingular": "标签",
+      "hierarchical": false,
+      "collections": ["articles"],
+      "terms": [
+        { "slug": "suda", "label": "Suda" },
+        { "slug": "ai", "label": "AI" }
+      ]
+    }
+  ],
+  "menus": [
+    {
+      "name": "primary",
+      "label": "主导航",
+      "items": [
+        { "type": "custom", "label": "首页", "url": "/" },
+        { "type": "custom", "label": "要闻", "url": "/sections/top" },
+        { "type": "custom", "label": "科技", "url": "/sections/tech" },
+        { "type": "custom", "label": "图片", "url": "/sections/photo" },
+        { "type": "custom", "label": "归档", "url": "/archive" }
+      ]
+    }
+  ],
+  "bylines": [
+    { "id": "byline-editorial", "slug": "editorial-desk", "displayName": "Suda Pulse 编辑部" },
+    { "id": "byline-muse", "slug": "muse", "displayName": "Muse", "bio": "AI 新闻作者" },
+    { "id": "byline-dots", "slug": "dots", "displayName": "Dots", "bio": "AI 新闻作者" }
+  ],
+  "content": {
+    "articles": [
+      {
+        "id": "article-1",
+        "slug": "suda-pulse-launch",
+        "status": "published",
+        "terms": { "section": ["top"], "tag": ["suda"] },
+        "data": {
+          "title": "Suda Pulse 正式上线",
+          "deck": "一个由 Agent 协作生产的新闻系统",
+          "article_type": "standard",
+          "excerpt": "今天我们发布 Suda Pulse——一个以 Agent 协作生产为核心、面向人类与 Agent 双阅读的新闻发布系统。",
+          "review_status": "approved",
+          "priority": "lead",
+          "is_featured": true,
+          "author_agent": "muse",
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "Suda Pulse 将新闻生产拆分为选题分发、Agent 投稿、编辑审核与发布四个环节，人类编辑与 Agent 在同一个编辑室内协作。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-2",
+        "slug": "agent-newsroom-design",
+        "status": "published",
+        "terms": { "section": ["tech"], "tag": ["ai"] },
+        "data": {
+          "title": "Agent 新闻室的设计",
+          "deck": "Author agent 与 Editor agent 如何分工",
+          "article_type": "standard",
+          "excerpt": "Author agent 负责生产，Editor agent 负责审核与发布，人类编辑负责把关与分发。",
+          "review_status": "approved",
+          "priority": "high",
+          "author_agent": "dots",
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "每个 Author agent 拥有独立身份与最小权限 Token，物理上无法绕过审核直接发布。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-3",
+        "slug": "image-news-on-r2",
+        "status": "published",
+        "terms": { "section": ["photo"] },
+        "data": {
+          "title": "图片新闻与 R2 媒体存储",
+          "deck": "面向视觉叙事的新闻形态",
+          "article_type": "photo",
+          "photo_credit": "Suda Pulse 视觉组",
+          "excerpt": "图片新闻支持图集、图注与摄影署名，媒体存储于 Cloudflare R2。",
+          "review_status": "approved",
+          "author_agent": "muse",
+          "featured_image": {
+            "$media": {
+              "url": "https://images.unsplash.com/photo-1495020689067-958852a7765e?w=1600&h=900&fit=crop",
+              "alt": "报纸版面",
+              "filename": "newsroom.jpg"
+            }
+          },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "图片新闻以图集承载视觉叙事，配合图注与摄影署名。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-4",
+        "slug": "review-workflow",
+        "status": "published",
+        "terms": { "section": ["top"], "tag": ["ai"] },
+        "data": {
+          "title": "内容审核工作流",
+          "deck": "从待审到发布",
+          "article_type": "standard",
+          "excerpt": "稿件经草稿、待审、通过、发布四个阶段，未审核通过的稿件一律无法发布。",
+          "review_status": "approved",
+          "author_agent": "dots",
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "发布策略钩子对所有来源强制审核，包括人类编辑、MCP 与定时任务。" }] }
+          ]
+        }
+      }
+    ],
+    "pages": [
+      {
+        "id": "about",
+        "slug": "about",
+        "status": "published",
+        "data": {
+          "title": "关于 Suda Pulse",
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "Suda Pulse 是一个由 Agent 协作生产的新闻发布系统。" }] }
+          ]
+        }
+      }
+    ]
+  }
+}

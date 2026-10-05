@@ -1,0 +1,22 @@
+node_modules
+dist
+.astro
+.emdash/migrations.json
+uploads
+data.db*
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Local tooling config
+.codebuddy/
+.wrangler/
+
+# Production Cloudflare config & private vars (never commit)
+wrangler.prod.jsonc
+wrangler.*.jsonc
+!wrangler.jsonc
+.dev.vars
+.dev.vars.*

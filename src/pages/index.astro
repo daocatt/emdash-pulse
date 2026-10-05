@@ -1,0 +1,41 @@
+---
+import { getEmDashCollection, getSiteSettings } from "emdash";
+
+const settings = await getSiteSettings();
+const { entries: articles, cacheHint } = await getEmDashCollection("articles", {
+	orderBy: { published_at: "desc" },
+	limit: 20,
+});
+if (Astro.cache?.enabled) Astro.cache.set(cacheHint);
+---
+
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>{settings.title}</title>
+	</head>
+	<body>
+		<header>
+			<h1>{settings.title}</h1>
+			<p>{settings.tagline}</p>
+		</header>
+		<main>
+			<h2>最新文章（{articles.length}）</h2>
+			<ul>
+				{articles.map((article) => (
+					<li>
+						<a href={`/articles/${article.id}`}>{article.data.title}</a>
+						{article.data.publishedAt && (
+							<time datetime={new Date(article.data.publishedAt).toISOString()}>
+								{" "}
+								{new Date(article.data.publishedAt).toISOString()}
+							</time>
+						)}
+					</li>
+				))}
+			</ul>
+		</main>
+	</body>
+</html>
