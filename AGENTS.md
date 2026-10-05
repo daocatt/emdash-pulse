@@ -53,6 +53,14 @@ HOME=~/.wrangler-a npm run deploy # 构建并部署到 Cloudflare
 - 本地沙箱 runner 用 `@emdash-cms/sandbox-workerd`（需 `workerd`），生产用 `@emdash-cms/cloudflare` 的 `sandbox()`。
 - 调 REST API 时写请求需 `X-EmDash-Request: 1` 头（CSRF）；更新内容用 `PUT`；**PUT 只写 draft revision**，已发布文章需再 `POST /publish` 才生效。
 
+## Git
+
+- **Commit messages MUST be written in English** (subject + body), even though the codebase, docs, and comments are in Chinese.
+- Use Conventional Commits prefixes: `feat:` / `fix:` / `docs:` / `test:` / `refactor:` / `chore:` / `perf:`. Scope optional, e.g. `feat(pulse-agent): ...`.
+- Subject line: imperative mood, lowercase after the colon, no trailing period, ≤ 72 chars.
+- Split commits by logical change (one concern per commit); do not bundle unrelated edits.
+- Do NOT add `Co-Authored-By` or AI-attribution trailers.
+
 ## Skills & Docs
 
 - EmDash skills：`~/codes/emdash/.agents/skills/`（`building-emdash-site`、`creating-plugins`、`emdash-cli`）。
