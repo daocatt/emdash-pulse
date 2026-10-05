@@ -68,6 +68,7 @@ export interface Assignment {
   priority?: string;
   claimed_by?: string;
   claimed_at?: string;
+  submitted_article?: string;
   created_by?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -95,10 +96,6 @@ export interface ArticleReferences {
   assignment: ReferencePage<Assignment>;
 }
 
-export interface AssignmentReferences {
-  submitted_article: ReferencePage<Article>;
-}
-
 declare module "emdash" {
   interface EmDashCollections {
     articles: Article;
@@ -108,6 +105,5 @@ declare module "emdash" {
   }
   interface EmDashCollectionReferences {
     articles: ArticleReferences;
-    assignments: AssignmentReferences;
   }
 }

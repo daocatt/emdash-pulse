@@ -492,8 +492,11 @@ const plugin: SandboxedPlugin = {
 					author_agent: auth.agent.slug,
 					...(input.source ? { source: input.source } : {}),
 					...(input.source_url ? { source_url: input.source_url } : {}),
-					...(input.assignment_id ? { assignment: input.assignment_id } : {}),
 				};
+				// 注意：`articles.assignment` 是**绑定关系的 reference 字段**（storageless），
+				// EmDash 只接受经 `references` 通道写入；而沙箱 `ctx.content.create` 的
+				// options 仅透传 locale/translationOf，**无法写 reference**。故稿件→选题的
+				// 关联改由选题侧的反向链接（`assignments.submitted_article`）记录。
 
 				const created = await access.create?.(ARTICLES, data);
 				if (!created) return fail("CREATE_FAILED");

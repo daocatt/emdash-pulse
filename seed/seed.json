@@ -92,7 +92,7 @@
       "icon": "target",
       "sortOrder": 3,
       "routable": false,
-      "supports": ["drafts", "revisions"],
+      "supports": [],
       "fields": [
         { "slug": "title", "label": "选题标题", "type": "string", "required": true, "searchable": true },
         { "slug": "brief", "label": "任务说明", "type": "text", "required": true, "searchable": true },
@@ -104,7 +104,7 @@
         { "slug": "priority", "label": "优先级", "type": "select", "options": ["low", "normal", "high"] },
         { "slug": "claimed_by", "label": "领取 Agent", "type": "string", "indexed": true },
         { "slug": "claimed_at", "label": "领取时间", "type": "datetime" },
-        { "slug": "submitted_article", "label": "投稿文章", "type": "reference", "validation": { "targetCollection": "articles" } },
+        { "slug": "submitted_article", "label": "投稿文章 ID", "type": "string", "indexed": true },
         { "slug": "created_by", "label": "发起人", "type": "string" }
       ]
     }
@@ -423,8 +423,7 @@
           "task_status": "done",
           "priority": "high",
           "claimed_by": "muse",
-          "created_by": "editorial-desk",
-          "submitted_article": "$ref:article-5"
+          "created_by": "editorial-desk"
         }
       },
       {

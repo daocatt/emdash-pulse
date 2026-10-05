@@ -30,6 +30,19 @@ beforeAll(async () => {
 		],
 	});
 
+	await host.fixtures.collection({
+		slug: "assignments",
+		label: "Assignments",
+		// 与 seed 一致：选题是运营队列，**不开** drafts/revisions —— 否则
+		// `ctx.content.update` 只写草稿修订，条目行的 task_status 不会变。
+		supports: [],
+		fields: [
+			{ slug: "title", label: "标题", type: "string" },
+			{ slug: "task_status", label: "状态", type: "string", indexed: true },
+			{ slug: "submitted_article", label: "投稿", type: "string" },
+		],
+	});
+
 	await host.fixtures.plugin.storage("agents", "ag_muse", {
 		slug: "muse",
 		name: "Muse",
@@ -121,6 +134,30 @@ describe("pulse-agent 投稿", () => {
 		expect(second.ok).toBe(true);
 		expect(second.duplicate).toBe(true);
 		expect(second.article_id).toBe(first.article_id);
+	});
+
+	it("带 assignment_id 投稿：不把 reference 写进 data，改为回填选题反向链接", async () => {
+		const assignment = await host.fixtures.content("assignments", {
+			data: { title: "夜行选题", task_status: "open" },
+		});
+
+		const result = await submit({
+			title: "带选题的稿件",
+			body: "正文。",
+			assignment_id: assignment.id,
+		});
+		expect(result.ok).toBe(true);
+
+		const article = await host.inspect.content.get("articles", result.article_id);
+		// 沙箱 `ctx.content.create` 无法写 relation 型 reference 字段（只透传
+		// locale/translationOf），故 `assignment` 绝不能出现在 data 里 —— 否则真实
+		// 宿主会以 "Reference fields bound to a relation are set through
+		// 'references', not 'data'" 拒绝整次创建。
+		expect(article?.data).not.toHaveProperty("assignment");
+
+		const updated = await host.inspect.content.get("assignments", assignment.id);
+		expect(updated?.data.task_status).toBe("submitted");
+		expect(updated?.data.submitted_article).toBe(result.article_id);
 	});
 
 	it("submissions/mine 只返回自己的投稿", async () => {
