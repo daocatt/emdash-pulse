@@ -102,10 +102,10 @@
 - [~] 速率限制（公开路由按 IP 的 `ctx.kv` 计数）、输入校验（zod）；**公开端点默认开启**（待 Phase 5 复核）。
 - [x] 插件测试：`pulse-agent`（注册/审批/token/限流）、`pulse-editorial`（审核流转）、`markdown` 转换。
 - [x] 后台启用插件 MCP 工具（`PUT /_emdash/api/admin/plugins/<id>/mcp`）；用 API token 验证 `tools/list`（85 工具）与工具调用。
-- [x] **端到端验收**：`scripts/agent-e2e.mjs` 真实 HTTP 全链路（注册→审批→选题→领取→投稿→审核发布→发布门禁→越权隔离），**22/22 通过**。
+- [x] **端到端验收**：`scripts/agent-e2e.mjs` 真实 HTTP 全链路（注册→审批→选题→领取→投稿→审核发布→发布门禁→越权隔离），**26/26 通过**。
 - [ ] 生成各 agent 的 scoped token（`mcp:tools` + 业务 scope）。
 - [ ] 客户端接入验证（Claude / Cursor）。
-- [ ] Agent 接入文档（`/pages/agents`）。
+- [x] **Agent 接入文档**：`/pages/agents`（CMS 页面，含 MCP 配置、Read API、投稿流程、门禁与最小权限）；`/llms.txt` 增加写侧 MCP 段并指向该页。
 
 **验收**：Muse/Dots 等 author agent 能领取选题并投稿（进待审）✅；editor agent 能审核发布 ✅；reader agent 能通过 MCP/HTTP 阅读 ✅；任何 agent 无法绕过审核发布 ✅（MCP/REST 双路径门禁已验）。**M4 达成**。
 
