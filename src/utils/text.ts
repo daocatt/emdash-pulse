@@ -1,15 +1,9 @@
 /**
  * 从 Portable Text / 嵌套 JSON 中提取纯文本。
+ *
+ * 直接复用 EmDash 的 `extractPlainText`：它只遍历已知的内容块形状
+ * （span.text / image alt / caption / code 等），不会把 `_type`、`style`
+ * 等结构字段当作正文（自研的朴素递归会泄漏 "block normal" 之类的噪声）。
  */
 
-export function extractPlainText(node: unknown): string {
-	if (!node) return "";
-	if (typeof node === "string") return node;
-	if (Array.isArray(node)) return node.map(extractPlainText).join(" ");
-	if (typeof node === "object") {
-		const record = node as Record<string, unknown>;
-		if (typeof record.text === "string") return record.text;
-		return Object.values(record).map(extractPlainText).join(" ");
-	}
-	return "";
-}
+export { extractPlainText } from "emdash";

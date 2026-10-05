@@ -81,7 +81,7 @@ export function isoWeekOf(value: Date | string | null | undefined): { year: numb
 
 /** 粗略估算阅读时长（分钟），中文按 350 字/分钟。 */
 export function estimateReadingTime(content: unknown): number {
-	const text = extractPlainText(content);
+	const text = extractPlainText(content as never);
 	const count = text.replace(/\s/g, "").length;
 	return Math.max(1, Math.round(count / 350));
 }
