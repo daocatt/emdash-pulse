@@ -7,11 +7,13 @@
     "seed": "seed/seed.json"
   },
   "workspaces": [
-    "plugins/pulse-review"
+    "plugins/pulse-review",
+    "plugins/pulse-agent",
+    "plugins/pulse-editorial"
   ],
   "scripts": {
-    "plugin:build": "npm --prefix plugins/pulse-review run build",
-    "plugin:test": "npm --prefix plugins/pulse-review run test",
+    "plugin:build": "npm run build --workspaces",
+    "plugin:test": "npm run test --workspaces",
     "dev": "npm run plugin:build && astro dev",
     "build": "npm run plugin:build && astro build",
     "build:cf": "npm run plugin:build && DEPLOY_TARGET=cloudflare astro build",

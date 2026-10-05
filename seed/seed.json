@@ -42,15 +42,15 @@
           }
         },
         { "slug": "excerpt", "label": "摘要", "type": "text", "searchable": true },
-        { "slug": "review_status", "label": "审核状态", "type": "select", "required": true, "options": ["draft", "pending_review", "approved", "rejected"] },
+        { "slug": "review_status", "label": "审核状态", "type": "select", "required": true, "indexed": true, "options": ["draft", "pending_review", "approved", "rejected"] },
         { "slug": "review_note", "label": "审核意见", "type": "text" },
         { "slug": "source", "label": "来源", "type": "string", "searchable": true },
-        { "slug": "source_url", "label": "原文链接", "type": "url" },
+        { "slug": "source_url", "label": "原文链接", "type": "url", "indexed": true },
         { "slug": "is_breaking", "label": "突发", "type": "boolean" },
         { "slug": "is_featured", "label": "头条候选", "type": "boolean" },
         { "slug": "priority", "label": "版面权重", "type": "select", "options": ["lead", "high", "normal"] },
         { "slug": "assignment", "label": "关联选题", "type": "reference", "validation": { "targetCollection": "assignments" } },
-        { "slug": "author_agent", "label": "作者 Agent", "type": "string" },
+        { "slug": "author_agent", "label": "作者 Agent", "type": "string", "indexed": true },
         { "slug": "allow_comments", "label": "允许评论", "type": "boolean" },
         { "slug": "correction", "label": "更正说明", "type": "text" }
       ]
@@ -100,9 +100,9 @@
         { "slug": "tags", "label": "建议标签", "type": "string" },
         { "slug": "assigned_agent", "label": "指定 Agent", "type": "string" },
         { "slug": "deadline", "label": "截止时间", "type": "datetime" },
-        { "slug": "task_status", "label": "状态", "type": "select", "required": true, "options": ["open", "claimed", "submitted", "done", "cancelled"] },
+        { "slug": "task_status", "label": "状态", "type": "select", "required": true, "indexed": true, "options": ["open", "claimed", "submitted", "done", "cancelled"] },
         { "slug": "priority", "label": "优先级", "type": "select", "options": ["low", "normal", "high"] },
-        { "slug": "claimed_by", "label": "领取 Agent", "type": "string" },
+        { "slug": "claimed_by", "label": "领取 Agent", "type": "string", "indexed": true },
         { "slug": "claimed_at", "label": "领取时间", "type": "datetime" },
         { "slug": "submitted_article", "label": "投稿文章", "type": "reference", "validation": { "targetCollection": "articles" } },
         { "slug": "created_by", "label": "发起人", "type": "string" }
