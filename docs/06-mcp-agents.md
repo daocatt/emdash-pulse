@@ -37,6 +37,12 @@ EmDash MCP Server
 - **破坏性操作**（发布、驳回、退订、删除）标 `destructive: true`。
 - 生产配置 `EMDASH_SITE_URL=https://ai.suda.im`（影响 MCP 发现）。
 
+> **`/_emdash/api/mcp` 仅接受 Bearer token**（`ec_pat_` / `ec_oat_`）。宿主中间件对该端点是 **bearer-only**——session cookie、dev-bypass 会话一律**不参与**认证；未带 token 直接返回 `401 NOT_AUTHENTICATED` 并附 `WWW-Authenticate: Bearer resource_metadata=…` 发现头（`middleware/auth.ts:271-278`）。因此**不能用后台会话 cookie 调 MCP**，必须创建 API token。
+>
+> 插件工具需要**两层**授权：① token 带 `mcp:tools`（或 `mcp:tools:<pluginId>`）scope；② 调用者 RBAC 满足路由 `permission`。scope 判定见 `hasScope`：`admin` ⊃ 一切，`mcp:tools` ⊃ 全部 `mcp:tools:*`（`@emdash-cms/auth`）。scope 与角色下限的映射（`SCOPE_MIN_ROLE`）：`mcp:tools` 需 ADMIN。
+>
+> 实测（2026-10-05，本地 dev）：85 个工具（72 内置 + 13 插件）正常返回；仅 `content:read` 的 token 调 `content_list` 成功、调插件工具返回 `INSUFFICIENT_SCOPE: requires mcp:tools:<pluginId>`。
+
 ### 2.1 Token 分级（每个 agent 独立身份，D15）
 
 | Token | scope / 权限 | 给谁 |
@@ -82,10 +88,11 @@ EmDash MCP Server
 | `pulse-agent` | `agents/approve` | POST | `plugins:manage` | `approveAgent` | **是** |
 | `pulse-agent` | `agents/reject` | POST | `plugins:manage` | `rejectAgent` | **是** |
 | `pulse-agent` | `agents/revoke` | POST | `plugins:manage` | `revokeAgent` | **是** |
+| `pulse-subscriptions` | `subscribers/list` | POST | `plugins:manage` | `listSubscribers` | 否 |
 
 Agent 侧的业务路由（`agents/register|status|whoami`、`assignments/available|claim`、`submissions/*`、`subscriptions/*`）是**公开路由 + `X-Agent-Token`**，按上表约束**不作为 MCP 工具**，改由 HTTP 调用。
 
-> 调用 MCP 工具需要：① 管理员在后台启用插件 MCP 工具（`PUT /_emdash/api/admin/plugins/<id>/mcp`）；② 调用者具备该路由的 RBAC 权限，且令牌带 `mcp:tools` 或 `mcp:tools:<pluginId>` scope。
+> 调用 MCP 工具需要：① 管理员在后台启用插件 MCP 工具（`PUT /_emdash/api/admin/plugins/<id>/mcp`，body `{"enabled":true}`，带 `X-EmDash-Request: 1`）；② 调用者具备该路由的 RBAC 权限，且令牌带 `mcp:tools` 或 `mcp:tools:<pluginId>` scope。MCP 工具在 JSON-RPC 中命名为 `<pluginId>__<toolName>`（如 `pulse-editorial__reviewQueue`）。
 
 ### 3.3 工具定义示例
 ```ts
@@ -217,19 +224,43 @@ subscribe(email) ─▶ 插件存 pending + 生成确认 token ─▶ Resend 发
 
 ## 6. 客户端接入
 
+MCP 端点是 **stateless Streamable HTTP**（POST + JSON-RPC），**仅支持 Bearer token**。
+
 ```json
 {
   "mcpServers": {
     "suda-pulse": {
       "type": "http",
       "url": "https://ai.suda.im/_emdash/api/mcp",
-      "headers": { "Authorization": "Bearer <SCOPED_TOKEN>" }
+      "headers": { "Authorization": "Bearer ec_pat_<SCOPED_TOKEN>" }
     }
   }
 }
 ```
 
-> 具体端点路径与 token/scope 以官方 MCP 文档为准，实施前用 `search_docs` 核对，避免路径假设。
+本地调试把 URL 换成 `http://localhost:4321/_emdash/api/mcp`。
+
+**获取 token（本地）**：
+```bash
+# 1) 建会话（dev 专用）并创建 token；scope 至少要含 mcp:tools（ADMIN 角色）
+curl -s -c /tmp/cj.txt "http://localhost:4321/_emdash/api/setup/dev-bypass?redirect=/_emdash/admin"
+curl -s -b /tmp/cj.txt -X POST "http://localhost:4321/_emdash/api/admin/api-tokens" \
+  -H "content-type: application/json" -H "X-EmDash-Request: 1" \
+  -d '{"name":"mcp","scopes":["mcp:tools","content:read"]}'
+# 响应 data.token 即 ec_pat_...，仅返回一次
+```
+
+**验证调用**：
+```bash
+curl -s -X POST "http://localhost:4321/_emdash/api/mcp" \
+  -H "authorization: Bearer $TOKEN" \
+  -H "content-type: application/json" \
+  -H "accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+# 响应为 SSE（event: message / data: {...}）
+```
+
+> 生产环境**不要**用 dev-bypass；在后台「设置 → API 令牌」创建，或走 OAuth（`ec_oat_`）。客户端（Claude Desktop / Cursor 等）按上表配置即可，无需 session。
 
 ---
 
@@ -253,5 +284,6 @@ subscribe(email) ─▶ 插件存 pending + 生成确认 token ─▶ Resend 发
 - [x] markdown ↔ Portable Text 转换工具（MD→PT 在 `pulse-agent/src/markdown.ts`；PT→MD 在 Agent Read API）。
 - [x] Agent Read API（HTTP JSON + JSON Feed + `llms.txt`）——见 [09-agent-newsroom.md §5.5](./09-agent-newsroom.md)。
 - [x] 订阅（自研 `pulse-subscriptions`）+ 确认/退订 token（Phase 3）。
-- [ ] 后台启用插件 MCP 工具；生成 agent token；客户端（Claude/Cursor）接入验证。
+- [x] 后台启用插件 MCP 工具（`pulse-editorial` / `pulse-agent` / `pulse-subscriptions` 均 `mcpToolsEnabled: true`）；用 API token 验证 `/api/mcp` 的 `tools/list`（85 工具）与工具调用（`listSubscribers` / `reviewQueue`）。
+- [ ] 生成各 agent 的 scoped token；客户端（Claude/Cursor）真实接入验证。
 - [ ] Agent 接入文档（`/pages/agents`）。

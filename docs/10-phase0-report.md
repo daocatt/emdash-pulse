@@ -19,6 +19,7 @@
 | **Phase 2** | 报纸前台（主题/组件/页面/归档/搜索/Feed） | ✅ **完成**（见下） |
 | **Phase 4a** | Agent Read API（9 个公开只读端点 + 限流） | ✅ **完成**（见下） |
 | **Phase 4b** | Agent 新闻室写侧（`pulse-editorial` + `pulse-agent`） | ✅ **完成**（见下） |
+| **Phase 4c** | MCP 接入验证（启用插件工具 + JSON-RPC `tools/list` / 调用） | ✅ **完成**（见下） |
 | **Phase 3** | 评论审核（规则 + AI）+ 读者订阅（`pulse-subscriptions`） | ✅ **完成**（见下，详见 `11-phase3-comments-subscriptions.md`） |
 
 ## Phase 1 结果（内容模型与后台）
@@ -116,6 +117,25 @@
 9. **插件目录里 `tsc --noEmit` 会 OOM**：`emdash` 的类型图过大，在插件 tsconfig 下独立 `tsc` 会耗尽 ~4GB 堆而崩溃（`FATAL ERROR: Ineffective mark-compacts near heap limit`）。类型正确性以 `emdash-plugin build`（内部 dts 生成 + surface 探测）与站点级 `astro check` 为准。
 10. **`ctx.content.update` 是 draft-aware（重要）**：集合 `supports` 含 `"revisions"` 时（本项目 `articles` 就是），`update` 写的是**草稿修订**（`ContentRepository.updateDraftAware`），而 `ctx.content.get` / `list` 返回的是**条目行**——要 `publish` 之后条目行才更新。后果：审核驳回/退回若只 `update`，条目行仍是 `pending_review`，稿件会**一直留在待审队列**。修正：`pulse-editorial` 增加 `content:revisions:read`，队列/详情以**最新修订**（`ctx.content.listRevisions(collection, id, { limit: 1 })`，按 id desc）为准合并数据。
 11. **公开路由用 `response: "raw"` 才有真实 HTTP 状态码**：默认 JSON 路由一律返回 HTTP 200，业务错误只体现在 `{success:false,error}` 里（对 agent 不友好）。`pulse-agent` 的公开路由改为 `response: "raw"` + `pluginResponse()`，body 是**裸 JSON**，状态码有语义（400/401/404/409/429 + `Retry-After`）。注意：raw 路由**不能**作为 MCP 工具（这些公开路由本来就不是），且响应头受白名单限制（`content-type` 可用）。沙箱测试宿主返回的是 `PluginResponse` 信封（`{__emdashPluginResponse,status,body:{kind:"text",value}}`），测试需自行解包。
+
+## Phase 4c 结果（MCP 接入验证）
+
+**目标**：启用三个插件的 MCP 工具，用真实 MCP 客户端协议（JSON-RPC over Streamable HTTP）验证接入。
+
+| 项 | 状态 | 证据 |
+| --- | :-: | --- |
+| 启用插件 MCP 工具 | ✅ | `PUT /_emdash/api/admin/plugins/{pulse-editorial,pulse-agent,pulse-subscriptions}/mcp` 均 200；三者 `mcpToolsEnabled: true` |
+| `tools/list` | ✅ | `POST /_emdash/api/mcp`（Bearer）返回 **85 个工具**：72 内置 + 13 插件（editorial 8 / agent 4 / subscriptions 1） |
+| 插件工具调用 | ✅ | `pulse-subscriptions__listSubscribers` 返回订阅者列表；`pulse-editorial__reviewQueue` 返回空队列（`{ok:true,count:0}`） |
+| scope 强制 | ✅ | 仅 `content:read` 的 token：`content_list` 成功；调插件工具返回 `INSUFFICIENT_SCOPE: requires mcp:tools:pulse-subscriptions` |
+
+### Phase 4c 新增关键发现
+
+1. **`/_emdash/api/mcp` 是 bearer-only**：宿主中间件明确注释「MCP discovery/tooling is bearer-only. Session/external auth should never be consulted」，在 `locals.user` 检查**之前**就要求 `isTokenAuth`（`middleware/auth.ts:271-278`）。→ **dev-bypass 会话 cookie 无效**（返回 `401 NOT_AUTHENTICATED` + `WWW-Authenticate` 发现头）；必须建 API token（`ec_pat_`）。
+2. **插件工具的双层授权**：除 token scope `mcp:tools:<pluginId>` 外，还要 RBAC 满足路由 `permission`（如 `plugins:manage` / `content:read_drafts`）。`hasScope` 规则：`admin` ⊃ 一切、`mcp:tools` ⊃ 全部 `mcp:tools:*`。`SCOPE_MIN_ROLE["mcp:tools"] = ADMIN`。
+3. **MCP 工具名带插件前缀**：JSON-RPC 中的工具名为 `<pluginId>__<toolName>`（如 `pulse-editorial__reviewQueue`），与后台 `mcpTools[].name`（无前缀）不同。
+4. **MCP 响应是 SSE**：即使请求带 `Accept: application/json`，stateless 传输仍以 `event: message` / `data: {...}` 返回；解析需取 `data:` 行，不能直接 `json.loads` 整个 body。
+5. **MCP 端点本身不做 scope 裁剪**（`enforceTokenScope` 对 MCP 路径直接放行），授权下移到 `mcp/server.ts` 的每个工具内；因此错误以**工具级 `isError` + `_meta.code`** 返回，而非 HTTP 状态码。
 
 ## Phase 3 结果（评论与邮件订阅）
 

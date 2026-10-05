@@ -212,6 +212,18 @@ HTTP 冒烟（`/_emdash/api/plugins/<slug>/<route>`）：
 
 本地 dev 由 EmDash 内置 console email provider（`emdash-console-email`，dev 自动注册）承接投递，邮件正文打印到 dev 日志 → 确认/退订 token 可从中读取，**无需真实邮件服务即可端到端验证**。生产需配置 Resend（否则记录停在 `pendingEmail`）。详见 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)。
 
+## 5.4 Phase 4c 实测（MCP 接入）
+
+| 调用 | 结果 |
+| --- | --- |
+| `PUT /_emdash/api/admin/plugins/<id>/mcp`（`{enabled:true}`） | 200；editorial / agent / subscriptions 三者 `mcpToolsEnabled: true` |
+| `POST /_emdash/api/mcp` `tools/list`（Bearer `ec_pat_`，scope 含 `mcp:tools`） | **85 个工具**（72 内置 + 13 插件） |
+| `tools/call` `pulse-subscriptions__listSubscribers` | `{ok:true,total:1,…}` |
+| `tools/call` `pulse-editorial__reviewQueue` | `{ok:true,count:0,submissions:[]}` |
+| 仅 `content:read` token 调插件工具 | `isError:true`，`_meta.code=INSUFFICIENT_SCOPE`（requires `mcp:tools:pulse-subscriptions`） |
+
+**要点**：`/_emdash/api/mcp` **仅接受 Bearer token**（session/dev-bypass 不参与，未带 token 即 401）；响应是 **SSE**（`event: message` / `data:`）；插件工具需 scope + RBAC 双层授权。详见 [06-mcp-agents.md §2/§6](./06-mcp-agents.md)。
+
 
 
 ---

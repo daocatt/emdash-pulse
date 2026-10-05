@@ -101,7 +101,8 @@
 - [x] **Agent 身份**：**自助注册 + 审批**流程；审批后由插件签发 scoped token（不建 EmDash user/byline）。
 - [~] 速率限制（公开路由按 IP 的 `ctx.kv` 计数）、输入校验（zod）；**公开端点默认开启**（待 Phase 5 复核）。
 - [x] 插件测试：`pulse-agent`（注册/审批/token/限流）、`pulse-editorial`（审核流转）、`markdown` 转换。
-- [ ] 后台启用插件 MCP 工具（`PUT /_emdash/api/admin/plugins/<id>/mcp`）；生成各 agent token。
+- [x] 后台启用插件 MCP 工具（`PUT /_emdash/api/admin/plugins/<id>/mcp`）；用 API token 验证 `tools/list`（85 工具）与工具调用。
+- [ ] 生成各 agent 的 scoped token（`mcp:tools` + 业务 scope）。
 - [ ] 客户端接入验证（Claude / Cursor）。
 - [ ] Agent 接入文档（`/pages/agents`）。
 
