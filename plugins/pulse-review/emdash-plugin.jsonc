@@ -14,7 +14,91 @@
 	// KV, and route/hook registration. Changing these between
 	// releases requires a version bump because installed
 	// users have consented to the old contract.
-	"capabilities": ["hooks.content-policy:register"],
-	"allowedHosts": [],
-	"storage": {}
+	//
+	// - hooks.content-policy:register → content:beforePublish / beforeSchedule 发布门禁
+	// - users:read                    → comment:moderate 要求的能力（hook 事件含作者邮箱/IP 哈希/UA）
+	// - network:request               → 调用 Workers AI REST（仅 aiEnabled 时；allowedHosts 限 api.cloudflare.com）
+	"capabilities": ["hooks.content-policy:register", "users:read", "network:request"],
+	"allowedHosts": ["api.cloudflare.com"],
+	"storage": {},
+
+	"admin": {
+		"settingsSchema": {
+			"rulesEnabled": {
+				"label": "启用规则审核",
+				"description": "关闭后退化为 EmDash 内置审核行为（仍可选 AI）。",
+				"type": "boolean",
+				"default": true
+			},
+			"bannedWords": {
+				"label": "黑名单词",
+				"description": "命中即判 spam。逗号 / 换行分隔，子串匹配（不区分大小写）。",
+				"type": "string",
+				"multiline": true,
+				"default": ""
+			},
+			"maxLinks": {
+				"label": "正文最大链接数",
+				"description": "超过即判 spam。",
+				"type": "number",
+				"min": 0,
+				"max": 20,
+				"default": 3
+			},
+			"maxLength": {
+				"label": "正文最大字符数",
+				"description": "超过转为待审。",
+				"type": "number",
+				"min": 100,
+				"max": 20000,
+				"default": 2000
+			},
+			"minLength": {
+				"label": "正文最小字符数",
+				"description": "低于此长度判 spam。",
+				"type": "number",
+				"min": 1,
+				"max": 100,
+				"default": 2
+			},
+			"aiEnabled": {
+				"label": "启用 AI 审核（Workers AI）",
+				"description": "沙箱插件无法访问 Workers AI binding，故通过 REST 调用，需要下面两项凭证。",
+				"type": "boolean",
+				"default": false
+			},
+			"aiAutoApprove": {
+				"label": "AI 判定安全时自动通过",
+				"description": "关闭时 AI 仅作建议（结论仍为待审）。默认关闭以符合「AI 建议 + 人工确认」。",
+				"type": "boolean",
+				"default": false
+			},
+			"aiAccountId": {
+				"label": "Cloudflare Account ID",
+				"type": "string",
+				"default": ""
+			},
+			"aiApiToken": {
+				"label": "Cloudflare API Token（Workers AI 权限）",
+				"type": "secret"
+			},
+			"aiModel": {
+				"label": "审核模型",
+				"type": "select",
+				"options": [
+					{ "value": "@cf/meta/llama-guard-3-8b", "label": "Llama Guard 3 8B（推荐）" },
+					{ "value": "@cf/meta/llama-3.1-8b-instruct", "label": "Llama 3.1 8B Instruct" }
+				],
+				"default": "@cf/meta/llama-guard-3-8b"
+			},
+			"aiTimeoutMs": {
+				"label": "AI 超时（毫秒）",
+				"description": "超时后降级为规则结论（不会自动通过）。",
+				"type": "number",
+				"min": 500,
+				"max": 8000,
+				"default": 3000
+			}
+		}
+	}
 }

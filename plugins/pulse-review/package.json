@@ -1,6 +1,6 @@
 {
 	"name": "pulse-review",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"private": true,
 	"type": "module",
 	"packageManager": "npm@11.7.0",
