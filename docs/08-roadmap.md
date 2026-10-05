@@ -12,7 +12,7 @@
 - [ ] 配置站点标识：**Suda Pulse / ai.suda.im / Asia/Shanghai**。
 - [ ] `npm install`，`npm run dev` 跑通，admin 可访问；生成并保存 `EMDASH_ENCRYPTION_KEY`。
 - [x] **Spike 1**：按月/周范围查询（`where: { published_at: { gte, lt } }`）返回正确。✅ 见 `10-phase0-report.md`
-- [ ] **Spike 2**：`bulletin` 插件安装 + 双确认订阅跑通（含 Resend 发信）。
+- [~] **Spike 2**：~~`bulletin` 插件安装 + 双确认订阅跑通~~ → **改为自研 `pulse-subscriptions`**（D4 修订），本地双确认/退订已端到端验证（Phase 3）；真实发信待 Resend 凭证。
 - [ ] **Spike 3**：Resend 传输插件（`emdash-plugin-resend`）发出测试邮件。
 - [ ] **Spike 4**：`@emdash-cms/plugin-ai-moderation` + CF Workers AI binding 生效。
 - [x] **Spike 5**：沙箱插件（`pulse-review`）注册并隔离加载；`content:beforePublish` 发布门禁端到端生效（未审核 422 / 通过 200）。✅ 见 `10-phase0-report.md`。**待补**：scoped token 权限边界（投稿 token 无发布权）留待 Phase 4。
@@ -37,7 +37,7 @@
 - [x] 管理员账号（本地 dev-bypass）；角色邀请（编辑 40 / 记者 30 / 投稿者·Muse·Dots 20）。Passkey 注册待浏览器完成。
 - [x] 开启 articles 搜索索引（5 articles + 4 pages 已索引，命中带高亮）。
 - [~] 安装插件：`audit-log` ✅ 已生效；`plugin-ai-moderation` / `comment-spam-protection` / `comment-notify` ⏸️ 暂缓（见 `07-plugins.md` §5.1）。
-- [ ] 安装 `bulletin` + `emdash-plugin-resend` 并配置（待 Resend 凭证）。
+- [ ] 配置 `emdash-plugin-resend`（待 Resend 凭证）；订阅逻辑由自研 `pulse-subscriptions` 承担（Phase 3）。
 - [x] `pulse-review` 最小实现：发布策略（非 approved 拒绝），沙箱加载并端到端验证。
 
 **验收**：后台能创建/保存/发布文章（含图片新闻）✅；未 `approved` 稿件**无法**发布（REST 路径已验；定时与 MCP 路径 Phase 4 复验）。
@@ -62,7 +62,8 @@
 - [x] 搜索 `/search` + 报头 `LiveSearch`；**trigram 分词器**支持中文（≥3 字），1–2 字走内存回退（见 `10-phase0-report.md`）。
 - [x] RSS `/rss.xml` + **JSON Feed `/feed.json`**。
 - [x] 缓存 `cacheHint`（各查询均已 `Astro.cache.set()`）；响应式（3 断点）；语义标签/`skip-link`；文章页 `NewsArticle` JSON-LD + 首页 `WebSite` JSON-LD。
-- [ ] 分版块 RSS（可选）；`SubscribeForm`（Phase 3）；评论样式细化（Phase 3）。
+- [ ] 分版块 RSS（可选）。
+- [x] `SubscribeForm`（Phase 3）✅；评论样式细化（Phase 3）✅。
 
 **验收**：可按月/周/版块/标签浏览 ✅；图片新闻正常 ✅；搜索可用 ✅（中文 ≥3 字精确、1–2 字模糊）；RSS/JSON Feed 校验通过 ✅；移动端良好（响应式已实现，待真机复核）。
 
@@ -72,15 +73,16 @@
 
 **目标**：评论与订阅闭环。
 
-- [ ] 评论渲染（`Comments`/`CommentForm`），`allow_comments` 生效。
-- [ ] 评论审核策略：CF Workers AI + 规则（`pulse-review` 的 `comment:moderate`）。
-- [ ] 反垃圾与通知插件配置并验证。
-- [ ] `bulletin` 订阅：双确认、退订、文章转邮件活动。
-- [ ] `SubscribeForm` + `/subscribe` 页（含确认/退订结果页）。
-- [ ] Resend 传输验证（确认邮件、欢迎邮件）。
-- [ ] 摘要邮件（`bulletin` 活动能力；不足则 `pulse-digest`）。
+- [x] 评论渲染（`Comments`/`CommentForm`），`allow_comments` 生效。
+- [x] 评论审核策略：规则引擎 + CF Workers AI（`pulse-review` 独占 `comment:moderate`；AI 经 REST，失败降级不自动通过）。
+- [x] 评论主题：`--ec-*` 覆盖，贴合报纸版式。
+- [ ] 反垃圾与通知插件配置并验证（待注册表安装，见 `07-plugins.md` §5.1）。
+- [x] **自研 `pulse-subscriptions`**（D4 修订，替代 `bulletin`）：双确认、退订、订阅者列表 + 后台页 + MCP。
+- [x] `SubscribeForm` + `/subscribe`、`/subscribe/confirm`、`/subscribe/unsubscribe`（页脚 + 头版入口）。
+- [ ] Resend 传输验证（确认邮件、欢迎邮件）—— 代码路径已通，待凭证；未配置时落库 `pendingEmail`。
+- [ ] 摘要邮件（`pulse-digest`，按需）。
 
-**验收**：访客可评论（进入待审/AI 审核）；邮箱订阅双确认成功；收到摘要邮件；可一键退订。
+**验收**：访客可评论（规则/AI 审核后进入待审或直接通过）✅；邮箱订阅双确认成功 ✅（本地用 dev console provider 端到端验证）；可一键退订 ✅；收到摘要邮件 ⏳ 待凭证。详见 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)。
 
 ---
 
@@ -93,7 +95,7 @@
   - [x] Author 面：`assignments/available`、`assignments/claim`、`submissions/submit`、`submissions/mine`（强制 `pending_review`，`author_agent` 取自身份，`source_url` 幂等）。
   - [x] Editor 面：见 `pulse-editorial`（**AI 审核建议 + 人工/一键确认** 的 AI 建议待 Phase 3/5）。
   - [x] Reader 面：**Agent Read API**（§5.5，已上线）。
-  - [~] 订阅面：`subscriptions/subscribe|unsubscribe` 已记录意向；实际投递待 `bulletin` + Resend。
+  - [~] 订阅面：`subscriptions/subscribe|unsubscribe`（记录意向）已被 Phase 3 的 **`pulse-subscriptions`**（真实双确认/退订）取代，二者并存（前者面向 agent 意向，后者面向读者邮箱）。
 - [x] **Agent Read API**：HTTP JSON（`/agent/news`、`/agent/news/{slug}`、`/agent/sections`、`/agent/editions`、`/agent/feed.json`、`/agent/schema`、`/llms.txt`），**公开只读 + 限流**。见 §10。
 - [x] markdown → Portable Text（`pulse-agent/src/markdown.ts`，投稿正文）；Portable Text → markdown 由 Agent Read API 提供。
 - [x] **Agent 身份**：**自助注册 + 审批**流程；审批后由插件签发 scoped token（不建 EmDash user/byline）。
@@ -132,7 +134,7 @@
 Phase0 ─▶ Phase1 ─▶ Phase2 ─▶ Phase3 ─▶ Phase4 ─▶ Phase5
              │          │          │          │
              │          │          │          └─ 依赖 pulse-review(Phase1) + 内容模型
-             │          │          └─ bulletin/Resend/CF AI
+             │          │          └─ 规则/AI 审核 + pulse-subscriptions + 邮件传输（Resend 待凭证）
              │          └─ 内容模型 + 主题
              └─ 内容模型（articles/editions/assignments）
 ```
@@ -148,7 +150,7 @@ Phase0 ─▶ Phase1 ─▶ Phase2 ─▶ Phase3 ─▶ Phase4 ─▶ Phase5
 | --- | --- | --- |
 | `where` 日期范围行为未在官方示例 | 归档不准 | Spike 1 先验证；必要时加派生字段等值筛选 |
 | 时区导致月/周边界偏差 | 归档错位 | 统一 `Asia/Shanghai`；UTC ISO 边界 |
-| `bulletin` 数据模型/MCP 契合度不足 | 订阅定制受限 | Spike 2 提前验证；不足则自研 `pulse-subscriptions`（保留退路） |
+| `bulletin` 数据模型/MCP 契合度不足 | 订阅定制受限 | **已触发**：改为自研 `pulse-subscriptions`（见 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)）；邮件传输仍可用 Resend |
 | Editor agent 全自动审核风险 | 误发 | 默认"AI 建议 + 人工/一键确认"，可按栏目放开为全自动 |
 | Agent 身份伪造/越权 | 未审发布 | 投稿 token 无发布权 + 策略兜底 + 身份取自认证 |
 | 公开读端点被滥用 | 资源耗尽 | 限流；写操作强制鉴权 |
@@ -166,6 +168,6 @@ Phase0 ─▶ Phase1 ─▶ Phase2 ─▶ Phase3 ─▶ Phase4 ─▶ Phase5
 | M0 骨架就绪 | Phase 0 | dev/admin 跑通，spike 完成，决策确认 |
 | M1 编辑可用 | Phase 1 | 审核流程生效（含图片新闻/期号/选题模型） |
 | M2 读者可读 | Phase 2 | 报纸前台 + 图片新闻 + 归档 + 搜索 + RSS/JSON Feed |
-| M3 互动闭环 | Phase 3 | 评论(AI 审核) + 邮件订阅 |
+| M3 互动闭环 | Phase 3 | 评论(规则+AI 审核) + 邮件订阅 ✅ |
 | M4 Agent 接入 | Phase 4 | Author/Editor/Reader agent 全链路可用 |
 | M5 上线 | Phase 5 | CF 生产部署 + 备份监控 |

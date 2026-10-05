@@ -15,7 +15,7 @@
 | 运行时 | Node ≥ 22.16 | |
 | 部署 | Cloudflare Workers | `wrangler` + cron 触发器 |
 | 图片处理 | Astro 图像服务 + R2 | 响应式 `srcset`、AVIF/WebP |
-| 邮件 | **Resend** + 社区 `bulletin` 插件 | 订阅双确认 / 摘要 |
+| 邮件 | **Resend** + 自研 `pulse-subscriptions` 插件 | 订阅双确认 / 退订（D4 修订） |
 | 站点 | **Suda Pulse** · `ai.suda.im` · `Asia/Shanghai` | |
 
 ## 2. 分层架构
@@ -41,8 +41,9 @@
 │  └────────────┘ └────────────┘ └──────────────────────────────────┘   │
 │  ┌──────────────────────────────────────────────────────────────────┐ │
 │  │ Plugin Runtime (sandboxed)                                       │ │
-│  │  pulse-agent(投稿/阅读/订阅/审核) · pulse-review(策略) ·          │ │
-│  │  pulse-editorial(选题分发) · bulletin(订阅) · ai-moderation(评论) │ │
+│  │  pulse-agent(投稿/阅读) · pulse-review(策略/评论审核) ·          │ │
+│  │  pulse-editorial(选题分发) · pulse-subscriptions(订阅) ·          │ │
+│  │  audit-log(审计)                                                 │ │
 │  └──────────────────────────────────────────────────────────────────┘ │
 └───────┬───────────────────────────┬──────────────────────┬────────────┘
         │                           │                      │
@@ -74,7 +75,7 @@
 | **MCP Server（内置）** | ✅ | | 业务工具 |
 | 邮件发送能力 | ✅ | Resend 传输 | |
 | **RSS / JSON Feed** | ❌ | | ✅ 路由 |
-| **邮件订阅** | ❌ | ✅ `bulletin` | |
+| **邮件订阅** | ❌ | ✅ `pulse-subscriptions`（自研） | |
 | **内容审核工作流** | 部分 | | ✅ `pulse-review` |
 | **Agent 投稿/阅读/审核** | ❌ | | ✅ `pulse-agent` |
 | **选题分发** | ❌ | | ✅ `pulse-editorial` |
@@ -188,10 +189,11 @@ suda-pulse/
 │       ├── rss.xml.ts · feed.json.ts
 │       └── agent/                     # Agent Read API（可选，或走插件路由）
 ├── plugins/
-│   ├── pulse-agent/          # MCP：投稿 / 阅读 / 订阅 / 审核
-│   ├── pulse-review/         # 发布策略 + 评论审核策略
-│   ├── pulse-editorial/      # 选题分发（assignments）
-│   └── pulse-digest/         # 摘要邮件 cron（若 bulletin 不含）
+│   ├── pulse-agent/          # MCP：投稿 / 选题领取 / 阅读
+│   ├── pulse-review/         # 发布门禁 + 评论审核（规则 + AI）
+│   ├── pulse-editorial/      # 选题分发 + 投稿审核发布
+│   ├── pulse-subscriptions/  # 读者订阅（双确认 / 退订 / 订阅者管理）
+│   └── pulse-digest/         # 摘要邮件 cron（按需）
 ├── seed/seed.json
 └── docs/
 ```
@@ -217,6 +219,6 @@ emdash({
 | 任务 | 触发 | 实现 |
 | --- | --- | --- |
 | 定时发布 | 每分钟（Worker cron） | `createScheduledHandler()` |
-| 摘要邮件 | 插件 cron（如 `0 8 * * *`） | `pulse-digest` 或 `bulletin` |
-| 订阅确认清理 | 每日 | `bulletin` / `pulse-digest` |
+| 摘要邮件 | 插件 cron（如 `0 8 * * *`） | `pulse-digest`（按需） |
+| 订阅确认清理 | 每日 | `pulse-subscriptions` / `pulse-digest` |
 | 选题超期提醒 | 每日 | `pulse-editorial` |

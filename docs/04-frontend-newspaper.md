@@ -256,7 +256,7 @@ const { entries: articles } = await getEmDashCollection("articles", {
 
 ### 待办（后续 Phase）
 
-- `/subscribe` 订阅页与 `SubscribeForm`（Phase 3）。
-- 评论样式细化（Phase 3，`emdash/ui/comments` 的 `--ec-*` 覆盖）。
-- 分版块 RSS `/sections/[slug]/rss.xml`（可选）。
-- 真实字体子集化（当前用系统衬线栈，零网络依赖）；真机移动端复核。
+- [x] `/subscribe` 订阅页与 `SubscribeForm`（Phase 3）—— 另含 `/subscribe/confirm`、`/subscribe/unsubscribe` 结果页与页脚/头版入口。
+- [x] 评论样式细化（Phase 3，`emdash/ui/comments` 的 `--ec-*` 覆盖）。
+- [ ] 分版块 RSS `/sections/[slug]/rss.xml`（可选）。
+- [ ] 真实字体子集化（当前用系统衬线栈，零网络依赖）；真机移动端复核。

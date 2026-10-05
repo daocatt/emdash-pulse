@@ -59,7 +59,7 @@
 8. **分类与标签**：hierarchical `section` + flat `tag`。
 9. **评论**：内置评论 + **Cloudflare Workers AI 语义审核** + 反垃圾。
 10. **RSS / JSON Feed**：全站与分版块。
-11. **邮件订阅**：**`bulletin` 插件**（双确认、退订、文章转邮件），**Resend** 传输。
+11. **邮件订阅**：**自研 `pulse-subscriptions`**（双确认、退订、订阅者管理；D4 修订），**Resend** 传输。
 12. **部署**：Cloudflare Workers + D1 + R2 + Workers AI（生产），Node + SQLite（本地开发）。
 
 ## 4. 非目标（Out of Scope，本期不做）
@@ -79,7 +79,7 @@
 | D1 | 基于 EmDash 扩展，**不 fork core** | 保留升级路径与安全模型 | ✅ |
 | D2 | 内容主类型 `articles`，`urlPattern=/articles/{slug}` | 语义贴合新闻 | ✅ |
 | D3 | 审核 = 草稿 + `review_status` 字段 + 发布策略 hook | 原生"保存≠发布" + `content:beforePublish` 强制 | ✅ |
-| D4 | 邮件订阅采用社区插件 **`bulletin`** | 双确认 + 文章转邮件，避免重复造轮子 | ✅ 已定 |
+| D4 | 邮件订阅**自研 `pulse-subscriptions`**（原定社区 `bulletin`） | 需要自有订阅表与 Agent 订阅意向对齐；本地可完整验证数据流 | 🔁 已修订 |
 | D5 | 邮件传输采用 **Resend** | 送达率好、API 简单 | ✅ 已定 |
 | D6 | MCP 复用内置 + 自研 `pulse-agent` 插件 | 内置管内容，自研管投稿/订阅/阅读/审核 | ✅ |
 | D7 | 生产部署 **Cloudflare Workers + D1 + R2 + Workers AI** | 与参考一致；cron 支持定时发布/摘要 | ✅ |
@@ -112,7 +112,7 @@
 | Agent Read API | **公开只读 + 限流**（写操作鉴权） |
 | 期号粒度 | **周报优先**（`period_type=week`），月报后续 |
 | 评论策略 | **AI 审核（CF Workers AI）为主，人工后期干预** |
-| 邮件订阅 / 传输 | `bulletin` + **Resend** |
+| 邮件订阅 / 传输 | **`pulse-subscriptions`**（自研）+ **Resend** |
 | 审核 | Author（人类 + agent）**强制审核** |
 | 站点 / 部署 | Suda Pulse · ai.suda.im · Asia/Shanghai · CF + D1 + R2 + Workers AI |
 

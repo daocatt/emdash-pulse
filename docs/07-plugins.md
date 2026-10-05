@@ -11,13 +11,13 @@ EmDash 插件分两类：
 
 ## 1. 采用清单（已确认）
 
-> 决策：D4 订阅用 **`bulletin`**；D5 邮件传输用 **Resend**；D14 评论 AI 审核用 **Cloudflare Workers AI**。
+> 决策：D4 订阅**自研 `pulse-subscriptions`**（修订，原定 `bulletin`）；D5 邮件传输用 **Resend**；D14 评论审核用 **规则 + Cloudflare Workers AI**。
 
 | 需求 | 插件 | 来源 | 状态 | 说明 |
 | --- | --- | --- | :-: | --- |
 | **邮件传输** | `emdash-plugin-resend` | 官方 | ✅ **选定** | Resend，独占 `email:deliver` |
 | 邮件传输（备选） | `@msale.com/resend` / `@masonjames.com/emdash-smtp` / `@numoteq.com/forward-email` / `@cfreear.bsky.social/emdash-cf-email-sending` | 社区 | 备选 | 如需切换 |
-| **邮件订阅 / newsletter** | `@meekmedia.bsky.social/bulletin` | 社区 | ✅ **选定** | 双确认 + 文章转邮件，隐私优先 |
+| **邮件订阅 / newsletter** | ~~`@meekmedia.bsky.social/bulletin`~~ → **自研 `pulse-subscriptions`** | 社区 → 自研 | 🔁 **D4 修订** | 需要自有订阅表与 Agent 订阅意向对齐；双确认 + 退订 + 订阅者管理，邮件发送抽象为「有 provider 就发，没有就落库待发」 |
 | **评论 AI 审核** | `@emdash-cms/plugin-ai-moderation` | 官方 | ✅ **选定** | Cloudflare Workers AI / Llama Guard |
 | 评论反垃圾 | `@peachfinthemes.com/comment-spam-protection` | 社区 | ✅ | 敏感词/链接/语言/重复/限速（与 AI 审核互补） |
 | 评论通知 | `@lasymphonieagency.com/comment-notify` | 社区 | ✅ | 新评论邮件通知管理员 |
@@ -41,13 +41,13 @@ EmDash 插件分两类：
 
 | 插件 | 格式 | 职责 | 关键能力 | 优先级 |
 | --- | --- | --- | --- | :-: |
-| `pulse-editorial` | Sandboxed | **编辑台**：选题分发（创建/列出/结束）+ 投稿审核发布 | `content:read`、`content:write`、`content:publish` | P0 |
+| `pulse-editorial` | Sandboxed | **编辑台**：选题分发（创建/列出/结束）+ 投稿审核发布 | `content:read`、`content:write`、`content:publish`、`content:revisions:read` | P0 |
 | `pulse-agent` | Sandboxed | **Agent 侧**：注册/审批、选题领取、投稿、订阅意向 | `content:read`、`content:write`、`taxonomies:read`、`taxonomies:write` | P0 |
-| `pulse-review` | Sandboxed | 审核策略：发布策略 + 评论审核策略 + 通知 | `hooks.content-policy:register`、`comments:moderate`（+`users:read`）、`content:read` | P0 |
-| ~~`pulse-subscriptions`~~ | — | **不做了**：改用社区 `bulletin` | — | — |
-| `pulse-digest` | Sandboxed | 摘要邮件（若 `bulletin` 的活动能力不足） | `content:read`、`email:send`、`cron` | P2（按需） |
+| `pulse-review` | Sandboxed | 编审策略：发布门禁 + 评论审核（规则 + AI） | `hooks.content-policy:register`、`users:read`、`network:request` | P0 |
+| `pulse-subscriptions` | Sandboxed | **读者订阅**：双确认 / 退订 / 订阅者管理（替代 `bulletin`） | `email:send` | P0 |
+| `pulse-digest` | Sandboxed | 摘要邮件（若需自定义摘要格式） | `content:read`、`email:send`、`cron` | P2（按需） |
 
-> 订阅（双确认/退订/文章转邮件）由 **`bulletin`** 承担，不重复自研。仅在需要**自定义摘要格式**时才做 `pulse-digest`。
+> 订阅由自研 `pulse-subscriptions` 承担（**D4 修订**，见 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)）。仅在需要**自定义摘要格式**时才做 `pulse-digest`。
 
 ### 2.1 拆分原则（**实施后修订**）
 
@@ -72,10 +72,22 @@ EmDash 插件分两类：
 - 投稿强制 `pending_review`；`source_url` 幂等；`author_agent` 取自身份；`body` 为 markdown（插件内转 Portable Text）。
 
 ### 2.4 `pulse-review`
-- `content:beforePublish` / `beforeSchedule`：非 `approved` 拒绝（含人类 Author 与 Agent）。
-- `comment:moderate`（独占）：与 CF Workers AI 审核配合（AI 给出建议 → 规则/人工决策）。
-- 可选 `content:afterSave`：投稿进入 `pending_review` 时通知编辑。
-- 可选 Block Kit 后台页：待审队列 + 一键通过/驳回。
+
+- `content:beforePublish` / `content:beforeSchedule`：非 `approved` 拒绝（含人类 Author 与 Agent）。
+- `comment:moderate`（**独占**，`timeout: 10s`）：注册后**替换**内置审核器 `emdash-default-comment-moderator`，故**必须复刻内置逻辑**（`commentsModeration=none` / `commentsAutoApproveUsers` + 已登录 / `first_time` + `priorApprovedCount>0` → 自动通过；其余 pending）。
+- 能力注意：`comment:moderate` 要求 **`users:read`**（不是 `comments:moderate`）；能力不匹配时 hook 会被**静默跳过**。
+- 规则引擎（`src/moderation.ts`）：链接数 / 黑名单词 / 联系方式 / 重复字符 / 原始 HTML / 作者名是 URL。命中 spam 直接判 spam（不调 AI）。
+- AI（可选，默认关）：沙箱无 Workers AI binding，经 **REST** 调 `api.cloudflare.com`（`network:request` + `allowedHosts`）；`unsafe` → spam，**失败/超时 → 降级到规则结论，绝不自动通过**。
+- 设置：`rulesEnabled` / `bannedWords` / `maxLinks` / `maxLength` / `minLength` / `aiEnabled` / `aiAutoApprove` / `aiAccountId` / `aiApiToken`(secret) / `aiModel` / `aiTimeoutMs`。
+
+### 2.5 `pulse-subscriptions`（读者订阅）
+
+- 存储：`subscribers`（唯一 `emailHash`；索引 `status`/`createdAt`/`tokenHash`）。状态机 `pending → confirmed → unsubscribed`。
+- 公开路由（`response: "raw"` + IP 限流）：`subscribe/request`（建 pending + 发确认邮件）、`subscribe/confirm`（token → confirmed，发欢迎邮件）、`unsubscribe`（token → unsubscribed）。
+- 私有路由（`plugins:manage`）：`subscribers/list`（列表 + 各状态计数，MCP `listSubscribers`）+ Block Kit 后台页 `/subscribers`。
+- **同一 token 贯穿确认与退订**（确认后用途翻转，不轮换）→ 重复点击确认/退订链接**幂等**。
+- 邮件走 `ctx.email`（`email:send`）；**provider 缺失或投递失败不报错**，落库为记录的 `pendingEmail`。`autoConfirm` 设置可在无邮件服务时走单确认。
+- 前台接线：提交走**浏览器 fetch**（端点按客户端 IP 限流，SSR 代理会丢失真实 IP）；确认/退订走 **SSR**（`getPublicPluginApiRouteHandler`，token 即凭证）。
 
 ---
 
@@ -152,7 +164,7 @@ audit-log 写入证据（建一篇草稿后 `_plugin_storage` 出现一条 `entr
 | --- | :-: | --- |
 | `@peachfinthemes.com/comment-spam-protection` | ⏸️ 暂缓 | 注册表 `POST /_emdash/api/admin/plugins/registry/install` 返回 `DID_RESOLUTION_FAILED`（见下） |
 | `@lasymphonieagency.com/comment-notify` | ⏸️ 暂缓 | 同上；且依赖邮件传输（Resend） |
-| `@meekmedia.bsky.social/bulletin` | ⏳ 待凭证 | Spike 2；`did:plc:wozauaevxsfzdcdxdfwogyg4` |
+| `@meekmedia.bsky.social/bulletin` | ❌ 不再需要 | 原 Spike 2 计划；**D4 修订**后改自研 `pulse-subscriptions` |
 | `@msale.com/resend` | ⏳ 待凭证 | Spike 3；`did:plc:53aijmlljtpzteewxptwa2xm` |
 
 **注册表安装失败根因**：`emdash/src/registry/publisher-handle.ts` 的 `boundedFetch` 对非 `DIRECTORY_ORIGINS`（`plc.directory`、`cloudflare-dns.com`）的请求走 SSRF 校验（`resolveAndValidateExternalUrl`），其 DNS 解析用 **Cloudflare DoH**。本环境 `cloudflare-dns.com` 不可达（TLS 被断），故发布者校验失败。
@@ -165,13 +177,14 @@ audit-log 写入证据（建一篇草稿后 `_plugin_storage` 出现一条 `entr
 
 ## 5.2 Phase 4b 自研插件实测（本地）
 
-三个自研沙箱插件经 npm workspaces 链接，`npm run plugin:build`（`--workspaces`）与 `npm run plugin:test` 全绿。
+四个自研沙箱插件经 npm workspaces 链接，`npm run plugin:build`（`--workspaces`）与 `npm run plugin:test` 全绿。
 
 | 插件 | 路由数 | MCP 工具 | 测试 |
 | --- | :-: | :-: | :-: |
-| `pulse-review` | 0（仅 hooks） | — | 4 用例（发布门禁） |
+| `pulse-review` | 0（仅 hooks） | — | 40 用例（发布门禁 4 + 评论审核 36） |
 | `pulse-editorial` | 8 | 8 | 9 用例（审核流转 + 选题） |
 | `pulse-agent` | 14 | 4 | 28 用例（注册/审批/token/限流 12 + MD→PT 11 + 投稿 5） |
+| `pulse-subscriptions` | 5 | 1 | 27 用例（token/邮件 16 + 订阅流转 11） |
 
 HTTP 冒烟（`/_emdash/api/plugins/<slug>/<route>`）：
 
@@ -185,14 +198,28 @@ HTTP 冒烟（`/_emdash/api/plugins/<slug>/<route>`）：
 
 **响应契约**：`pulse-agent` 的**公开路由**声明 `response: "raw"` 并返回 `pluginResponse()`，因此 body 是**裸 JSON**（无 `{success,data}` 信封），且状态码有语义（400 输入错 / 401 未鉴权 / 404 未找到 / 409 冲突 / 429 限流 + `Retry-After`）。私有路由（如 `pulse-editorial` 全部路由、`pulse-agent` 的 `agents/list|approve|reject|revoke`）保持 JSON 信封；未通过宿主鉴权时直接 `401`。
 
+---
+
+## 5.3 Phase 3 实测（评论审核 + 读者订阅）
+
+| 调用 | 结果 |
+| --- | --- |
+| `POST /pulse-subscriptions/subscribe/request` | `200 {ok:true,status:"pending",delivered:true}` |
+| 非法邮箱 | `400 INVALID_INPUT` |
+| `GET /subscribe/confirm?token=<确认邮件 token>` | `200`「订阅已确认」；再次访问「该邮箱此前已完成订阅」（幂等） |
+| `GET /subscribe/unsubscribe?token=<同一 token>` | `200`「已退订」 |
+| `GET /subscribe/confirm?token=bogus` | `200`「确认失败」 |
+
+本地 dev 由 EmDash 内置 console email provider（`emdash-console-email`，dev 自动注册）承接投递，邮件正文打印到 dev 日志 → 确认/退订 token 可从中读取，**无需真实邮件服务即可端到端验证**。生产需配置 Resend（否则记录停在 `pendingEmail`）。详见 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)。
+
 
 
 ---
 
 ## 6. 已确认
 
-- ✅ **D4**：订阅采用社区 **`bulletin`**（不自研 `pulse-subscriptions`）。
-- ✅ **D5**：邮件传输采用 **Resend**（`emdash-plugin-resend`）。
-- ✅ **D14**：评论 AI 审核采用 **Cloudflare Workers AI**（`@emdash-cms/plugin-ai-moderation`）+ 反垃圾插件互补。
+- 🔁 **D4（修订）**：订阅**自研 `pulse-subscriptions`**（原定社区 `bulletin`）。理由：需要自有订阅表与 Agent 订阅意向对齐，且本地可完整验证数据流；邮件传输仍不锁定单一 provider。
+- ✅ **D5**：邮件传输采用 **Resend**（`emdash-plugin-resend`）—— 待凭证。
+- ✅ **D14**：评论审核**规则 + Cloudflare Workers AI**（`pulse-review` 独占 `comment:moderate`；AI 经 REST，失败降级不自动通过）。
 - ✅ 部署：**Cloudflare Workers + D1 + R2 + Workers AI**。
 - ⏳ 待定：分析插件（Cloudflare vs Umami）、SEO 套件是否引入。

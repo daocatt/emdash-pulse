@@ -194,22 +194,24 @@ export default plugin;
 
 ---
 
-## 5. 订阅流程（`bulletin` + Resend）
+## 5. 订阅流程（`pulse-subscriptions` + Resend）
 
-订阅由社区 `bulletin` 插件承担（D4），邮件经 **Resend** 传输（D5）。
+订阅由自研 `pulse-subscriptions` 插件承担（**D4 修订**，见 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)），邮件经 **Resend** 传输（D5）。
 
 ```
-subscribe(email) ─▶ bulletin 存 pending + 生成确认 token ─▶ Resend 发确认邮件
-      │                                                        │
-      │                                       用户点击确认链接  ▼
-  MCP 返回 {status:"pending"}                      status=subscribed
-                                                          │
-                              摘要邮件(文章转邮件) 仅发给 subscribed
+subscribe(email) ─▶ 插件存 pending + 生成确认 token ─▶ Resend 发确认邮件
+      │                                                     │
+      │                                    用户点击确认链接  ▼
+  返回 {status:"pending"}                        status=confirmed
+                                                       │
+                          摘要邮件（文章转邮件）仅发给 confirmed
 ```
 
-- MCP 工具 `subscribeToNews` / `unsubscribeFromNews` 作为 `bulletin` 的薄封装（或直接复用其路由）。
-- 退订：邮件内一键退订（签名 token）。
-- 隐私：仅存邮箱 + 必要元数据；提供删除接口。
+- 公开路由：`subscribe/request`、`subscribe/confirm`、`unsubscribe`（`response: "raw"` + IP 限流）；私有 `subscribers/list` 提供 MCP 工具 `listSubscribers`。
+- 退订：邮件内一键退订（token 即凭证，同一 token 贯穿确认与退订，重复点击幂等）。
+- 未配置邮件 provider 时**不报错**：邮件快照落库为 `pendingEmail`，待接入 Resend 后补发。
+- 隐私：仅存邮箱 + 必要元数据；后台列表对邮箱做脱敏展示。
+- Agent 侧的「订阅意向」由 `pulse-agent` 的 `subscriptions/subscribe|unsubscribe` 记录（面向 agent，非读者邮箱）。
 
 ---
 
@@ -250,6 +252,6 @@ subscribe(email) ─▶ bulletin 存 pending + 生成确认 token ─▶ Resend 
 - [x] `pulse-agent` / `pulse-editorial` 脚手架 + 路由 + MCP 工具 + 测试。
 - [x] markdown ↔ Portable Text 转换工具（MD→PT 在 `pulse-agent/src/markdown.ts`；PT→MD 在 Agent Read API）。
 - [x] Agent Read API（HTTP JSON + JSON Feed + `llms.txt`）——见 [09-agent-newsroom.md §5.5](./09-agent-newsroom.md)。
-- [ ] 订阅封装（bulletin）+ 退订 token。
+- [x] 订阅（自研 `pulse-subscriptions`）+ 确认/退订 token（Phase 3）。
 - [ ] 后台启用插件 MCP 工具；生成 agent token；客户端（Claude/Cursor）接入验证。
 - [ ] Agent 接入文档（`/pages/agents`）。

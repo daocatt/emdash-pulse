@@ -121,16 +121,24 @@ export default plugin;
 ### 3.2 默认策略（建议）
 - **先审后发**：首评默认 `pending`，编辑通过后显示。
 - 老用户（已有通过评论）可自动通过：`comment:moderate` 独占钩子按 `priorApprovedCount` 决策。
-- 在 `pulse-review` 或独立插件中实现 `comment:moderate`（需 `users:read`）。
+- 在 `pulse-review` 中实现 `comment:moderate`（**需 `users:read`**，不是 `comments:moderate`）。
 
 ### 3.3 反垃圾与 AI 审核（已确认）
 | 插件 | 作用 | 采用 |
 | --- | --- | --- |
-| `@emdash-cms/plugin-ai-moderation` | **Cloudflare Workers AI / Llama Guard 语义审核** | ✅ 已定 |
-| `@peachfinthemes.com/comment-spam-protection` | 本地规则（敏感词/链接/语言/重复/限速） | ✅ 建议 |
+| **`pulse-review`（自研）** | 规则引擎（链接/黑名单/引流/重复/HTML）+ Workers AI（Llama Guard） | ✅ **已实现** |
+| `@emdash-cms/plugin-ai-moderation` | 官方 AI 审核（TS 源码打包问题暂缓，见 `07-plugins.md` §5.1） | ⏸️ |
+| `@peachfinthemes.com/comment-spam-protection` | 本地规则（敏感词/链接/语言/重复/限速） | ✅ 建议（与自研规则互补） |
 | `@lasymphonieagency.com/comment-notify` | 新评论邮件通知管理员 | ✅ 建议 |
 
 > 策略：**规则 + AI 给出建议 → 人工/规则决策**。首评默认 `pending`，编辑通过后显示。
+
+**实现要点（Phase 3，详见 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)）**：
+
+- `comment:moderate` 是**独占 hook**，注册即**替换**内置审核器 → 必须复刻内置逻辑（`moderation=none` / `commentsAutoApproveUsers` + 已登录 / `first_time` + `priorApprovedCount>0`）。
+- 沙箱插件**拿不到 Workers AI binding**，AI 经 REST 调 `api.cloudflare.com`（`network:request` + `allowedHosts`）。
+- 规则判 spam 直接返回，不调 AI；AI 失败/超时**降级到规则结论，绝不自动通过**。
+- 设置项见后台插件设置（`rulesEnabled` / `bannedWords` / `maxLinks` / `aiEnabled` / `aiAutoApprove` / `aiApiToken` 等）。
 
 ### 3.4 前端评论渲染
 ```astro
@@ -165,8 +173,9 @@ import { Comments, CommentForm } from "emdash/ui/comments";
 - [x] 邀请编辑、记者、投稿者账号并分配角色（invite 已建；Passkey 注册待浏览器完成）。
 - [ ] **注册 author agent**（Muse/Dots…）：user + byline + scoped token（Phase 4）。
 - [x] 开启 articles 的 search 索引（FTS 已建，5 articles + 4 pages 已索引）。
-- [ ] 安装并配置评论反垃圾 + **CF Workers AI 审核** + 通知插件（待 CF 凭证）。
-- [ ] 安装 `bulletin` + `emdash-plugin-resend` 并验证发信（待 Resend 凭证）。
+- [x] 评论审核：`pulse-review` 独占 `comment:moderate`（规则引擎 + AI 分支），评论主题已覆盖。
+- [ ] 评论反垃圾 / 通知插件（注册表安装，待 DoH 可达网络）；AI 审核的 `aiAccountId` / `aiApiToken` 待 CF 凭证。
+- [ ] 订阅邮件传输：配置 `emdash-plugin-resend`（待 Resend 凭证；未配置时订阅邮件落库为 `pendingEmail`）。
 - [x] 配置 `pulse-review` 发布策略（沙箱加载，门禁生效）。
 - [x] 验证：未审核稿件无法发布（REST 路径已验；MCP/定时路径 Phase 4 复验）。
 

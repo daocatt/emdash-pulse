@@ -1,6 +1,6 @@
-# 10 · Phase 0/1/2/4 实施报告
+# 10 · Phase 0/1/2/3/4 实施报告
 
-> 脚手架、验证、内容模型与报纸前台阶段的记录。随实施推进更新。
+> 脚手架、验证、内容模型、报纸前台、评论与订阅阶段的记录。随实施推进更新。
 
 ## 状态总览
 
@@ -12,13 +12,14 @@
 | 0.4 | seed 内容导入（articles/pages/taxonomies/bylines/menu） | ✅ 完成 |
 | **Spike 1** | 按月/周范围查询（`where.published_at` gte/lt） | ✅ **通过** |
 | **Spike 5** | 沙箱插件注册（`pulse-review`）+ 发布门禁策略 | ✅ **通过** |
-| Spike 2 | `bulletin` 订阅 + Resend 发信 | ⏳ 待凭证（Resend API Key） |
+| Spike 2 | ~~`bulletin` 订阅~~ → 自研 `pulse-subscriptions`（D4 修订） | ✅ 本地双确认/退订端到端；真实发信待 Resend |
 | Spike 3 | Resend 传输插件 | ⏳ 待凭证 |
 | Spike 4 | Cloudflare Workers AI 评论审核 | ⏳ 待 CF 账号/绑定 |
 | Spike 6 | R2 媒体上传/读取 | ⏳ 待 CF 账号（本地用 local storage，媒体管线已通） |
 | **Phase 2** | 报纸前台（主题/组件/页面/归档/搜索/Feed） | ✅ **完成**（见下） |
 | **Phase 4a** | Agent Read API（9 个公开只读端点 + 限流） | ✅ **完成**（见下） |
 | **Phase 4b** | Agent 新闻室写侧（`pulse-editorial` + `pulse-agent`） | ✅ **完成**（见下） |
+| **Phase 3** | 评论审核（规则 + AI）+ 读者订阅（`pulse-subscriptions`） | ✅ **完成**（见下，详见 `11-phase3-comments-subscriptions.md`） |
 
 ## Phase 1 结果（内容模型与后台）
 
@@ -32,7 +33,7 @@
 | 发布门禁 | ✅ | 非 approved → 422 `PUBLISH_REJECTED`（与 RBAC 独立） |
 | `audit-log` 插件 | ✅ | 建草稿后写入审计条目（action/collection/resourceId/userId/changes） |
 | `ai-moderation` / 评论社区插件 | ⏸️ | 见 `07-plugins.md` §5.1（TS 源码打包 / 注册表 DoH 依赖） |
-| `bulletin` + Resend | ⏳ | 待 Resend 凭证 |
+| 订阅（原 `bulletin`，改自研 `pulse-subscriptions`） | ✅ | Phase 3 完成（见下）；Resend 真实发信 ⏳ 待凭证 |
 
 ### Phase 1 新增关键发现
 
@@ -116,8 +117,31 @@
 10. **`ctx.content.update` 是 draft-aware（重要）**：集合 `supports` 含 `"revisions"` 时（本项目 `articles` 就是），`update` 写的是**草稿修订**（`ContentRepository.updateDraftAware`），而 `ctx.content.get` / `list` 返回的是**条目行**——要 `publish` 之后条目行才更新。后果：审核驳回/退回若只 `update`，条目行仍是 `pending_review`，稿件会**一直留在待审队列**。修正：`pulse-editorial` 增加 `content:revisions:read`，队列/详情以**最新修订**（`ctx.content.listRevisions(collection, id, { limit: 1 })`，按 id desc）为准合并数据。
 11. **公开路由用 `response: "raw"` 才有真实 HTTP 状态码**：默认 JSON 路由一律返回 HTTP 200，业务错误只体现在 `{success:false,error}` 里（对 agent 不友好）。`pulse-agent` 的公开路由改为 `response: "raw"` + `pluginResponse()`，body 是**裸 JSON**，状态码有语义（400/401/404/409/429 + `Retry-After`）。注意：raw 路由**不能**作为 MCP 工具（这些公开路由本来就不是），且响应头受白名单限制（`content-type` 可用）。沙箱测试宿主返回的是 `PluginResponse` 信封（`{__emdashPluginResponse,status,body:{kind:"text",value}}`），测试需自行解包。
 
-## Spike 1 结果（已通过）
+## Phase 3 结果（评论与邮件订阅）
 
+| 项 | 状态 | 证据 |
+| --- | :-: | --- |
+| 评论审核（规则 + AI） | ✅ | `pulse-review` 独占 `comment:moderate`：复刻内置逻辑 + 规则引擎 + Workers AI（REST）；`unsafe`→spam，失败**降级不自动通过** |
+| 评论主题 | ✅ | `--ec-*` 覆盖（表单/分隔线/提交按钮），新增 `--color-success` 令牌 |
+| 读者订阅插件 | ✅ | `pulse-subscriptions`：`subscribers` 存储（唯一 `emailHash`）+ 双确认/退订 + `subscribers/list` + MCP + 后台页 |
+| 邮件降级 | ✅ | `ctx.email` 缺失或抛错 → 落库 `pendingEmail`，请求仍成功；`autoConfirm` 支持单确认 |
+| 订阅前台 | ✅ | `SubscribeForm`（浏览器 fetch）+ `/subscribe`、`/subscribe/confirm`、`/subscribe/unsubscribe`（SSR）+ 页脚/头版入口 |
+| 构建 / 测试 | ✅ | `npm run build` 通过；`npm run plugin:test` 全绿（review 40 + subscriptions 27 + agent 28 + editorial 9 = **104**） |
+| HTTP 冒烟 | ✅ | 订阅→pending、非法邮箱 400、确认 200（重复确认幂等）、退订 200、错误 token「确认失败」；头版/文章页回归 200 |
+
+### Phase 3 新增关键发现
+
+1. **`comment:moderate` 是独占 hook**：注册即**替换**内置审核器（宿主 `setExclusiveSelection` 自动选唯一提供者），因此**必须复刻内置决策逻辑**，否则会静默改变站点评论行为。
+2. **该 hook 的能力是 `users:read`**（不是 `comments:moderate`，见 `HOOK_REQUIRED_CAPABILITY`）；能力不匹配时 hook **静默跳过**，极易误判为「代码没生效」。
+3. **沙箱插件拿不到 Workers AI binding**，AI 审核只能经 REST 调 `api.cloudflare.com`（`network:request` + `allowedHosts`）→ AI 是**可选增强**；**失败必须降级到规则结论，绝不自动通过**。
+4. **`ctx.email` 仅在「声明 `email:send` 且已配置 provider」时存在**。把发送抽象为返回 `{delivered, reason}` 的纯函数 + 落库 `pendingEmail`，可在**无邮件服务的本地完整验证订阅数据流**。
+5. **订阅提交不能走 SSR**：插件公开路由按 IP 限流，而 SSR 中的合成 `Request` 没有 `cf` 对象，`extractRequestMeta` 取不到真实 IP（所有人共用一个限流桶）。故提交走浏览器 `fetch`；确认/退订这类「token 即凭证」的端点用 EmDash 的 `getPublicPluginApiRouteHandler`（`emdash/plugin-utils`）走 SSR。
+6. **`getPublicPluginApiRouteHandler` 对 raw 路由返回 `PluginResponse` 信封**（`{__emdashPluginResponse,status,body:{kind:"text",value}}`），SSR 侧需自行解包。
+7. **Astro scoped 样式的特异性**：组件内部声明的 CSS 自定义属性（如 `--ec-comment-border`）带 `[data-astro-cid-*]`，外部 `:root` 覆盖不了 → 需提高选择器特异性（`.ec-comments.ec-comments`）或只用组件暴露的 fallback 变量。
+8. **dev 自动注册 console email provider**（`import.meta.env.DEV` 下，独占 `email:deliver`），邮件正文打印到 dev 日志 —— 本地验证订阅闭环的关键便利。
+9. **订阅 token 不轮换以换取幂等**：确认后同一 token 用途翻转为退订（不生成新 token），使**刷新/双击/邮件客户端预取**都不会报「链接失效」；退订同样保留 token 以支持重复点击。
+
+## Spike 1 结果（已通过）
 
 用 `/spike/date-range.json` 验证 `where: { published_at: { gte, lt } }`（半开区间）：
 
@@ -206,6 +230,6 @@ emdashConfig = {
 
 ## 待凭证/账号事项
 
-- **Resend**：需要 API Key 才能验证发信（Spike 2/3）。
-- **Cloudflare**：需要账号 + `HOME=~/.wrangler-a` 登录，创建 D1/R2 并启用 Workers AI（Spike 4/6）。
-- 邮件订阅插件 `bulletin` 的安装与配置同样依赖上述。
+- **Resend**：需要 API Key 才能验证发信（Spike 2/3，以及 Phase 3 订阅确认/欢迎邮件）。
+- **Cloudflare**：需要账号 + `HOME=~/.wrangler-a` 登录，创建 D1/R2 并启用 Workers AI（Spike 4/6，以及 Phase 3 的 AI 评论审核）。
+- 反垃圾 / 评论通知插件（注册表安装）依赖 DoH 可达网络。

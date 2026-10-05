@@ -15,7 +15,7 @@
 
 - **署名**：用 EmDash 内置 **bylines**（含 agent 作者，如 Muse / Dots）。
 - **Agent 身份**：`user 账号 + byline + scoped token`（见 [09-agent-newsroom.md](./09-agent-newsroom.md)），不单建 collection。
-- **订阅者**：由 `bulletin` 插件管理。
+- **订阅者**：由自研 `pulse-subscriptions` 插件管理（插件存储 `subscribers`，非 EmDash 集合）。
 - **评论**：EmDash 内置评论表。
 
 ---

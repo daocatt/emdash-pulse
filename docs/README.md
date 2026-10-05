@@ -22,27 +22,31 @@
 | [07-plugins.md](./07-plugins.md) | 官方/社区插件采用 + 自研插件清单 |
 | [08-roadmap.md](./08-roadmap.md) | Phase 0–5 路线图、任务、验收、风险 |
 | [09-agent-newsroom.md](./09-agent-newsroom.md) | **Agent 新闻室**：选题分发、Author/Editor agent、Agent Read API |
-| [10-phase0-report.md](./10-phase0-report.md) | **实施报告**：Spike 结论、Phase 1 进展、关键发现（含踩坑） |
+| [10-phase0-report.md](./10-phase0-report.md) | **实施报告**：Spike 结论、Phase 1/2/3/4 进展、关键发现（含踩坑） |
+| [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md) | **Phase 3 报告**：评论审核（规则 + AI）与读者订阅（`pulse-subscriptions`） |
 
 ---
 
 ## 当前进度
 
 - **Phase 0**：脚手架 ✅、Spike 1（月/周查询）✅、Spike 5（沙箱插件 + 发布门禁）✅；Spike 2/3/4/6 待外部凭证。
-- **Phase 1**：内容模型 ✅、类型 ✅、搜索 ✅、本地媒体管线 ✅、角色/RBAC ✅、发布门禁 ✅、`audit-log` ✅；评论类插件与 `bulletin`/Resend 待凭证。
+- **Phase 1**：内容模型 ✅、类型 ✅、搜索 ✅、本地媒体管线 ✅、角色/RBAC ✅、发布门禁 ✅、`audit-log` ✅；评论/订阅已由 Phase 3 的自研插件承担，Resend 待凭证。
 - **Phase 2**：报纸前台 ✅ —— 主题/布局/组件、头版、文章页、版块/标签/期号/静态页、月/周归档、搜索、RSS + JSON Feed；`npm run build` 通过。
 - **Phase 4（部分）**：**Agent Read API** ✅ —— 9 个公开只读端点（`/agent/news`、`/agent/news/{slug}`、`/agent/sections`、`/agent/editions`、`/agent/feed.json`、`/agent/schema`、`/llms.txt` 等）+ 滑动窗口限流。
 - **Phase 4b（写侧）**：`pulse-editorial`（编辑台：选题 + 审核发布，独占 `content:publish`）与 `pulse-agent`（Agent 侧：自助注册/审批 + token、选题领取、投稿、订阅意向）✅；MD→PT 转换 ✅；后台 MCP 工具启用与接入文档待办。
-- 详见 [10-phase0-report.md](./10-phase0-report.md)（含每阶段关键发现与踩坑）。
+- **Phase 3**：评论审核（`pulse-review` 独占 `comment:moderate`：规则引擎 + Workers AI，失败降级不自动通过）✅；评论主题（`--ec-*`）✅；**自研 `pulse-subscriptions`**（双确认 / 退订 / 订阅者管理 + 后台页 + MCP）✅；订阅前台（`SubscribeForm` + `/subscribe`、`/subscribe/confirm`、`/subscribe/unsubscribe`）✅。Resend 真实投递待凭证（未配置时落库 `pendingEmail`）。
+- 详见 [10-phase0-report.md](./10-phase0-report.md) 与 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)（含每阶段关键发现与踩坑）。
 
 ---
 
 ## 一句话架构
 
 ```
-人类读者 ──报纸UI──▶ Astro SSR ─┐
+人类读者 ──报纸UI──▶ Astro SSR ──┐
+人类读者 ──订阅──▶ pulse-subscriptions ──▶ 邮件传输（Resend，未配置则落库待发）
 Author agent ──MCP/HTTP──▶ pulse-agent ──▶ EmDash Core ──▶ D1(内容) + R2(媒体) + Workers AI
-Editor agent ──MCP/HTTP──▶ pulse-review ─┘
+Editor agent ──MCP/HTTP──▶ pulse-editorial ─┤
+评论访客 ──▶ EmDash 评论 ──▶ pulse-review（规则 + AI 审核）
 Reader agent ──MCP/HTTP JSON──▶ Agent Read API ─┘
 ```
 
@@ -61,10 +65,11 @@ Reader agent ──MCP/HTTP JSON──▶ Agent Read API ─┘
 | 期号 | `editions` collection + `/editions/[slug]` | 自研 |
 | 选题分发 | `assignments` collection | 自研 |
 | RSS | `/rss.xml` + `/feed.json` | 自研 |
-| 邮件订阅 | 社区 **`bulletin`** + **Resend** 传输 | 插件 |
+| 邮件订阅 | **自研 `pulse-subscriptions`**（双确认 + 退订 + 订阅者管理） | 自研 |
+| 邮件传输 | **Resend**（`emdash-plugin-resend`，独占 `email:deliver`；未配置时落库待发） | 插件 |
 | 新闻分类 | taxonomy `section`（hierarchical） | 复用 |
 | 标签 | taxonomy `tag`（flat） | 复用 |
-| 评论 | 内置评论 + **CF Workers AI** 审核 + 反垃圾 | 复用 + 插件 |
+| 评论 | 内置评论 + `pulse-review` 规则/AI 审核 + 报纸主题覆盖 | 复用 + 自研 |
 | 报纸 UI | 自研 Astro 主题 | 自研 |
 | 按月/周筛选 | `where: { published_at: { gte, lt } }` + 归档路由 | 自研 |
 | 搜索 | EmDash 内置 FTS + LiveSearch | 复用 |
@@ -74,7 +79,7 @@ Reader agent ──MCP/HTTP JSON──▶ Agent Read API ─┘
 
 ## 已确认决策（D1–D21）
 
-- **D4** 邮件订阅用社区插件 `bulletin`；**D5** 传输用 Resend
+- **D4（修订）** 邮件订阅**自研 `pulse-subscriptions`**（原定社区 `bulletin`）；**D5** 传输用 Resend
 - **D11** Author（人类 + agent）稿件**强制审核**
 - **D12/D20** 引入期号 `editions`，**周报优先**
 - **D13/D19** 提供 **Agent Read API**（MCP + HTTP JSON），**公开只读 + 限流**
