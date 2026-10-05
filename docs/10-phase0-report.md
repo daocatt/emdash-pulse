@@ -56,6 +56,10 @@
 
 8. **npm 冷启动 + 网络不稳**：首次安装可能 `ECONNRESET`；用 `npm install --prefer-offline --no-audit --no-fund` 重试即可。
 
+9. **`@emdash-cms/plugin-test@0.1.0` 内置旧版 plugin-cli（0.11.0）**，不识别 `hooks.content-policy:register` 等新能力，导致 `npm run test` 报 `MANIFEST_INVALID`（而 `npm run validate` 用的是顶层 0.13.2，能通过）。**须将 plugin-test 升级到 `^0.2.7`**，并把插件 devDependency 的 `emdash` 对齐到 `^1.1.0`。
+
+10. **沙箱插件能力名**（`emdash@1.1.0` 运行时支持，经 `grep` 确认）：`hooks.content-policy:register` 用于发布策略钩子（`content:beforePublish` / `beforeSchedule` / `beforeUnpublish`），**不需要** `content:read/write/publish`。
+
 ## 环境
 
 - Node v24.11.1（建议 24.15+），npm 11.7.0
