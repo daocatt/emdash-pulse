@@ -213,8 +213,13 @@ const { entries: articles } = await getEmDashCollection("articles", {
 ## 9. SEO 与结构化数据
 
 - `getSeoMeta()` 生成 title/description/canonical/og。
-- 文章页注入 `NewsArticle` JSON-LD（可用 `page:metadata` 钩子或直接写在 `Base.astro`）。
-- `robots.txt` / `sitemap` 由 EmDash `siteUrl` 驱动。
+- **JSON-LD 由 `pulse-seo` 插件统一贡献**（`page:metadata` 钩子，`id: "primary"`）：文章页 `NewsArticle`，其余页 `WebSite`。模板**不再**手工注入 JSON-LD（`Base.astro` 的 `jsonLd` 属性已移除）。
+  - 原因：EmDash `<EmDashHead>` 本身会为公开页面自动输出一份 JSON-LD，模板再注入一份会造成同页两个冲突实体。`page:metadata` 按 `id` 首个胜出、插件排在 base 之前，故可覆盖。
+- 文章页社交图：`og:image` 取 SEO 面板图，缺省回退到题图（`featured_image`）并补成绝对 URL（`getSeoMeta` 本身不回退到题图）。
+- `robots.txt` / `sitemap.xml` **项目覆盖**（EmDash 允许同名文件覆盖其内置路由）：
+  - `/sitemap.xml`：索引 EmDash 的集合 sitemap（articles/pages/editions，仍由 `/sitemap-[collection].xml` 生成）+ 新增的 `/sitemap-sections.xml`、`/sitemap-tags.xml`（只列 `count>0` 的分类页）。
+  - `/robots.txt`：EmDash 默认规则 + `Disallow: /spike/`；若后台配置了 `seo.robotsTxt` 则以其为准。
+  - 路径必须保持原样：EmDash 中间件把 `/sitemap.xml`、`/robots.txt`（及 `/sitemap-*.xml`）列入公共运行时白名单，才会注入 `locals.emdash.db`。
 - RSS `<link rel="alternate">`。
 
 ## 10. 无障碍与性能
@@ -242,10 +247,10 @@ const { entries: articles } = await getEmDashCollection("articles", {
 | 类别 | 文件 |
 | --- | --- |
 | 主题 | `src/styles/tokens.css`（报纸令牌）、`src/styles/theme.css`（身份覆盖 + 全局排版 + `.prose`） |
-| 布局 | `src/layouts/Base.astro`（报头/导航/页脚/灯箱/防闪烁/JSON-LD） |
+| 布局 | `src/layouts/Base.astro`（报头/导航/页脚/灯箱/防闪烁；JSON-LD 交给 `pulse-seo` 插件） |
 | 组件 | `Masthead`、`NavBar`、`Footer`、`Byline`、`ArticleMeta`、`StoryCard`、`LeadStory`、`SectionBlock`、`Gallery`、`Lightbox`、`PhotoGrid`、`Pagination`、`ArchiveNav`、`CorrectionNotice` |
-| 工具 | `date-range`（月/周）、`format`（时区/ISO 周/阅读时长）、`media`（图片/图集解析）、`types`、`text`、`archive`、`archive-nav`、`search`、`site-identity` |
-| 页面 | `index`、`articles/[slug]`、`sections/[slug]`、`tags/[slug]`、`editions/[slug]`、`pages/[slug]`、`archive/*`、`search`、`rss.xml`、`feed.json`、`404` |
+| 工具 | `date-range`（月/周）、`format`（时区/ISO 周/阅读时长）、`media`（图片/图集解析）、`sitemap`（XML 渲染）、`types`、`text`、`archive`、`archive-nav`、`search`、`site-identity` |
+| 页面 | `index`、`articles/[slug]`、`sections/[slug]`、`tags/[slug]`、`editions/[slug]`、`pages/[slug]`、`archive/*`、`search`、`rss.xml`、`feed.json`、`sitemap.xml`（+ `sitemap-sections.xml`/`sitemap-tags.xml`）、`robots.txt`、`404` |
 
 ### 与原设计的偏差
 

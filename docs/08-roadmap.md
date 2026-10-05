@@ -116,7 +116,7 @@
 **目标**：生产可用、可观测、可维护。
 
 - [ ] 发布前校验（`publish-check`/`preflight`）按需接入。
-- [ ] SEO 套件 / sitemap / robots / JSON-LD 复核。
+- [x] **SEO 套件 / sitemap / robots / JSON-LD 复核**：JSON-LD 去重（新增可信插件 `pulse-seo`，单页单实体：文章 `NewsArticle` / 其余 `WebSite`）；`/sitemap.xml` 覆盖并补 `sitemap-sections.xml`/`sitemap-tags.xml`；`/robots.txt` 覆盖并 `Disallow: /spike/`；文章页 `og:image` 回退到题图。详见 [04-frontend-newspaper.md §9](./04-frontend-newspaper.md)、[07-plugins.md §2.6/§5.6](./07-plugins.md)。
 - [ ] 性能：LCP/CLS 达标；字体子集；图片响应式（R2）。
 - [ ] 分析插件接入（可选）。
 - [ ] Cloudflare 资源：D1 + R2 + Workers AI；`wrangler.prod.jsonc` 配置。

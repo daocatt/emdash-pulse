@@ -22,6 +22,7 @@
 | **Phase 4c** | MCP 接入验证（启用插件工具 + JSON-RPC `tools/list` / 调用） | ✅ **完成**（见下） |
 | **Phase 4d** | Agent 新闻室端到端验收（真实 HTTP 全链路 + 发布门禁） | ✅ **完成**（见下，`scripts/agent-e2e.mjs`） |
 | **Phase 3** | 评论审核（规则 + AI）+ 读者订阅（`pulse-subscriptions`） | ✅ **完成**（见下，详见 `11-phase3-comments-subscriptions.md`） |
+| **Phase 5a** | SEO 复核（JSON-LD 去重 + sitemap 补分类 + robots 覆盖） | ✅ **完成**（见下） |
 
 ## Phase 1 结果（内容模型与后台）
 
@@ -176,6 +177,23 @@ node scripts/agent-e2e.mjs   # 需 dev server 运行中；BASE_URL 可覆盖
 5. **发布门禁对 MCP 路径同样生效**：`content_publish` 走同一 `publish()` 通路，`pulse-review` 的 `content:beforePublish` 拦截，工具级返回 `PUBLISH_REJECTED`（非 HTTP 码）。至此"未 approved 无法发布"在 REST（Spike 5）与 MCP 两条路径均已验证。
 6. **agent 身份与 EmDash 身份天然隔离**：`X-Agent-Token` 是插件自管凭证，当作 Bearer 调 `/api/mcp` 只会得到 401 INVALID_TOKEN；agent 路由中也没有发布能力。
 
+## Phase 5a 结果（SEO 复核）
+
+| 项 | 状态 | 证据 |
+| --- | :-: | --- |
+| JSON-LD 去重 | ✅ | 新增**可信插件 `pulse-seo`**（`page:metadata`，`id:"primary"`）覆盖 EmDash 默认块；文章页 `/articles/suda-pulse-launch` 由 **2 → 1** 个 `ld+json`（`NewsArticle`），首页/列表页各 1 个 `WebSite` |
+| sitemap 补分类 | ✅ | 覆盖 `src/pages/sitemap.xml.ts`：索引集合 sitemap（articles/pages/editions）+ 新增 `sitemap-sections.xml`（4 版块）/`sitemap-tags.xml`（6 标签），仅列 `count>0` |
+| robots 覆盖 | ✅ | `src/pages/robots.txt.ts`：默认规则 + `Disallow: /spike/`；尊重后台 `seo.robotsTxt` |
+| 文章页社交图 | ✅ | `og:image` 回退到题图（`featured_image`）并补绝对 URL；JSON-LD `image` 同步（`getSeoMeta` 本身不回退到题图） |
+| 构建 / 测试 | ✅ | `npm run build` 通过；`astro check` **0 error**；`npm run plugin:test` 全绿（review 40 + agent 29 + editorial 9 + subscriptions 27 + **seo 4** = **109**） |
+
+### Phase 5a 新增关键发现
+
+1. **EmDash 会自动输出 JSON-LD，模板不要再注入**：`<EmDashHead>` 对 `pageType==="article"` 输出 `BlogPosting`、其余输出 `WebSite`。想换成 `NewsArticle` 只能在插件 `page:metadata` 里以**同 `id`（`"primary"`）**贡献——`resolvePageMetadata` 对 jsonld 按 `id` **首个胜出**去重，且插件贡献排在 base 之前。
+2. **覆盖 `sitemap.xml`/`robots.txt` 是官方支持的扩展点**：`injectCoreRoutes` 先探测项目 `src/pages/<basename>.<ext>`（`hasUserDefinedPublicRoute`），存在则不注入内置路由。
+3. **覆盖后路径必须保持原样**：中间件把 `/sitemap.xml`、`/robots.txt` 列入 `PUBLIC_RUNTIME_ROUTES`、把 `/sitemap-<slug>.xml` 交给 `SITEMAP_COLLECTION_RE`，命中才会走「带 `locals.emdash.db`」的分支；否则公开快路径不注入 `db`，路由会拿不到数据库。
+4. **可信插件（`plugins: []`）适合每页都跑的轻量 hook**：沙箱插件走 isolate，`page:metadata` 每次页面渲染都要跨边界；`pulse-seo` 放宿主进程内，零查询、零 isolate 开销。
+
 ## Phase 3 结果（评论与邮件订阅）
 
 | 项 | 状态 | 证据 |
@@ -185,7 +203,7 @@ node scripts/agent-e2e.mjs   # 需 dev server 运行中；BASE_URL 可覆盖
 | 读者订阅插件 | ✅ | `pulse-subscriptions`：`subscribers` 存储（唯一 `emailHash`）+ 双确认/退订 + `subscribers/list` + MCP + 后台页 |
 | 邮件降级 | ✅ | `ctx.email` 缺失或抛错 → 落库 `pendingEmail`，请求仍成功；`autoConfirm` 支持单确认 |
 | 订阅前台 | ✅ | `SubscribeForm`（浏览器 fetch）+ `/subscribe`、`/subscribe/confirm`、`/subscribe/unsubscribe`（SSR）+ 页脚/头版入口 |
-| 构建 / 测试 | ✅ | `npm run build` 通过；`npm run plugin:test` 全绿（review 40 + subscriptions 27 + agent 29 + editorial 9 = **105**） |
+| 构建 / 测试 | ✅ | `npm run build` 通过；`npm run plugin:test` 全绿（review 40 + subscriptions 27 + agent 29 + editorial 9 = 105；Phase 5a 后合计 **109**） |
 | HTTP 冒烟 | ✅ | 订阅→pending、非法邮箱 400、确认 200（重复确认幂等）、退订 200、错误 token「确认失败」；头版/文章页回归 200 |
 
 ### Phase 3 新增关键发现

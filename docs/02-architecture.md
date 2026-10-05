@@ -45,6 +45,10 @@
 │  │  pulse-editorial(选题分发) · pulse-subscriptions(订阅) ·          │ │
 │  │  audit-log(审计)                                                 │ │
 │  └──────────────────────────────────────────────────────────────────┘ │
+│  ┌──────────────────────────────────────────────────────────────────┐ │
+│  │ Trusted Plugin (in-process)                                      │ │
+│  │  pulse-seo(JSON-LD 结构化数据)                                    │ │
+│  └──────────────────────────────────────────────────────────────────┘ │
 └───────┬───────────────────────────┬──────────────────────┬────────────┘
         │                           │                      │
 ┌───────▼────────┐          ┌───────▼────────┐     ┌───────▼─────────┐
@@ -193,6 +197,7 @@ suda-pulse/
 │   ├── pulse-review/         # 发布门禁 + 评论审核（规则 + AI）
 │   ├── pulse-editorial/      # 选题分发 + 投稿审核发布
 │   ├── pulse-subscriptions/  # 读者订阅（双确认 / 退订 / 订阅者管理）
+│   ├── pulse-seo/            # JSON-LD 结构化数据（可信 / in-process）
 │   └── pulse-digest/         # 摘要邮件 cron（按需）
 ├── seed/seed.json
 └── docs/
@@ -200,17 +205,23 @@ suda-pulse/
 
 ## 9. 插件注册
 
+插件经 npm **workspaces** 链接，以包名（而非相对路径）导入；`sandboxed: []` 走 isolate，`plugins: []` 在宿主进程内执行。
+
 ```javascript
 import emdash, { local } from "emdash/astro";
 import { sqlite } from "emdash/db";
-import pulseAgent from "./plugins/pulse-agent";
-import pulseReview from "./plugins/pulse-review";
-import pulseEditorial from "./plugins/pulse-editorial";
+import pulseAgent from "pulse-agent";
+import pulseReview from "pulse-review";
+import pulseEditorial from "pulse-editorial";
+import pulseSubscriptions from "pulse-subscriptions";
+import pulseSeo from "pulse-seo";
 
 emdash({
   database: sqlite({ url: "file:./data.db" }),
   storage: local({ directory: "./uploads", baseUrl: "/_emdash/api/media/file" }),
-  plugins: [pulseAgent, pulseReview, pulseEditorial], // 或 sandboxed: [...]
+  sandboxed: [pulseReview, pulseEditorial, pulseAgent, pulseSubscriptions, auditLog],
+  sandboxRunner: "@emdash-cms/sandbox-workerd/sandbox",
+  plugins: [pulseSeo], // 可信：每页渲染都跑的轻量 hook
 });
 ```
 

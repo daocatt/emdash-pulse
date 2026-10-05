@@ -45,6 +45,7 @@ EmDash 插件分两类：
 | `pulse-agent` | Sandboxed | **Agent 侧**：注册/审批、选题领取、投稿、订阅意向 | `content:read`、`content:write`、`taxonomies:read`、`taxonomies:write` | P0 |
 | `pulse-review` | Sandboxed | 编审策略：发布门禁 + 评论审核（规则 + AI） | `hooks.content-policy:register`、`users:read`、`network:request` | P0 |
 | `pulse-subscriptions` | Sandboxed | **读者订阅**：双确认 / 退订 / 订阅者管理（替代 `bulletin`） | `email:send` | P0 |
+| `pulse-seo` | **Trusted** | **结构化数据**：为公开页面贡献唯一 JSON-LD（文章 `NewsArticle` / 其余 `WebSite`） | 无（`page:metadata` 无能力要求） | P1 |
 | `pulse-digest` | Sandboxed | 摘要邮件（若需自定义摘要格式） | `content:read`、`email:send`、`cron` | P2（按需） |
 
 > 订阅由自研 `pulse-subscriptions` 承担（**D4 修订**，见 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)）。仅在需要**自定义摘要格式**时才做 `pulse-digest`。
@@ -88,6 +89,16 @@ EmDash 插件分两类：
 - **同一 token 贯穿确认与退订**（确认后用途翻转，不轮换）→ 重复点击确认/退订链接**幂等**。
 - 邮件走 `ctx.email`（`email:send`）；**provider 缺失或投递失败不报错**，落库为记录的 `pendingEmail`。`autoConfirm` 设置可在无邮件服务时走单确认。
 - 前台接线：提交走**浏览器 fetch**（端点按客户端 IP 限流，SSR 代理会丢失真实 IP）；确认/退订走 **SSR**（`getPublicPluginApiRouteHandler`，token 即凭证）。
+
+### 2.6 `pulse-seo`（结构化数据）
+
+- **唯一可信插件**（`plugins: []`，宿主进程内）：只注册 `page:metadata` 钩子，放沙箱会让**每个公开页面渲染**都起一次 isolate，得不偿失。
+- 背景：EmDash `<EmDashHead>` 会自动为公开页面输出一个 JSON-LD（文章 `BlogPosting`，其余 `WebSite`）；模板此前又各自手工注入一份 → **同页两个冲突实体**。
+- 机制：`page:metadata` 贡献按 `id` **首个胜出**去重，插件排在 base 之前。故以 `id: "primary"` 贡献唯一实体，覆盖默认块：
+  - 文章页 → `NewsArticle`（报刊语义，优于默认 `BlogPosting`）
+  - 其余页 → `WebSite`
+- 数据只取自 `PublicPageContext`（标题/描述/时间/作者/图片/站点名），**零额外查询**；图片会补成绝对 URL（JSON-LD `image` 建议绝对地址）。
+- 模板侧不再手工注入 JSON-LD（`Base.astro` 的 `jsonLd` 属性已移除）。
 
 ---
 
@@ -239,6 +250,20 @@ HTTP 冒烟（`/_emdash/api/plugins/<slug>/<route>`）：
 
 **该 E2E 暴露并修复了两个真实 bug**（单测宿主掩盖、只有真实站点能现形）：`pulse-agent` 把 `assignment`（relation 型 reference）写进 `data` 导致投稿 400；`assignments` 开 drafts/revisions 导致 `update` 只写草稿、选题可被重复领取。详见 [10-phase0-report.md Phase 4d](./10-phase0-report.md)。
 
+## 5.6 Phase 5 实测（SEO / 结构化数据）
+
+新增**可信插件 `pulse-seo`**（`plugins: []`，4 用例）覆盖模板重复注入的 JSON-LD。构建期探针确认注册面：`Hooks: page:metadata` / `Routes: (none)`。
+
+实测（真实 dev 站点）：
+
+| 页面 | 结果 |
+| --- | --- |
+| `/articles/suda-pulse-launch` | **1** 个 `ld+json`，`@type=NewsArticle`（原先 2 个：`BlogPosting` + `NewsArticle`） |
+| `/` | **1** 个 `ld+json`，`@type=WebSite`（含 `description`） |
+| `/sections/top`、`/editions/2026-w41` | 各 **1** 个 `ld+json`（`WebSite`） |
+
+插件单测合计 **109**（review 40 + agent 29 + editorial 9 + subscriptions 27 + seo 4）。
+
 ---
 
 ## 6. 已确认
@@ -247,4 +272,5 @@ HTTP 冒烟（`/_emdash/api/plugins/<slug>/<route>`）：
 - ✅ **D5**：邮件传输采用 **Resend**（`emdash-plugin-resend`）—— 待凭证。
 - ✅ **D14**：评论审核**规则 + Cloudflare Workers AI**（`pulse-review` 独占 `comment:moderate`；AI 经 REST，失败降级不自动通过）。
 - ✅ 部署：**Cloudflare Workers + D1 + R2 + Workers AI**。
-- ⏳ 待定：分析插件（Cloudflare vs Umami）、SEO 套件是否引入。
+- ✅ 结构化数据：**自研 `pulse-seo`**（可信插件）统一 JSON-LD，不引入第三方 SEO 套件（见 §2.6）。
+- ⏳ 待定：分析插件（Cloudflare vs Umami）。
