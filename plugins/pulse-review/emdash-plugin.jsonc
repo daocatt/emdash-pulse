@@ -1,0 +1,20 @@
+{
+	"$schema": "./node_modules/@emdash-cms/plugin-cli/schemas/emdash-plugin.schema.json",
+
+	"slug": "pulse-review",
+	"publisher": "did:plc:zp6y7q3n5k2m4x8w9v1t6r0s",
+
+	"license": "MIT",
+	"author": { "name": "Suda Pulse", "email": "dev@suda.im" },
+	"security": { "email": "security@suda.im" },
+	"description": "Suda Pulse editorial review policy (publish gating + comment moderation)",
+
+	// Trust contract — what runtime APIs the plugin asks for.
+	// Empty arrays mean no extra privileges beyond logging,
+	// KV, and route/hook registration. Changing these between
+	// releases requires a version bump because installed
+	// users have consented to the old contract.
+	"capabilities": ["hooks.content-policy:register"],
+	"allowedHosts": [],
+	"storage": {}
+}
