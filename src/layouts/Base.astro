@@ -21,8 +21,6 @@ interface Props {
 	publishedTime?: string | null;
 	modifiedTime?: string | null;
 	author?: string | null;
-	/** 结构化数据（NewsArticle / WebSite 等），直接注入。 */
-	jsonLd?: Record<string, unknown> | null;
 	content?: { collection: string; id: string; slug?: string | null };
 }
 
@@ -37,7 +35,6 @@ const {
 	publishedTime,
 	modifiedTime,
 	author,
-	jsonLd,
 	content,
 } = Astro.props;
 
@@ -96,9 +93,6 @@ const pageCtx = createPublicPageContext({
 				} catch (e) {}
 			})();
 		</script>
-		{jsonLd && (
-			<script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
-		)}
 	</head>
 	<body>
 		<EmDashBodyStart page={pageCtx} />

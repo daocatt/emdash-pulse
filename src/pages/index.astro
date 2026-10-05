@@ -44,18 +44,9 @@ const sections = SECTION_ORDER.map((slug, index) => ({
 	label: termLabels.get(slug) ?? slug,
 	articles: sectionResults[index].entries,
 })).filter((section) => section.articles.length > 0);
-
-const siteUrl = Astro.url.origin;
-const jsonLd = {
-	"@context": "https://schema.org",
-	"@type": "WebSite",
-	name: siteTitle,
-	url: siteUrl,
-	description: siteTagline,
-};
 ---
 
-<Base title={siteTitle} description={siteTagline} type="website" jsonLd={jsonLd}>
+<Base title={siteTitle} description={siteTagline} type="website">
 	<div class="container front">
 		{lead && (
 			<section class="front__lead" aria-label="头条">

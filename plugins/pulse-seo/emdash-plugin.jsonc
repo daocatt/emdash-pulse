@@ -1,0 +1,16 @@
+{
+	"$schema": "./node_modules/@emdash-cms/plugin-cli/schemas/emdash-plugin.schema.json",
+
+	"slug": "pulse-seo",
+	"publisher": "did:plc:zp6y7q3n5k2m4x8w9v1t6r0s",
+
+	"license": "MIT",
+	"author": { "name": "Suda Pulse", "email": "dev@suda.im" },
+	"security": { "email": "security@suda.im" },
+	"description": "Suda Pulse structured data: single NewsArticle/WebSite JSON-LD per public page",
+
+	// 只贡献 head 元数据，不需要任何能力（page:metadata 无能力要求）。
+	"capabilities": [],
+	"allowedHosts": [],
+	"storage": {}
+}

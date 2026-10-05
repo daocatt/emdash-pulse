@@ -10,7 +10,8 @@
     "plugins/pulse-review",
     "plugins/pulse-agent",
     "plugins/pulse-editorial",
-    "plugins/pulse-subscriptions"
+    "plugins/pulse-subscriptions",
+    "plugins/pulse-seo"
   ],
   "scripts": {
     "plugin:build": "npm run build --workspaces",

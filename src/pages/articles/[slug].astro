@@ -43,6 +43,19 @@ const image = resolveMediaUrl(data.featured_image);
 const imageAlt = resolveMediaAlt(data.featured_image, data.title);
 const readingTime = estimateReadingTime(data.content);
 
+// 社交/结构化数据用的图片：SEO 面板图优先，否则回退到题图。
+// `getSeoMeta` 不会回退到 `featured_image`，若只依赖它，带图文章也会没有
+// `og:image`；且 JSON-LD `image` 需要绝对 URL。
+function toAbsolute(href: string | null): string | null {
+	if (!href) return null;
+	try {
+		return new URL(href, Astro.url.origin).href;
+	} catch {
+		return href;
+	}
+}
+const socialImage = seo.ogImage ?? toAbsolute(image);
+
 const relatedResult = section
 	? await getEmDashCollection("articles", {
 			where: { section: section.slug },
@@ -54,34 +67,19 @@ if (relatedResult && Astro.cache?.enabled) Astro.cache.set(relatedResult.cacheHi
 const related = (relatedResult?.entries ?? []).filter((entry) => entry.id !== article.id).slice(0, 3);
 
 const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ?? siteTitle;
-const jsonLd = {
-	"@context": "https://schema.org",
-	"@type": "NewsArticle",
-	headline: data.title,
-	description: data.deck ?? data.excerpt ?? undefined,
-	datePublished: data.publishedAt ? new Date(data.publishedAt).toISOString() : undefined,
-	dateModified: data.updatedAt ? new Date(data.updatedAt).toISOString() : undefined,
-	author: [{ "@type": "Person", name: authorName }],
-	image: image ? [image] : undefined,
-	publisher: { "@type": "Organization", name: siteTitle },
-	mainEntityOfPage: Astro.url.href,
-	articleSection: section?.label,
-	keywords: tags.map((tag) => tag.label).join(", "),
-};
 ---
 
 <Base
 	title={seo.title}
 	pageTitle={data.title}
 	description={seo.description}
-	image={seo.ogImage}
+	image={socialImage}
 	canonical={seo.canonical}
 	robots={seo.robots}
 	type="article"
 	publishedTime={data.publishedAt ? new Date(data.publishedAt).toISOString() : undefined}
 	modifiedTime={data.updatedAt ? new Date(data.updatedAt).toISOString() : undefined}
 	author={authorName}
-	jsonLd={jsonLd}
 	content={{ collection: "articles", id: data.id, slug }}
 >
 	<article class="container article">
