@@ -16,6 +16,13 @@ afterAll(async () => {
 
 type Res = Record<string, any>;
 
+/** raw 路由在测试宿主里回传 pluginResponse 对象（body 是 JSON 字符串）。 */
+type RawResponse = {
+	__emdashPluginResponse?: true;
+	status?: number;
+	body?: { kind: string; value: string };
+};
+
 let ipSeq = 0;
 const nextIp = (): string => {
 	ipSeq += 1;
@@ -41,8 +48,18 @@ const getReq = (headers: Record<string, string> = {}, ip = nextIp()) => ({
 	meta: meta(ip),
 });
 
-const call = async (route: string, input: unknown, request: unknown): Promise<Res> =>
-	(await host.invokeRoute(route, input, request as never)) as Res;
+/**
+ * 调用路由。公开路由为 raw（返回 pluginResponse），这里拆出 HTTP 状态码到
+ * `__status`，body 展开到顶层，使断言写法与 JSON 路由一致。
+ */
+const call = async (route: string, input: unknown, request: unknown): Promise<Res> => {
+	const res = (await host.invokeRoute(route, input, request as never)) as RawResponse & Res;
+	if (res && res.__emdashPluginResponse) {
+		const body = res.body?.value ? (JSON.parse(res.body.value) as Res) : {};
+		return { ...body, __status: res.status ?? 200 };
+	}
+	return res as Res;
+};
 
 const register = (slug: string, ip = nextIp()): Promise<Res> =>
 	call("agents/register", { slug, name: slug.toUpperCase() }, postReq(ip));
@@ -51,6 +68,7 @@ describe("pulse-agent 注册与审批", () => {
 	it("自助注册返回 agent_id 与一次性 secret，状态为 pending", async () => {
 		const result = await register("muse");
 		expect(result.ok).toBe(true);
+		expect(result.__status).toBe(200);
 		expect(result.status).toBe("pending");
 		expect(typeof result.agent_id).toBe("string");
 		expect(typeof result.registration_secret).toBe("string");
@@ -60,6 +78,7 @@ describe("pulse-agent 注册与审批", () => {
 		const result = await register("Bad Slug!");
 		expect(result.ok).toBe(false);
 		expect(result.error).toBe("INVALID_INPUT");
+		expect(result.__status).toBe(400);
 	});
 
 	it("slug 重复返回 SLUG_TAKEN", async () => {
@@ -67,6 +86,7 @@ describe("pulse-agent 注册与审批", () => {
 		const again = await call("agents/register", { slug: "dots", name: "Dots" }, postReq());
 		expect(again.ok).toBe(false);
 		expect(again.error).toBe("SLUG_TAKEN");
+		expect(again.__status).toBe(409);
 	});
 
 	it("用 secret 查询审批状态", async () => {
@@ -77,6 +97,7 @@ describe("pulse-agent 注册与审批", () => {
 			postReq(),
 		);
 		expect(status.ok).toBe(true);
+		expect(status.__status).toBe(200);
 		expect(status.status).toBe("pending");
 	});
 
@@ -89,6 +110,7 @@ describe("pulse-agent 注册与审批", () => {
 		);
 		expect(status.ok).toBe(false);
 		expect(status.error).toBe("NOT_FOUND");
+		expect(status.__status).toBe(404);
 	});
 
 	it("超过注册限流返回 RATE_LIMITED", async () => {
@@ -100,6 +122,7 @@ describe("pulse-agent 注册与审批", () => {
 		const blocked = await call("agents/register", { slug: "bulk-x", name: "X" }, postReq(ip));
 		expect(blocked.ok).toBe(false);
 		expect(blocked.error).toBe("RATE_LIMITED");
+		expect(blocked.__status).toBe(429);
 	});
 });
 
@@ -113,20 +136,23 @@ describe("pulse-agent 身份校验", () => {
 
 		const who = await call("agents/whoami", undefined, getReq({ "x-agent-token": approved.token }));
 		expect(who.ok).toBe(true);
+		expect(who.__status).toBe(200);
 		expect(who.slug).toBe("cygnus");
 		expect(who.status).toBe("approved");
 	});
 
-	it("无 token 的 whoami 返回 UNAUTHORIZED", async () => {
+	it("无 token 的 whoami 返回 UNAUTHORIZED（401）", async () => {
 		const who = await call("agents/whoami", undefined, getReq());
 		expect(who.ok).toBe(false);
 		expect(who.error).toBe("UNAUTHORIZED");
+		expect(who.__status).toBe(401);
 	});
 
-	it("错误 token 返回 UNAUTHORIZED", async () => {
+	it("错误 token 返回 UNAUTHORIZED（401）", async () => {
 		const who = await call("agents/whoami", undefined, getReq({ "x-agent-token": "sp_nope_deadbeef" }));
 		expect(who.ok).toBe(false);
 		expect(who.error).toBe("UNAUTHORIZED");
+		expect(who.__status).toBe(401);
 	});
 
 	it("撤销后 token 立即失效", async () => {
@@ -137,6 +163,7 @@ describe("pulse-agent 身份校验", () => {
 		const who = await call("agents/whoami", undefined, getReq({ "x-agent-token": approved.token }));
 		expect(who.ok).toBe(false);
 		expect(who.error).toBe("UNAUTHORIZED");
+		expect(who.__status).toBe(401);
 	});
 
 	it("未批准的注册密钥不能当 token 用", async () => {
@@ -148,6 +175,7 @@ describe("pulse-agent 身份校验", () => {
 		);
 		expect(who.ok).toBe(false);
 		expect(who.error).toBe("UNAUTHORIZED");
+		expect(who.__status).toBe(401);
 	});
 
 	it("agents/list 返回注册记录", async () => {

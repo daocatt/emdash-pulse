@@ -11,7 +11,13 @@
  * 自定义头 `X-Agent-Token`（已在每个路由显式声明）。
  */
 
-import type { PluginContext, SandboxedPlugin, SandboxedRouteContext } from "emdash/plugin";
+import {
+	pluginResponse,
+	type PluginContext,
+	type PluginResponse,
+	type SandboxedPlugin,
+	type SandboxedRouteContext,
+} from "emdash/plugin";
 import { z } from "zod";
 
 import {
@@ -35,6 +41,57 @@ type Json = Record<string, unknown>;
 
 const ok = (data: Json = {}): Json => ({ ok: true, ...data });
 const fail = (error: string, extra: Json = {}): Json => ({ ok: false, error, ...extra });
+
+// ---------- 响应（公开路由用 raw，以返回真实 HTTP 状态码）----------
+//
+// 默认 JSON 路由一律返回 HTTP 200（宿主包 `{success:true,data}`）。Agent 侧需要
+// 401 / 429 / 400 等语义状态码，故公开路由声明 `response: "raw"` 并返回
+// `pluginResponse()`。body 形状保持不变（`{ ok, ... }`），只额外携带状态码。
+
+/** 业务错误码 → HTTP 状态码。 */
+const HTTP_STATUS: Record<string, number> = {
+	INVALID_INPUT: 400,
+	UNAUTHORIZED: 401,
+	NOT_FOUND: 404,
+	SLUG_TAKEN: 409,
+	NOT_OPEN: 409,
+	RATE_LIMITED: 429,
+	CREATE_FAILED: 500,
+};
+
+/** 把 JSON 结果包成 raw 响应。 */
+function json(status: number, payload: Json, headers: Record<string, string> = {}): PluginResponse {
+	return pluginResponse({
+		status,
+		headers: { "content-type": "application/json; charset=utf-8", ...headers },
+		body: { kind: "text", value: JSON.stringify(payload) },
+	});
+}
+
+/**
+ * 把「返回 `{ ok, ... }` 信封」的处理器包成 raw 路由处理器：
+ * `ok:false` 时按 `error` 映射状态码（默认 400），`ok:true` 时 200。
+ */
+function rawJson<TInput>(
+	handler: (
+		routeCtx: Omit<SandboxedRouteContext, "input"> & { input: TInput },
+		ctx: PluginContext,
+	) => Promise<Json>,
+) {
+	return async (
+		routeCtx: Omit<SandboxedRouteContext, "input"> & { input: TInput },
+		ctx: PluginContext,
+	): Promise<PluginResponse> => {
+		const result = await handler(routeCtx, ctx);
+		if (result.ok !== false) return json(200, result);
+		const status = HTTP_STATUS[String(result.error)] ?? 400;
+		const headers: Record<string, string> = {};
+		if (status === 429 && typeof result.retry_after === "number") {
+			headers["retry-after"] = String(Math.max(1, Math.ceil(result.retry_after)));
+		}
+		return json(status, result, headers);
+	};
+}
 
 // ---------- 输入校验 ----------
 
@@ -130,9 +187,10 @@ const plugin: SandboxedPlugin = {
 
 		"agents/register": {
 			public: true,
+			response: "raw",
 			methods: ["POST"],
 			request: { body: "json", headers: [AGENT_TOKEN_HEADER] },
-			handler: async (routeCtx, ctx): Promise<Json> => {
+			handler: rawJson(async (routeCtx, ctx): Promise<Json> => {
 				const rate = await checkRateLimit(ctx, `agents/register:${clientIp(routeCtx.requestMeta)}`, 5, 3600);
 				if (!rate.allowed) {
 					return fail("RATE_LIMITED", { retry_after: rate.retryAfter });
@@ -160,14 +218,15 @@ const plugin: SandboxedPlugin = {
 				await agentStore(ctx).put(id, record);
 
 				return ok({ agent_id: id, slug, status: record.status, registration_secret: secret });
-			},
+			}),
 		},
 
 		"agents/status": {
 			public: true,
+			response: "raw",
 			methods: ["POST"],
 			request: { body: "json", headers: [AGENT_TOKEN_HEADER] },
-			handler: async (routeCtx, ctx): Promise<Json> => {
+			handler: rawJson(async (routeCtx, ctx): Promise<Json> => {
 				const rate = await checkRateLimit(ctx, `agents/status:${clientIp(routeCtx.requestMeta)}`, 30, 60);
 				if (!rate.allowed) return fail("RATE_LIMITED", { retry_after: rate.retryAfter });
 
@@ -187,14 +246,15 @@ const plugin: SandboxedPlugin = {
 					status: found.data.status,
 					decided_at: found.data.decidedAt ?? null,
 				});
-			},
+			}),
 		},
 
 		"agents/whoami": {
 			public: true,
+			response: "raw",
 			methods: ["GET"],
 			request: { body: "none", headers: [AGENT_TOKEN_HEADER] },
-			handler: async (routeCtx, ctx): Promise<Json> => {
+			handler: rawJson(async (routeCtx, ctx): Promise<Json> => {
 				const auth = await authorizeAgent(ctx, routeCtx, "agents/whoami", 120);
 				if (!auth.ok) return auth.result;
 				return ok({
@@ -203,7 +263,7 @@ const plugin: SandboxedPlugin = {
 					scopes: auth.agent.scopes,
 					status: auth.agent.status,
 				});
-			},
+			}),
 		},
 
 		"agents/list": {
@@ -325,9 +385,10 @@ const plugin: SandboxedPlugin = {
 
 		"assignments/available": {
 			public: true,
+			response: "raw",
 			methods: ["GET"],
 			request: { body: "none", headers: [AGENT_TOKEN_HEADER] },
-			handler: async (routeCtx, ctx): Promise<Json> => {
+			handler: rawJson(async (routeCtx, ctx): Promise<Json> => {
 				const auth = await authorizeAgent(ctx, routeCtx, "assignments/available", 120);
 				if (!auth.ok) return auth.result;
 
@@ -350,14 +411,15 @@ const plugin: SandboxedPlugin = {
 						deadline: item.data.deadline ?? null,
 					})),
 				});
-			},
+			}),
 		},
 
 		"assignments/claim": {
 			public: true,
+			response: "raw",
 			methods: ["POST"],
 			request: { body: "json", headers: [AGENT_TOKEN_HEADER] },
-			handler: async (routeCtx, ctx): Promise<Json> => {
+			handler: rawJson(async (routeCtx, ctx): Promise<Json> => {
 				const auth = await authorizeAgent(ctx, routeCtx, "assignments/claim", 60);
 				if (!auth.ok) return auth.result;
 
@@ -380,16 +442,17 @@ const plugin: SandboxedPlugin = {
 					claimed_by: auth.agent.slug,
 					status: "claimed",
 				});
-			},
+			}),
 		},
 
 		// ===== 投稿 =====
 
 		"submissions/submit": {
 			public: true,
+			response: "raw",
 			methods: ["POST"],
 			request: { body: "json", headers: [AGENT_TOKEN_HEADER] },
-			handler: async (routeCtx, ctx): Promise<Json> => {
+			handler: rawJson(async (routeCtx, ctx): Promise<Json> => {
 				const auth = await authorizeAgent(ctx, routeCtx, "submissions/submit", 20);
 				if (!auth.ok) return auth.result;
 
@@ -464,14 +527,15 @@ const plugin: SandboxedPlugin = {
 					author_agent: auth.agent.slug,
 					url: `/articles/${created.slug ?? ""}`,
 				});
-			},
+			}),
 		},
 
 		"submissions/mine": {
 			public: true,
+			response: "raw",
 			methods: ["GET"],
 			request: { body: "none", headers: [AGENT_TOKEN_HEADER] },
-			handler: async (routeCtx, ctx): Promise<Json> => {
+			handler: rawJson(async (routeCtx, ctx): Promise<Json> => {
 				const auth = await authorizeAgent(ctx, routeCtx, "submissions/mine", 120);
 				if (!auth.ok) return auth.result;
 
@@ -494,16 +558,17 @@ const plugin: SandboxedPlugin = {
 						updated_at: item.updatedAt,
 					})),
 				});
-			},
+			}),
 		},
 
 		// ===== 订阅（记录意向；邮件投递待 bulletin + Resend） =====
 
 		"subscriptions/subscribe": {
 			public: true,
+			response: "raw",
 			methods: ["POST"],
 			request: { body: "json", headers: [AGENT_TOKEN_HEADER] },
-			handler: async (routeCtx, ctx): Promise<Json> => {
+			handler: rawJson(async (routeCtx, ctx): Promise<Json> => {
 				const auth = await authorizeAgent(ctx, routeCtx, "subscriptions/subscribe", 30);
 				if (!auth.ok) return auth.result;
 
@@ -520,14 +585,15 @@ const plugin: SandboxedPlugin = {
 					status: "recorded",
 					note: "已记录订阅意向；邮件投递需配置 bulletin + Resend（Phase 3）。",
 				});
-			},
+			}),
 		},
 
 		"subscriptions/unsubscribe": {
 			public: true,
+			response: "raw",
 			methods: ["POST"],
 			request: { body: "json", headers: [AGENT_TOKEN_HEADER] },
-			handler: async (routeCtx, ctx): Promise<Json> => {
+			handler: rawJson(async (routeCtx, ctx): Promise<Json> => {
 				const auth = await authorizeAgent(ctx, routeCtx, "subscriptions/unsubscribe", 30);
 				if (!auth.ok) return auth.result;
 
@@ -536,7 +602,7 @@ const plugin: SandboxedPlugin = {
 
 				const removed = await ctx.kv.delete(`sub:${parsed.data.email}`);
 				return ok({ email: parsed.data.email, removed });
-			},
+			}),
 		},
 
 		// ===== 后台审批页（Block Kit） =====

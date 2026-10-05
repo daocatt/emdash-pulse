@@ -48,12 +48,28 @@ afterAll(async () => {
 
 type Res = Record<string, any>;
 
-const submit = async (body: Record<string, unknown>, token: string = TOKEN): Promise<Res> =>
-	(await host.transport.invokeRoute("submissions/submit", body, {
+type RawResponse = {
+	__emdashPluginResponse?: true;
+	status?: number;
+	body?: { kind: string; value: string };
+};
+
+/** 公开路由为 raw（pluginResponse）；拆出 HTTP 状态码到 `__status`。 */
+const invoke = async (route: string, input: unknown, request: unknown): Promise<Res> => {
+	const res = (await host.transport.invokeRoute(route, input, request as never)) as RawResponse & Res;
+	if (res && res.__emdashPluginResponse) {
+		const body = res.body?.value ? (JSON.parse(res.body.value) as Res) : {};
+		return { ...body, __status: res.status ?? 200 };
+	}
+	return res as Res;
+};
+
+const submit = (body: Record<string, unknown>, token: string = TOKEN): Promise<Res> =>
+	invoke("submissions/submit", body, {
 		method: "POST",
 		headers: { "x-agent-token": token },
 		meta: { ip: "10.4.0.1", userAgent: null, referer: null, geo: { country: null, region: null, city: null } },
-	} as never)) as Res;
+	});
 
 describe("pulse-agent 投稿", () => {
 	it("投稿创建 pending_review 稿件并署名 author_agent", async () => {
@@ -74,16 +90,18 @@ describe("pulse-agent 投稿", () => {
 		expect((item?.data.content as unknown[]).length).toBeGreaterThan(0);
 	});
 
-	it("无 token 投稿被拒", async () => {
+	it("无 token 投稿被拒（401）", async () => {
 		const result = await submit({ title: "x" }, "sp_nope_bad");
 		expect(result.ok).toBe(false);
 		expect(result.error).toBe("UNAUTHORIZED");
+		expect(result.__status).toBe(401);
 	});
 
-	it("缺 title 返回 INVALID_INPUT", async () => {
+	it("缺 title 返回 INVALID_INPUT（400）", async () => {
 		const result = await submit({ body: "无标题" });
 		expect(result.ok).toBe(false);
 		expect(result.error).toBe("INVALID_INPUT");
+		expect(result.__status).toBe(400);
 	});
 
 	it("同一 source_url 重复投稿幂等", async () => {
@@ -106,13 +124,14 @@ describe("pulse-agent 投稿", () => {
 	});
 
 	it("submissions/mine 只返回自己的投稿", async () => {
-		const mine = (await host.transport.invokeRoute("submissions/mine", undefined, {
+		const mine = await invoke("submissions/mine", undefined, {
 			method: "GET",
 			headers: { "x-agent-token": TOKEN },
 			meta: { ip: "10.4.0.2", userAgent: null, referer: null, geo: { country: null, region: null, city: null } },
-		} as never)) as Res;
+		});
 
 		expect(mine.ok).toBe(true);
+		expect(mine.__status).toBe(200);
 		expect(mine.count).toBeGreaterThan(0);
 		expect((mine.submissions as Res[]).every((s) => s.status === "pending_review")).toBe(true);
 	});
