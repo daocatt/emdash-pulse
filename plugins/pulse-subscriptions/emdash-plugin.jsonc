@@ -1,0 +1,63 @@
+{
+	"$schema": "./node_modules/@emdash-cms/plugin-cli/schemas/emdash-plugin.schema.json",
+
+	"slug": "pulse-subscriptions",
+	"publisher": "did:plc:zp6y7q3n5k2m4x8w9v1t6r0s",
+
+	"license": "MIT",
+	"author": { "name": "Suda Pulse", "email": "dev@suda.im" },
+	"security": { "email": "security@suda.im" },
+	"description": "Suda Pulse reader subscriptions: double opt-in, unsubscribe, subscriber list",
+
+	// Trust contract — what runtime APIs the plugin asks for.
+	// - email:send → 发送确认 / 欢迎（含退订链接）邮件。未配置 provider 时降级为
+	//   在订阅记录里留 `pendingEmail`，不报错。
+	// 订阅者身份存于插件存储 `subscribers`，不是 EmDash 用户，故无需 users 能力。
+	"capabilities": ["email:send"],
+	"allowedHosts": [],
+	"storage": {
+		"subscribers": {
+			"indexes": ["status", "createdAt", "tokenHash"],
+			"uniqueIndexes": ["emailHash"]
+		}
+	},
+	"admin": {
+		"pages": [{ "path": "/subscribers", "label": "订阅者", "icon": "mail" }],
+		"settingsSchema": {
+			"autoConfirm": {
+				"label": "免确认直接订阅（单确认）",
+				"description": "开启后跳过双确认邮件，提交即视为已订阅。未配置邮件服务时可临时开启以便测试。",
+				"type": "boolean",
+				"default": false
+			},
+			"replyTo": {
+				"label": "回复地址（Reply-To）",
+				"description": "订阅邮件的回复地址，留空则用站点默认发件地址。",
+				"type": "string",
+				"default": ""
+			},
+			"confirmSubject": {
+				"label": "确认邮件主题",
+				"type": "string",
+				"default": "确认订阅 Suda Pulse"
+			},
+			"welcomeSubject": {
+				"label": "欢迎邮件主题",
+				"type": "string",
+				"default": "欢迎订阅 Suda Pulse"
+			},
+			"confirmPath": {
+				"label": "确认页路径",
+				"description": "确认邮件里链接指向的站点路径。",
+				"type": "string",
+				"default": "/subscribe/confirm"
+			},
+			"unsubscribePath": {
+				"label": "退订页路径",
+				"description": "欢迎 / 退订邮件里链接指向的站点路径。",
+				"type": "string",
+				"default": "/subscribe/unsubscribe"
+			}
+		}
+	}
+}

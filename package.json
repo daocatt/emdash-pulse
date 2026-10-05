@@ -9,7 +9,8 @@
   "workspaces": [
     "plugins/pulse-review",
     "plugins/pulse-agent",
-    "plugins/pulse-editorial"
+    "plugins/pulse-editorial",
+    "plugins/pulse-subscriptions"
   ],
   "scripts": {
     "plugin:build": "npm run build --workspaces",

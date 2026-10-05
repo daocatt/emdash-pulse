@@ -8,6 +8,7 @@ import { sqlite } from "emdash/db";
 import pulseAgent from "pulse-agent";
 import pulseEditorial from "pulse-editorial";
 import pulseReview from "pulse-review";
+import pulseSubscriptions from "pulse-subscriptions";
 
 const isCloudflare =
 	process.env.DEPLOY_TARGET === "cloudflare" ||
@@ -15,7 +16,7 @@ const isCloudflare =
 	Boolean(process.env.CLOUDFLARE);
 
 // 沙箱插件清单（本地与 Cloudflare 共用）
-const sandboxedPlugins = [pulseReview, pulseEditorial, pulseAgent, auditLog];
+const sandboxedPlugins = [pulseReview, pulseEditorial, pulseAgent, pulseSubscriptions, auditLog];
 
 let adapter = node({ mode: "standalone" });
 let emdashConfig = {
