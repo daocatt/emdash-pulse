@@ -171,7 +171,7 @@ audit-log 写入证据（建一篇草稿后 `_plugin_storage` 出现一条 `entr
 | --- | :-: | :-: | :-: |
 | `pulse-review` | 0（仅 hooks） | — | 4 用例（发布门禁） |
 | `pulse-editorial` | 8 | 8 | 9 用例（审核流转 + 选题） |
-| `pulse-agent` | 14 | 4 | 12 用例（注册/审批/token/限流）+ 11 用例（MD→PT） |
+| `pulse-agent` | 14 | 4 | 28 用例（注册/审批/token/限流 12 + MD→PT 11 + 投稿 5） |
 
 HTTP 冒烟（`/_emdash/api/plugins/<slug>/<route>`）：
 

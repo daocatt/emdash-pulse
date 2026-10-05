@@ -99,7 +99,7 @@
 | MCP 工具 | ✅ | editorial 8 个、agent 4 个（构建期生成的 `dist/manifest.json` 已含 `inputSchema`） |
 | MD→PT | ✅ | `plugins/pulse-agent/src/markdown.ts`（标题/列表/引用/代码/链接/粗斜体） |
 | 构建 | ✅ | `npm run build --workspaces` 全绿；`dist/manifest.json` + `index.mjs` + `plugin.mjs` |
-| 测试 | ✅ | `markdown`（10 用例）、`pulse-agent`（注册/审批/token/限流）、`pulse-editorial`（审核流转） |
+| 测试 | ✅ | `markdown`（11）、`pulse-agent` 注册/审批/token/限流（12）+ 投稿端到端（5）、`pulse-editorial` 审核流转（9） |
 
 ### Phase 4b 新增关键发现（重要）
 
