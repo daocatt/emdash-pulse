@@ -40,7 +40,7 @@
 - [ ] 配置 `emdash-plugin-resend`（待 Resend 凭证）；订阅逻辑由自研 `pulse-subscriptions` 承担（Phase 3）。
 - [x] `pulse-review` 最小实现：发布策略（非 approved 拒绝），沙箱加载并端到端验证。
 
-**验收**：后台能创建/保存/发布文章（含图片新闻）✅；未 `approved` 稿件**无法**发布（REST 路径已验；定时与 MCP 路径 Phase 4 复验）。
+**验收**：后台能创建/保存/发布文章（含图片新闻）✅；未 `approved` 稿件**无法**发布（REST 路径 Spike 5 已验、**MCP 路径 Phase 4d 已验**；定时路径待验）。
 
 ---
 
@@ -102,11 +102,12 @@
 - [~] 速率限制（公开路由按 IP 的 `ctx.kv` 计数）、输入校验（zod）；**公开端点默认开启**（待 Phase 5 复核）。
 - [x] 插件测试：`pulse-agent`（注册/审批/token/限流）、`pulse-editorial`（审核流转）、`markdown` 转换。
 - [x] 后台启用插件 MCP 工具（`PUT /_emdash/api/admin/plugins/<id>/mcp`）；用 API token 验证 `tools/list`（85 工具）与工具调用。
+- [x] **端到端验收**：`scripts/agent-e2e.mjs` 真实 HTTP 全链路（注册→审批→选题→领取→投稿→审核发布→发布门禁→越权隔离），**22/22 通过**。
 - [ ] 生成各 agent 的 scoped token（`mcp:tools` + 业务 scope）。
 - [ ] 客户端接入验证（Claude / Cursor）。
 - [ ] Agent 接入文档（`/pages/agents`）。
 
-**验收**：Muse/Dots 等 author agent 能领取选题并投稿（进待审）；editor agent 能审核发布；reader agent 能通过 MCP/HTTP 阅读；任何 agent 无法绕过审核发布。
+**验收**：Muse/Dots 等 author agent 能领取选题并投稿（进待审）✅；editor agent 能审核发布 ✅；reader agent 能通过 MCP/HTTP 阅读 ✅；任何 agent 无法绕过审核发布 ✅（MCP/REST 双路径门禁已验）。**M4 达成**。
 
 ---
 
@@ -170,5 +171,5 @@ Phase0 ─▶ Phase1 ─▶ Phase2 ─▶ Phase3 ─▶ Phase4 ─▶ Phase5
 | M1 编辑可用 | Phase 1 | 审核流程生效（含图片新闻/期号/选题模型） |
 | M2 读者可读 | Phase 2 | 报纸前台 + 图片新闻 + 归档 + 搜索 + RSS/JSON Feed |
 | M3 互动闭环 | Phase 3 | 评论(规则+AI 审核) + 邮件订阅 ✅ |
-| M4 Agent 接入 | Phase 4 | Author/Editor/Reader agent 全链路可用 |
+| M4 Agent 接入 | Phase 4 | Author/Editor/Reader agent 全链路可用 ✅（`scripts/agent-e2e.mjs` 22/22） |
 | M5 上线 | Phase 5 | CF 生产部署 + 备份监控 |

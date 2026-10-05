@@ -20,6 +20,7 @@
 | **Phase 4a** | Agent Read API（9 个公开只读端点 + 限流） | ✅ **完成**（见下） |
 | **Phase 4b** | Agent 新闻室写侧（`pulse-editorial` + `pulse-agent`） | ✅ **完成**（见下） |
 | **Phase 4c** | MCP 接入验证（启用插件工具 + JSON-RPC `tools/list` / 调用） | ✅ **完成**（见下） |
+| **Phase 4d** | Agent 新闻室端到端验收（真实 HTTP 全链路 + 发布门禁） | ✅ **完成**（见下，`scripts/agent-e2e.mjs`） |
 | **Phase 3** | 评论审核（规则 + AI）+ 读者订阅（`pulse-subscriptions`） | ✅ **完成**（见下，详见 `11-phase3-comments-subscriptions.md`） |
 
 ## Phase 1 结果（内容模型与后台）
@@ -101,7 +102,7 @@
 | MCP 工具 | ✅ | editorial 8 个、agent 4 个（构建期生成的 `dist/manifest.json` 已含 `inputSchema`） |
 | MD→PT | ✅ | `plugins/pulse-agent/src/markdown.ts`（标题/列表/引用/代码/链接/粗斜体） |
 | 构建 | ✅ | `npm run build --workspaces` 全绿；`dist/manifest.json` + `index.mjs` + `plugin.mjs` |
-| 测试 | ✅ | `markdown`（11）、`pulse-agent` 注册/审批/token/限流（12）+ 投稿端到端（5）、`pulse-editorial` 审核流转（9）；`npm run plugin:test` 全绿（4 + 28 + 9） |
+| 测试 | ✅ | `markdown`（11）、`pulse-agent` 注册/审批/token/限流（12）+ 投稿端到端（6）、`pulse-editorial` 审核流转（9）；`npm run plugin:test` 全绿（4 + 29 + 9） |
 | HTTP 冒烟 | ✅ | 真实 HTTP 状态码逐条验证：`register` 200 / 重复 slug 409 / 非法 slug 400、`status` 200 / 错误 secret 404、`whoami` 无 token 401、`submit` 无 token 401、`available` 无 token 401、限流第 6 次 429 + `Retry-After`；私有 `agents/list` 未鉴权 401；站点核心 7 条路由回归 200 |
 
 ### Phase 4b 新增关键发现（重要）
@@ -137,6 +138,44 @@
 4. **MCP 响应是 SSE**：即使请求带 `Accept: application/json`，stateless 传输仍以 `event: message` / `data: {...}` 返回；解析需取 `data:` 行，不能直接 `json.loads` 整个 body。
 5. **MCP 端点本身不做 scope 裁剪**（`enforceTokenScope` 对 MCP 路径直接放行），授权下移到 `mcp/server.ts` 的每个工具内；因此错误以**工具级 `isError` + `_meta.code`** 返回，而非 HTTP 状态码。
 
+## Phase 4d 结果（Agent 新闻室端到端验收）
+
+**目标**：在真实 dev 站点上跑通 M4 验收全链路（`scripts/agent-e2e.mjs`，Node 原生 fetch，无依赖）。编辑侧动作走 **MCP**（Bearer + JSON-RPC），agent 侧走**公开 raw 路由 + `X-Agent-Token`**。
+
+```bash
+node scripts/agent-e2e.mjs   # 需 dev server 运行中；BASE_URL 可覆盖
+```
+
+**结果：26/26 通过**。链路与断言：
+
+| # | 步骤 | 断言 |
+| --- | --- | --- |
+| 1–2 | dev 会话 + 创建 admin API token（scope `mcp:tools`） | 201 + token |
+| 3–4 | `tools/list` | 85 工具，含三插件工具 |
+| 5–7 | agent 注册 / 重复 slug / 自助查状态 | 200 pending / 409 SLUG_TAKEN / pending |
+| 8–10 | 编辑批准（MCP `approveAgent`）→ 签发 token → `whoami` | token `sp_<slug>_…` / approved |
+| 11 | 无 token 投稿 | 401 UNAUTHORIZED |
+| 12–14 | 编辑建选题（MCP）→ agent 见选题 → 领取 | open → 可见 → claimed |
+| 15 | 领取后：选题移出 `available` + **条目行** `task_status=claimed` | 回归：防重复领取 |
+| 16–17 | agent 投稿 → pending_review；同 `source_url` 幂等 | 200 / duplicate 同 id |
+| 18 | 投稿后：条目行 `task_status=submitted` + 回填 `submitted_article` | 溯源 |
+| 19–20 | **发布门禁（MCP）**：`pending_review` 直接 `content_publish` | **`PUBLISH_REJECTED`**（"稿件需经编辑审核通过…方可发布"） |
+| 21–23 | 待审队列（MCP）含稿件 → 详情含署名 → **批准并发布** | published |
+| 24 | 前台文章页 | 200 且含标题 |
+| 25 | agent token 当 Bearer 调 MCP | 401 INVALID_TOKEN（隔离） |
+
+### Phase 4d 新增关键发现（重要）
+
+1. **沙箱无法写 relation 型 reference 字段（真实 bug ×2）**：EmDash 把「绑定关系」的 `reference` 字段视为 **storageless**（选择存关联边表，无列），只接受经 `references` 通道写入（`data` 里带该键报 "Reference fields bound to a relation are set through 'references', not 'data'"）。而沙箱 `ctx.content.create/update` 的 options **不暴露 `references`**（宿主桥接 `contentCreate` 只透传 `data`/`seo`/`locale`/`translationOf`）。本项目两处中招：
+   - `articles.assignment`（reference）→ `pulse-agent` 原先把 `assignment` 塞进 `data`，真实站点**整次投稿 400**。**修复**：不写该字段，改回填选题侧。
+   - `assignments.submitted_article`（reference）→ 同样无列，回填报 `no such column`。**修复**：改为 `type: "string"`（存文章 id，`indexed`）。
+   → 结论：**沙箱要写的字段一律用标量类型**（string/select/datetime/…），`reference` 只能由 trusted 代码或后台人工设置。
+2. **沙箱可写的集合不要开 drafts/revisions**：`assignments` 原为 `["drafts","revisions"]`，`ctx.content.update` 只写**草稿修订**，条目行不变 → `assignments/available`（按条目行 `task_status="open"` 过滤）仍列出已被领取的选题，`claim` 的守卫也读到旧值 → **同一选题可被重复领取**。**修复**：`assignments.supports = []`（运营队列不需要草稿）。这正是 Phase 4b 发现 #10 的同一模式，只是换到了选题侧。
+3. **测试宿主会掩盖上述两类问题**：插件单测的 fixture collection 默认带 drafts/revisions 且不校验 reference 约束，只有**真实站点**能暴露 → 必须做真实 HTTP 端到端（本次 22→26 项断言即由 E2E 暴露并回归）。
+4. **`_rev` 是乐观锁，来自 `content_get` 顶层**（`encodeRev(version, updatedAt)`），不是修订 id；`content_publish` 作用于**草稿修订**，故新建条目要先 `content_update` 造出草稿才能发布。MCP 写工具把 `_rev` 声明为必填，而底层 REST 的 `handleContentUpdate` 允许无 `_rev` 的"盲写"。
+5. **发布门禁对 MCP 路径同样生效**：`content_publish` 走同一 `publish()` 通路，`pulse-review` 的 `content:beforePublish` 拦截，工具级返回 `PUBLISH_REJECTED`（非 HTTP 码）。至此"未 approved 无法发布"在 REST（Spike 5）与 MCP 两条路径均已验证。
+6. **agent 身份与 EmDash 身份天然隔离**：`X-Agent-Token` 是插件自管凭证，当作 Bearer 调 `/api/mcp` 只会得到 401 INVALID_TOKEN；agent 路由中也没有发布能力。
+
 ## Phase 3 结果（评论与邮件订阅）
 
 | 项 | 状态 | 证据 |
@@ -146,7 +185,7 @@
 | 读者订阅插件 | ✅ | `pulse-subscriptions`：`subscribers` 存储（唯一 `emailHash`）+ 双确认/退订 + `subscribers/list` + MCP + 后台页 |
 | 邮件降级 | ✅ | `ctx.email` 缺失或抛错 → 落库 `pendingEmail`，请求仍成功；`autoConfirm` 支持单确认 |
 | 订阅前台 | ✅ | `SubscribeForm`（浏览器 fetch）+ `/subscribe`、`/subscribe/confirm`、`/subscribe/unsubscribe`（SSR）+ 页脚/头版入口 |
-| 构建 / 测试 | ✅ | `npm run build` 通过；`npm run plugin:test` 全绿（review 40 + subscriptions 27 + agent 28 + editorial 9 = **104**） |
+| 构建 / 测试 | ✅ | `npm run build` 通过；`npm run plugin:test` 全绿（review 40 + subscriptions 27 + agent 29 + editorial 9 = **105**） |
 | HTTP 冒烟 | ✅ | 订阅→pending、非法邮箱 400、确认 200（重复确认幂等）、退订 200、错误 token「确认失败」；头版/文章页回归 200 |
 
 ### Phase 3 新增关键发现

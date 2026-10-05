@@ -11,10 +11,12 @@
 | `articles` | 文章 | 新闻稿件（含**图片新闻**） | drafts, revisions, preview, scheduling, search, seo |
 | `pages` | 页面 | 关于/联系/版权/采编规范 | drafts, revisions, search, seo |
 | `editions` | 期号 | 显式"第 N 期 / 周报" | drafts, revisions, seo |
-| `assignments` | 选题任务 | 编辑 → author agent 的选题分发 | drafts, revisions |
+| `assignments` | 选题任务 | 编辑 → author agent 的选题分发 | **无**（见下） |
 
 - **署名**：用 EmDash 内置 **bylines**（含 agent 作者，如 Muse / Dots）。
 - **Agent 身份**：`user 账号 + byline + scoped token`（见 [09-agent-newsroom.md](./09-agent-newsroom.md)），不单建 collection。
+
+> **`assignments` 不开 drafts/revisions（Phase 4d 修订）**：选题是**运营队列**（`open→claimed→submitted→done`），由 agent 经沙箱 `ctx.content.update` 即时改状态。若开启 drafts/revisions，`update` 只写**草稿修订**，条目行不变 —— `assignments/available`（按 `task_status="open"` 过滤条目行）仍会列出已被领取的选题，且 `claim` 的守卫读到旧值，导致**同一选题可被重复领取**。故 `supports: []`。
 - **订阅者**：由自研 `pulse-subscriptions` 插件管理（插件存储 `subscribers`，非 EmDash 集合）。
 - **评论**：EmDash 内置评论表。
 
@@ -40,7 +42,7 @@
 | `is_breaking` | 突发 | boolean | | | 头版角标 |
 | `is_featured` | 头条候选 | boolean | | | 头版头条 |
 | `priority` | 版面权重 | select | | | lead/high/normal |
-| `assignment` | 关联选题 | reference | | | → `assignments`（agent 投稿溯源） |
+| `assignment` | 关联选题 | reference | | | → `assignments`（人工/后台标注；**沙箱插件无法写**，见下） |
 | `author_agent` | 作者 agent | string | | | 如 `muse` / `dots`（审计用） |
 | `allow_comments` | 允许评论 | boolean | | | 覆盖集合默认 |
 | `correction` | 更正说明 | text | | | 已发布勘误 |
@@ -129,6 +131,8 @@
 > **变更（Phase 2）**：原设计用 `edition` **reference 字段**关联期号。实测 EmDash **不支持按 reference 字段过滤/排序**（`getEmDashCollection({ where: { edition } })` 返回错误："it is a reference field bound to a relation, and its links are not stored on the entry"），因此期号页无法反查本期文章。改用 **taxonomy `edition`**（术语 = 期号 slug）：可按 `where: { edition: "2026-w40" }` 过滤、有计数、后台选择器友好。`editions` collection 仍保留，用于承载期号自身元数据（标题/封面/导读）与 `/editions/[slug]` 页面。二者通过 **slug 约定**关联（`editions.slug === edition 术语 slug`）。
 >
 > 同一限制也适用于 `assignment` reference 字段（同样不可过滤）；选题反查文章留待 Phase 4 用 `pulse-editorial` 的专用查询解决。
+>
+> **进一步（Phase 4 实测）**：`assignment` 是**绑定关系的 reference 字段（storageless）**——其选择存在关联边表，EmDash 只接受经 `references` 通道写入（`data` 里带该键会被拒："Reference fields bound to a relation are set through 'references', not 'data'"）。而沙箱插件的 `ctx.content.create/update` **不暴露 `references`**（宿主桥接只透传 `data`/`seo`/`locale`/`translationOf`），因此 **agent 投稿无法写 `articles.assignment`**。稿件→选题的溯源改由选题侧的**反向链接** `assignments.submitted_article` 记录（`pulse-agent` 投稿时回填）；`articles.assignment` 保留给编辑在后台手工标注。
 
 > **已确认：周报优先**（`period_type=week`，`period_no` 为 ISO 周号）。月报在后续迭代扩展。
 

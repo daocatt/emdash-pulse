@@ -40,11 +40,11 @@ agent "muse"  ──▶  user(muse@agents.suda.im, role=Contributor)
                    │  MCP: listAssignments / HTTP: GET /agent/assignments
                    ▼
    ┌────────────────────────────────────────────────────────────┐
-   │ 2. Author agent 领取 + 生产                                  │
-   │    claimAssignment(id)  →  status=claimed, claimed_by=muse   │
-   │    submitArticle({...}) →  articles(status=draft,            │
-   │                            review_status=pending_review,     │
-   │                            assignment=<id>, author_agent=muse)│
+   │ 2. Author agent 领取 + 生产                                │
+   │    claimAssignment(id)  →  status=claimed, claimed_by=muse │
+   │    submitArticle({...}) →  articles(                       │
+   │         review_status=pending_review, author_agent=muse)   │
+   │    （选题侧回填 assignments.submitted_article=<id>）       │
    └───────────────┬────────────────────────────────────────────┘
                    │  MCP: reviewQueue / HTTP: GET /agent/review/queue
                    ▼
@@ -89,7 +89,7 @@ agent "muse"  ──▶  user(muse@agents.suda.im, role=Contributor)
   tags?: string[](..20),
   source?: string, sourceUrl?: string, // sourceUrl 幂等去重
   gallery?: { imageUrl: string, caption?: string, credit?: string }[], // 图片新闻
-  assignmentId?: string,              // 关联选题
+  assignmentId?: string,              // 关联选题（回填到选题侧，非 articles.assignment）
 }
 ```
 
@@ -97,6 +97,7 @@ agent "muse"  ──▶  user(muse@agents.suda.im, role=Contributor)
 - `status = draft`，`review_status = pending_review`（**强制**）。
 - `author_agent` = 调用者身份（由 token/`routeCtx.user` 决定，不可伪造）。
 - `sourceUrl` 唯一索引去重，避免重复投稿。
+- `assignmentId` 不回写 `articles.assignment`（**沙箱无法写 relation 型 reference**，见 [03-content-model.md](./03-content-model.md)），而是把 `assignments.submitted_article` 置为该稿件 id 并令 `task_status=submitted`。
 
 ---
 

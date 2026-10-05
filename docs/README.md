@@ -35,6 +35,7 @@
 - **Phase 4（部分）**：**Agent Read API** ✅ —— 9 个公开只读端点（`/agent/news`、`/agent/news/{slug}`、`/agent/sections`、`/agent/editions`、`/agent/feed.json`、`/agent/schema`、`/llms.txt` 等）+ 滑动窗口限流。
 - **Phase 4b（写侧）**：`pulse-editorial`（编辑台：选题 + 审核发布，独占 `content:publish`）与 `pulse-agent`（Agent 侧：自助注册/审批 + token、选题领取、投稿、订阅意向）✅；MD→PT 转换 ✅。
 - **Phase 4c（MCP 接入）**：三个插件的 MCP 工具已启用；`POST /_emdash/api/mcp`（Bearer token）`tools/list` 返回 **85 工具**（72 内置 + 13 插件），工具调用与 scope 强制均实测通过 ✅；客户端接入文档（`/pages/agents`）待办。
+- **Phase 4d（端到端验收）**：`scripts/agent-e2e.mjs` 真实 HTTP 全链路 **26/26 通过**（注册→审批→选题→领取→投稿→审核发布→发布门禁→越权隔离）；E2E 暴露并修复两个真实 bug（沙箱写 reference 字段、`assignments` 草稿化导致重复领取）✅。**M4 达成**。
 - **Phase 3**：评论审核（`pulse-review` 独占 `comment:moderate`：规则引擎 + Workers AI，失败降级不自动通过）✅；评论主题（`--ec-*`）✅；**自研 `pulse-subscriptions`**（双确认 / 退订 / 订阅者管理 + 后台页 + MCP）✅；订阅前台（`SubscribeForm` + `/subscribe`、`/subscribe/confirm`、`/subscribe/unsubscribe`）✅。Resend 真实投递待凭证（未配置时落库 `pendingEmail`）。
 - 详见 [10-phase0-report.md](./10-phase0-report.md) 与 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)（含每阶段关键发现与踩坑）。
 

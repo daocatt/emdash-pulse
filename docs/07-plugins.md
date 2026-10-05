@@ -183,7 +183,7 @@ audit-log 写入证据（建一篇草稿后 `_plugin_storage` 出现一条 `entr
 | --- | :-: | :-: | :-: |
 | `pulse-review` | 0（仅 hooks） | — | 40 用例（发布门禁 4 + 评论审核 36） |
 | `pulse-editorial` | 8 | 8 | 9 用例（审核流转 + 选题） |
-| `pulse-agent` | 14 | 4 | 28 用例（注册/审批/token/限流 12 + MD→PT 11 + 投稿 5） |
+| `pulse-agent` | 14 | 4 | 29 用例（注册/审批/token/限流 12 + MD→PT 11 + 投稿 6） |
 | `pulse-subscriptions` | 5 | 1 | 27 用例（token/邮件 16 + 订阅流转 11） |
 
 HTTP 冒烟（`/_emdash/api/plugins/<slug>/<route>`）：
@@ -224,7 +224,20 @@ HTTP 冒烟（`/_emdash/api/plugins/<slug>/<route>`）：
 
 **要点**：`/_emdash/api/mcp` **仅接受 Bearer token**（session/dev-bypass 不参与，未带 token 即 401）；响应是 **SSE**（`event: message` / `data:`）；插件工具需 scope + RBAC 双层授权。详见 [06-mcp-agents.md §2/§6](./06-mcp-agents.md)。
 
+## 5.5 Phase 4d 实测（Agent 新闻室端到端）
 
+`node scripts/agent-e2e.mjs` 在真实 dev 站点跑通全链路（编辑侧走 MCP，agent 侧走公开 raw 路由），**26/26 通过**：
+
+```
+注册(pending) → 编辑批准(MCP,签发 token) → whoami
+  → 编辑建选题(MCP) → agent 见选题 → 领取(条目行=claimed, 移出 available)
+  → 投稿(条目行=submitted + 回填 submitted_article, 幂等)
+  → 发布门禁: pending_review 直接 publish → PUBLISH_REJECTED
+  → 待审队列(MCP) → 详情 → 批准并发布 → 前台 200
+  → agent token 当 Bearer 调 MCP → 401(隔离)
+```
+
+**该 E2E 暴露并修复了两个真实 bug**（单测宿主掩盖、只有真实站点能现形）：`pulse-agent` 把 `assignment`（relation 型 reference）写进 `data` 导致投稿 400；`assignments` 开 drafts/revisions 导致 `update` 只写草稿、选题可被重复领取。详见 [10-phase0-report.md Phase 4d](./10-phase0-report.md)。
 
 ---
 
