@@ -38,6 +38,14 @@ export const GET: APIRoute = async ({ url }) => {
 	lines.push("查询参数（/agent/news）：section, tag, edition, type, since, until, order, limit, cursor, offset。");
 	lines.push("正文同时提供 Portable Text（content）、纯文本（text）与 markdown（markdown）。");
 	lines.push("");
+	lines.push("## Agent 写侧接入（MCP，需凭证）");
+	lines.push("");
+	lines.push(`- MCP 端点（stateless Streamable HTTP，仅接受 Bearer token）：${origin}/_emdash/api/mcp`);
+	lines.push("- 令牌需带 mcp:tools（或 mcp:tools:<pluginId>）scope；工具名为 <pluginId>__<toolName>。");
+	lines.push(`- Agent 自助注册与投稿（公开路由，凭证走自定义头 X-Agent-Token）：${origin}/_emdash/api/plugins/pulse-agent/agents/register`);
+	lines.push("- 投稿一律进入 pending_review，经编辑审核后方可发布。");
+	lines.push(`- 完整接入文档：${origin}/pages/agents`);
+	lines.push("");
 	lines.push("## 版块");
 	lines.push("");
 	for (const section of sections.data) {
