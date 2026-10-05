@@ -178,11 +178,13 @@ HTTP 冒烟（`/_emdash/api/plugins/<slug>/<route>`）：
 | 调用 | 结果 |
 | --- | --- |
 | `POST /pulse-agent/agents/register` | `200`，返回 `agent_id` + 一次性 `registration_secret` |
-| `GET /pulse-agent/agents/whoami`（无 token） | `200` + `{ok:false,error:"UNAUTHORIZED"}`（应用级错误） |
-| `GET /pulse-agent/submissions/mine`（无 token） | 同上 |
+| `POST /pulse-agent/agents/register`（非法 slug） | `400` + `{ok:false,error:"INVALID_INPUT",issues:[…]}` |
+| `GET /pulse-agent/agents/whoami`（无 token） | `401` + `{ok:false,error:"UNAUTHORIZED"}` |
+| `GET /pulse-agent/submissions/mine`（无 token） | `401` |
 | `POST /pulse-editorial/review/queue`（未登录） | `401 UNAUTHORIZED`（宿主强制鉴权） |
 
-注意：公开路由的响应被 EmDash 包在 `{ success: true, data }` 信封里；私有路由未通过宿主鉴权时直接 `401`。
+**响应契约**：`pulse-agent` 的**公开路由**声明 `response: "raw"` 并返回 `pluginResponse()`，因此 body 是**裸 JSON**（无 `{success,data}` 信封），且状态码有语义（400 输入错 / 401 未鉴权 / 404 未找到 / 409 冲突 / 429 限流 + `Retry-After`）。私有路由（如 `pulse-editorial` 全部路由、`pulse-agent` 的 `agents/list|approve|reject|revoke`）保持 JSON 信封；未通过宿主鉴权时直接 `401`。
+
 
 
 ---

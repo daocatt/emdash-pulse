@@ -113,6 +113,7 @@
 8. **两个测试宿主的分工**：`createPluginTestHost()` 只支持**内容读取**（`createCollection`/`seedContent`）与 hooks/路由/KV/存储传输；涉及内容**写动作**（`update`/`publish`）会报 `Content actions are not configured`，必须改用 `createPluginRuntimeTestHost()`（`fixtures.collection`/`fixtures.content` + `transport.invokeRoute`）。
 9. **插件目录里 `tsc --noEmit` 会 OOM**：`emdash` 的类型图过大，在插件 tsconfig 下独立 `tsc` 会耗尽 ~4GB 堆而崩溃（`FATAL ERROR: Ineffective mark-compacts near heap limit`）。类型正确性以 `emdash-plugin build`（内部 dts 生成 + surface 探测）与站点级 `astro check` 为准。
 10. **`ctx.content.update` 是 draft-aware（重要）**：集合 `supports` 含 `"revisions"` 时（本项目 `articles` 就是），`update` 写的是**草稿修订**（`ContentRepository.updateDraftAware`），而 `ctx.content.get` / `list` 返回的是**条目行**——要 `publish` 之后条目行才更新。后果：审核驳回/退回若只 `update`，条目行仍是 `pending_review`，稿件会**一直留在待审队列**。修正：`pulse-editorial` 增加 `content:revisions:read`，队列/详情以**最新修订**（`ctx.content.listRevisions(collection, id, { limit: 1 })`，按 id desc）为准合并数据。
+11. **公开路由用 `response: "raw"` 才有真实 HTTP 状态码**：默认 JSON 路由一律返回 HTTP 200，业务错误只体现在 `{success:false,error}` 里（对 agent 不友好）。`pulse-agent` 的公开路由改为 `response: "raw"` + `pluginResponse()`，body 是**裸 JSON**，状态码有语义（400/401/404/409/429 + `Retry-After`）。注意：raw 路由**不能**作为 MCP 工具（这些公开路由本来就不是），且响应头受白名单限制（`content-type` 可用）。沙箱测试宿主返回的是 `PluginResponse` 信封（`{__emdashPluginResponse,status,body:{kind:"text",value}}`），测试需自行解包。
 
 ## Spike 1 结果（已通过）
 
