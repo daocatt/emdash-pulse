@@ -156,6 +156,12 @@ HOME=~/.wrangler-a npm run deploy
 8. **`where` 范围**：`WhereRange` 的 `gt/gte/lt/lte` 值为 **string**。
 9. **`cursor` 与 `offset` 互斥**。
 10. **插件能力声明在 manifest**；新增能力/公开路由/MCP 工具需管理员重新授权。
+11. **保留字段名**：`id`/`slug`/`status`/`author_id`/`*_at`/`version`/`terms`/`bylines` 等不可用作 field slug（清单见 `03-content-model.md` §14）。保留集合名：`content`/`media`/`users`/`revisions`/`taxonomies`/`options`/`audit_logs`/`reorder`/`relations`。
+12. **写 API 需 CSRF 头** `X-EmDash-Request: 1`；内容更新用 `PUT`（非 PATCH）。
+13. **PUT 只写 draft revision**：已发布条目改字段后需再 `POST /publish` 才生效到 live。
+14. **沙箱插件 entry 必须是已构建 JS**：先 `npm run plugin:build`；插件用 npm **workspaces** 管理，勿在插件目录单独 install。
+15. **媒体读取被「使用索引」门控**：上传/写字段后若索引 stale，读回可能为 null；`POST /_emdash/api/admin/media-usage/repair {"scope":"all"}` 修复。
+16. **`$media` 与注册表安装依赖 Cloudflare DoH**（`cloudflare-dns.com`）：受限网络下会失败（媒体静默跳过 / `DID_RESOLUTION_FAILED`）。
 
 ## 8. 目录结构（规划）
 

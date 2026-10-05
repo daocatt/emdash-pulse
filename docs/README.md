@@ -22,6 +22,15 @@
 | [07-plugins.md](./07-plugins.md) | 官方/社区插件采用 + 自研插件清单 |
 | [08-roadmap.md](./08-roadmap.md) | Phase 0–5 路线图、任务、验收、风险 |
 | [09-agent-newsroom.md](./09-agent-newsroom.md) | **Agent 新闻室**：选题分发、Author/Editor agent、Agent Read API |
+| [10-phase0-report.md](./10-phase0-report.md) | **实施报告**：Spike 结论、Phase 1 进展、关键发现（含踩坑） |
+
+---
+
+## 当前进度
+
+- **Phase 0**：脚手架 ✅、Spike 1（月/周查询）✅、Spike 5（沙箱插件 + 发布门禁）✅；Spike 2/3/4/6 待外部凭证。
+- **Phase 1**：内容模型 ✅、类型 ✅、搜索 ✅、本地媒体管线 ✅、角色/RBAC ✅、发布门禁 ✅、`audit-log` ✅；评论类插件与 `bulletin`/Resend 待凭证。
+- 详见 [10-phase0-report.md](./10-phase0-report.md)。
 
 ---
 

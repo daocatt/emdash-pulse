@@ -27,20 +27,20 @@
 
 **目标**：模型落地，多用户与审核基础可用。
 
-- [ ] `seed/seed.json`：
-  - [ ] `articles`（含 `article_type`/`gallery`/`photo_credit` 等图片新闻字段）
-  - [ ] `pages`
-  - [ ] **`editions`**（期号）
-  - [ ] **`assignments`**（选题任务）
-  - [ ] taxonomies（`section`/`tag`）、menus、widgets、sections、bylines（含 Muse/Dots）、settings、示例内容（含图片新闻）
-- [ ] `npx emdash types` 生成类型；验证 seed 应用无误。
-- [ ] 创建管理员 Passkey；创建人类角色账号（编辑/记者/投稿者）。
-- [ ] 开启 articles 搜索索引。
-- [ ] 安装 `audit-log`、`comment-spam-protection`、`comment-notify`、`plugin-ai-moderation` 插件并配置。
-- [ ] 安装 `bulletin` + `emdash-plugin-resend` 并配置。
-- [ ] `pulse-review` 最小实现：发布策略（非 approved 拒绝）。
+- [x] `seed/seed.json`：
+  - [x] `articles`（含 `article_type`/`gallery`/`photo_credit`/`edition`/`assignment` 等图片新闻与引用字段）
+  - [x] `pages`（about / ethics / agents / contact）
+  - [x] **`editions`**（期号，周报）
+  - [x] **`assignments`**（选题任务；`status` → `task_status` 规避保留字段名）
+  - [x] taxonomies（`section`/`tag`）、menus（primary/footer）、widgets（2 个 area）、sections（4 个）、bylines（含 Muse/Dots/Wire）、settings、示例内容（含图集图片新闻）
+- [x] `npx emdash types` 生成类型；验证 seed 应用无误（4 collections / 41 fields / 13 content / 5 media）。
+- [x] 管理员账号（本地 dev-bypass）；角色邀请（编辑 40 / 记者 30 / 投稿者·Muse·Dots 20）。Passkey 注册待浏览器完成。
+- [x] 开启 articles 搜索索引（5 articles + 4 pages 已索引，命中带高亮）。
+- [~] 安装插件：`audit-log` ✅ 已生效；`plugin-ai-moderation` / `comment-spam-protection` / `comment-notify` ⏸️ 暂缓（见 `07-plugins.md` §5.1）。
+- [ ] 安装 `bulletin` + `emdash-plugin-resend` 并配置（待 Resend 凭证）。
+- [x] `pulse-review` 最小实现：发布策略（非 approved 拒绝），沙箱加载并端到端验证。
 
-**验收**：后台能创建/保存/发布文章（含图片新闻）；未 `approved` 稿件**无法**发布（手动验证，含定时与 MCP 路径）。
+**验收**：后台能创建/保存/发布文章（含图片新闻）✅；未 `approved` 稿件**无法**发布（REST 路径已验；定时与 MCP 路径 Phase 4 复验）。
 
 ---
 

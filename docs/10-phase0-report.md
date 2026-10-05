@@ -1,6 +1,6 @@
-# 10 · Phase 0 实施报告
+# 10 · Phase 0/1 实施报告
 
-> 脚手架与验证阶段的记录。随实施推进更新。
+> 脚手架、验证与内容模型阶段的记录。随实施推进更新。
 
 ## 状态总览
 
@@ -15,9 +15,34 @@
 | Spike 2 | `bulletin` 订阅 + Resend 发信 | ⏳ 待凭证（Resend API Key） |
 | Spike 3 | Resend 传输插件 | ⏳ 待凭证 |
 | Spike 4 | Cloudflare Workers AI 评论审核 | ⏳ 待 CF 账号/绑定 |
-| Spike 6 | R2 媒体上传/读取 | ⏳ 待 CF 账号（本地用 local storage） |
+| Spike 6 | R2 媒体上传/读取 | ⏳ 待 CF 账号（本地用 local storage，媒体管线已通） |
+
+## Phase 1 结果（内容模型与后台）
+
+| 项 | 状态 | 证据 |
+| --- | :-: | --- |
+| 内容模型（articles/pages/editions/assignments + 图片新闻） | ✅ | seed 全新应用：4 collections / 41 fields / 13 content |
+| 生成类型 | ✅ | `emdash-env.d.ts` 含 4 集合 + 图片字段类型 |
+| 搜索索引 | ✅ | FTS：5 articles + 4 pages，命中带 `<mark>` 与 score |
+| 本地媒体管线 | ✅ | 5 张图片经媒体 API 落盘，2 篇图片新闻（主图 + 图集）已发布 |
+| 角色与 RBAC | ✅ | Contributor(20) 建草稿 201 / 发布·定时 403；Admin(50) 发布 200 |
+| 发布门禁 | ✅ | 非 approved → 422 `PUBLISH_REJECTED`（与 RBAC 独立） |
+| `audit-log` 插件 | ✅ | 建草稿后写入审计条目（action/collection/resourceId/userId/changes） |
+| `ai-moderation` / 评论社区插件 | ⏸️ | 见 `07-plugins.md` §5.1（TS 源码打包 / 注册表 DoH 依赖） |
+| `bulletin` + Resend | ⏳ | 待 Resend 凭证 |
+
+### Phase 1 新增关键发现
+
+1. **保留字段名**：`status`/`slug`/`id`/`terms`/`bylines`/`*_at`/`version` 等不可用作 field slug（完整清单见 `03-content-model.md` §14）。`assignments.status` 因此改名 `task_status`。
+2. **`npx emdash seed` 在受限网络下会丢媒体**：`$media` 下载经 SSRF 校验（Cloudflare DoH），`cloudflare-dns.com` 不可达时静默跳过（字段留空）。兜底脚本：`scripts/seed-local-media.mjs`。
+3. **PUT 内容只写 draft revision**：已发布文章改字段后需再 `POST /publish` 才生效到 live。
+4. **npm workspaces 管理插件**：根 `npm install` 会清理插件子目录的 `node_modules`；用 `workspaces:["plugins/pulse-review"]` 后依赖提升到根，插件目录**不要**单独 install。
+5. **注册表插件安装依赖 DoH**：`registry/publisher-handle.ts` 的 `boundedFetch` 对发布者主机做 SSRF 校验（DoH 解析），本环境 `cloudflare-dns.com` 被封 → `DID_RESOLUTION_FAILED`。官方插件走 npm 不受影响。
+6. **RBAC 与策略是两道独立闸门**：角色不足 → 403 `FORBIDDEN`；审核未过 → 422 `PUBLISH_REJECTED`。
+7. **媒体值形状**：写接口接受 `{id, src, alt}` 并归一化为含 `provider/filename/mimeType/width/height/blurhash/meta` 的对象；读接口返回的对象**没有** `src`（前端类型里 `src?` 可选）。
 
 ## Spike 1 结果（已通过）
+
 
 用 `/spike/date-range.json` 验证 `where: { published_at: { gte, lt } }`（半开区间）：
 
