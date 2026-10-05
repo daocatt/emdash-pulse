@@ -30,6 +30,9 @@
 		--color-brand-ring: color-mix(in srgb, var(--color-brand) 25%, transparent);
 		--color-brand-subtle: light-dark(#f7e9e7, #2a1513);
 
+		/* 语义色（成功态；错误态复用 --color-brand） */
+		--color-success: light-dark(#1f7a3f, #5fbf82);
+
 		/* EmDash 搜索主题 */
 		--emdash-search-bg: var(--color-surface);
 		--emdash-search-text: var(--color-text);
@@ -127,6 +130,7 @@
 			--color-brand: #b3261e;
 			--color-brand-hover: #8f1d17;
 			--color-brand-subtle: #f7e9e7;
+			--color-success: #1f7a3f;
 		}
 	}
 }

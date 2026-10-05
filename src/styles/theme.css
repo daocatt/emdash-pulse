@@ -221,6 +221,30 @@ hr {
 	font-size: 1.125em;
 }
 
+/* ---------- EmDash 评论组件主题（emdash/ui/comments）----------
+   组件用 --ec-* 变量控制外观。带 fallback 的变量（表单那组）在 :root 设置即可；
+   组件内部已声明默认值的变量（--ec-comment-*）需要更高优先级才能覆盖，
+   故在 .ec-comments 上重复类名提升特异性。 */
+
+:root {
+	--ec-form-border: var(--color-border-strong);
+	--ec-form-bg: var(--color-surface);
+	--ec-form-color: var(--color-text);
+	--ec-form-user-bg: var(--color-bg-subtle);
+	--ec-form-user-border: var(--color-border);
+	--ec-form-user-bg-dark: var(--color-bg-subtle);
+	--ec-form-submit-bg: var(--color-brand);
+	--ec-form-submit-color: var(--color-on-brand);
+	--ec-form-success-color: var(--color-success);
+	--ec-form-error-color: var(--color-brand);
+}
+
+.ec-comments.ec-comments {
+	--ec-comment-gap: var(--spacing-6);
+	--ec-comment-indent: var(--spacing-6);
+	--ec-comment-border: var(--rule-hairline);
+}
+
 /* 尊重减少动效偏好 */
 @media (prefers-reduced-motion: reduce) {
 	*,
