@@ -113,6 +113,47 @@ pnpm run build
 
 ---
 
+## 5.1 Phase 1 安装实测（本地）
+
+**官方插件（npm，沙箱描述符，直接加入 `sandboxed: []`）**
+
+| 插件 | 状态 | 说明 |
+| --- | :-: | --- |
+| `@emdash-cms/plugin-audit-log@0.2.3` | ✅ 已装并验证写入 | 能力 `content:read/write`、`media:read`；storage `entries`；hooks `content:beforeSave/afterSave`、`content:beforeDelete/afterDelete`、`media:afterUpload` |
+| `@emdash-cms/plugin-ai-moderation@0.2.2` | ⏸️ 暂缓 | 该版本 `main`/`exports` 指向 **TS 源码**（`src/descriptor.ts`，无 `dist`），Astro config 加载时报 `Stripping types is currently unsupported for files under node_modules`；且需 CF Workers AI binding。待部署 CF 时一并解决 |
+
+启动日志证据：
+```
+EmDash: Loaded sandboxed plugin pulse-review:0.1.0 with capabilities: [hooks.content-policy:register]
+EmDash: Loaded sandboxed plugin audit-log:0.2.3 with capabilities: [content:read, content:write, media:read]
+```
+
+audit-log 写入证据（建一篇草稿后 `_plugin_storage` 出现一条 `entries`）：
+```json
+{"timestamp":"2026-10-05T15:57:24.358Z","action":"create","collection":"articles",
+ "resourceId":"01M46CHEZB1V9TGKMWN835E60W","resourceType":"content",
+ "userId":"01M46BBZQW4F01BGRQ28T2E7CR",
+ "changes":{"after":{"title":"审计探针","review_status":"draft", ...}},
+ "metadata":{"slug":"audit-probe","status":"draft"}}
+```
+
+**社区插件（注册表安装）**
+
+| 插件 | 状态 | 说明 |
+| --- | :-: | --- |
+| `@peachfinthemes.com/comment-spam-protection` | ⏸️ 暂缓 | 注册表 `POST /_emdash/api/admin/plugins/registry/install` 返回 `DID_RESOLUTION_FAILED`（见下） |
+| `@lasymphonieagency.com/comment-notify` | ⏸️ 暂缓 | 同上；且依赖邮件传输（Resend） |
+| `@meekmedia.bsky.social/bulletin` | ⏳ 待凭证 | Spike 2；`did:plc:wozauaevxsfzdcdxdfwogyg4` |
+| `@msale.com/resend` | ⏳ 待凭证 | Spike 3；`did:plc:53aijmlljtpzteewxptwa2xm` |
+
+**注册表安装失败根因**：`emdash/src/registry/publisher-handle.ts` 的 `boundedFetch` 对非 `DIRECTORY_ORIGINS`（`plc.directory`、`cloudflare-dns.com`）的请求走 SSRF 校验（`resolveAndValidateExternalUrl`），其 DNS 解析用 **Cloudflare DoH**。本环境 `cloudflare-dns.com` 不可达（TLS 被断），故发布者校验失败。
+> 直接在 Node 用 `@atcute/identity-resolver` 的 `PlcDidDocumentResolver` 解析同一 DID **成功** —— 说明 `plc.directory` 可达，问题在 DoH 依赖。
+> 结论：**在能访问 Cloudflare DoH 的网络（或部署到 CF）重试注册表安装**；本地开发可先用 npm 官方插件与自研沙箱插件。
+
+**`emdash-plugin` CLI 可用命令**：`search` / `info`（只读发现），`init` / `build` / `dev` / `bundle` / `validate`（自研），`publish` / `release`（发布到 atproto 注册表）。**无本地安装命令** —— 安装走 Admin UI / registry API。
+
+---
+
 ## 6. 已确认
 
 - ✅ **D4**：订阅采用社区 **`bulletin`**（不自研 `pulse-subscriptions`）。

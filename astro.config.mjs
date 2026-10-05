@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import node from "@astrojs/node";
 import react from "@astrojs/react";
 import { defineConfig } from "astro/config";
+import auditLog from "@emdash-cms/plugin-audit-log";
 import emdash, { local } from "emdash/astro";
 import { sqlite } from "emdash/db";
 import pulseReview from "pulse-review";
@@ -11,6 +12,9 @@ const isCloudflare =
 	Boolean(process.env.CF_PAGES) ||
 	Boolean(process.env.CLOUDFLARE);
 
+// 沙箱插件清单（本地与 Cloudflare 共用）
+const sandboxedPlugins = [pulseReview, auditLog];
+
 let adapter = node({ mode: "standalone" });
 let emdashConfig = {
 	database: sqlite({ url: "file:./data.db" }),
@@ -19,7 +23,7 @@ let emdashConfig = {
 		baseUrl: "/_emdash/api/media/file",
 	}),
 	// 沙箱插件：本地 Node 用 workerd runner，Cloudflare 用 CF 的 sandbox runner。
-	sandboxed: [pulseReview],
+	sandboxed: sandboxedPlugins,
 	sandboxRunner: "@emdash-cms/sandbox-workerd/sandbox",
 };
 
@@ -31,7 +35,7 @@ if (isCloudflare) {
 	emdashConfig = {
 		database: d1({ binding: "DB", session: "auto" }),
 		storage: r2({ binding: "MEDIA" }),
-		sandboxed: [pulseReview],
+		sandboxed: sandboxedPlugins,
 		sandboxRunner: sandbox(),
 	};
 }

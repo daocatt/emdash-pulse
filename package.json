@@ -6,8 +6,10 @@
   "emdash": {
     "seed": "seed/seed.json"
   },
+  "workspaces": [
+    "plugins/pulse-review"
+  ],
   "scripts": {
-    "plugin:install": "npm --prefix plugins/pulse-review install",
     "plugin:build": "npm --prefix plugins/pulse-review run build",
     "plugin:test": "npm --prefix plugins/pulse-review run test",
     "dev": "npm run plugin:build && astro dev",
@@ -23,6 +25,8 @@
     "@astrojs/node": "^11.1.5",
     "@astrojs/react": "^6.0.5",
     "@emdash-cms/cloudflare": "^1.1.0",
+    "@emdash-cms/plugin-ai-moderation": "^0.2.2",
+    "@emdash-cms/plugin-audit-log": "^0.2.3",
     "astro": "^7.3.2",
     "emdash": "^1.1.0",
     "react": "19.2.4",
