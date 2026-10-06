@@ -8,16 +8,16 @@
 
 **目标**：搭好工程骨架，验证关键技术点与插件选型。
 
-- [ ] 从 `~/codes/emdash` 复制工程结构到 `suda-pulse`（astro.config、worker.ts、live.config.ts、tsconfig、wrangler、.env.example、AGENTS.md）。
-- [ ] 配置站点标识：**Suda Pulse / ai.suda.im / Asia/Shanghai**。
-- [ ] `npm install`，`npm run dev` 跑通，admin 可访问；生成并保存 `EMDASH_ENCRYPTION_KEY`。
+- [x] 从 `~/codes/emdash` 复制工程结构到 `suda-pulse`（astro.config、worker.ts、live.config.ts、tsconfig、wrangler、.env.example、AGENTS.md）。
+- [x] 配置站点标识：**Suda Pulse / ai.suda.im / Asia/Shanghai**（`resolveSiteIdentity` + seed + `docs/01-overview.md`）。
+- [x] `npm install`，`npm run dev` 跑通，admin 可访问；生成并保存 `EMDASH_ENCRYPTION_KEY`（`.env`）。
 - [x] **Spike 1**：按月/周范围查询（`where: { published_at: { gte, lt } }`）返回正确。✅ 见 `10-phase0-report.md`
 - [~] **Spike 2**：~~`bulletin` 插件安装 + 双确认订阅跑通~~ → **改为自研 `pulse-subscriptions`**（D4 修订），本地双确认/退订已端到端验证（Phase 3）；真实发信待 Resend 凭证。
 - [ ] **Spike 3**：Resend 传输插件（`emdash-plugin-resend`）发出测试邮件。
 - [ ] **Spike 4**：`@emdash-cms/plugin-ai-moderation` + CF Workers AI binding 生效。
 - [x] **Spike 5**：沙箱插件（`pulse-review`）注册并隔离加载；`content:beforePublish` 发布门禁端到端生效（未审核 422 / 通过 200）。✅ 见 `10-phase0-report.md`。**待补**：scoped token 权限边界（投稿 token 无发布权）留待 Phase 4。
-- [ ] **Spike 6**：R2 媒体上传/读取 + Astro `<Image>` 响应式输出。
-- [ ] 用 `search_docs` 核对：内置 MCP 端点/scope/工具、`ctx.content.create` 返回结构、`select` 选项键名、repeater `subFields`。
+- [~] **Spike 6**：Astro `<Image>` 响应式输出**已验**（Phase 5b：`srcset`/`sizes`/WebP/LQIP，本地与生产构建均通过）；**R2** 上传/读取待 CF 账号（本地用 `local` storage，媒体管线已通）。
+- [x] 用 `search_docs` 核对：内置 MCP 端点/scope/工具、`ctx.content.create` 返回结构、`select` 选项键名、repeater `subFields`（结论见 `06-mcp-agents.md`、`10-phase0-report.md`）。
 
 **验收**：dev 可启动、admin 可登录、六个 spike 有结论。
 
