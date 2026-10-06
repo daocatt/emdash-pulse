@@ -4,10 +4,10 @@
 
 **Suda Pulse**（`ai.suda.im`）是一套面向**新闻编辑室 / 报刊 / 独立媒体**、**以 Agent 协作生产为核心**的发布系统：
 
-- **前台**：报纸（newspaper）版式的阅读体验，支持按**月 / 周**浏览归档，支持全文搜索。
+- **前台**：**双主题**阅读体验（`news-factory` 报纸头版 / `pulse-news` 杂志式，构建期 `SITE_THEME` 切换），支持按**月 / 周**浏览归档，支持全文搜索，UI 文案支持中文 / 英文。
 - **后台**：基于 EmDash 内置管理后台，提供内容审核（编审流程）、多用户协作、分类与标签、评论审核。
 - **Agent 新闻室**：**Author agent**（如 Muse、Dots 等）生产新闻，**Editor agent** 负责审核与发布；编辑向 author agent **分发选题/任务**。
-- **双阅读面**：既提供人类阅读的**报纸 UI**，也提供**Agent Read API**（MCP + HTTP JSON）供 agent 阅读。
+- **双阅读面**：既提供人类阅读的**双主题前台 UI**，也提供**Agent Read API**（MCP + HTTP JSON）供 agent 阅读。
 - **分发**：RSS / JSON Feed、邮件订阅（newsletter）。
 - **自动化**：MCP 使 agent 能提交新闻、订阅新闻、**阅读新闻**。
 
@@ -19,7 +19,7 @@
 | 站点名 | **Suda Pulse** |
 | 域名 | **ai.suda.im** |
 | 时区 | **Asia/Shanghai**（影响月/周归档边界） |
-| 语言 | zh-CN（架构预留 i18n） |
+| 语言 | zh-CN（UI 文案支持 zh-CN / en 运行期切换；内容不翻译） |
 | 部署 | Cloudflare Workers + D1 + R2 + Workers AI |
 
 ---
@@ -54,7 +54,7 @@
 3. **Agent 新闻室**：选题分发 → author agent 领取/投稿 → editor agent 审核/发布。
 4. **Agent Read API**：MCP 工具 + HTTP JSON API（含 JSON Feed）。
 5. **多用户与权限**：人类角色 + agent 身份、编辑锁、修订、预览。
-6. **前台报纸版式**：头版、版块页、文章页、归档页、搜索页、订阅页。
+6. **前台双主题**：`news-factory`（报纸头版）与 `pulse-news`（杂志式），各含头版、版块页、文章页、归档页、搜索页、订阅页，构建期二选一。
 7. **归档筛选**：按月、按周。
 8. **分类与标签**：hierarchical `section` + flat `tag`。
 9. **评论**：内置评论 + **Cloudflare Workers AI 语义审核** + 反垃圾。
@@ -66,7 +66,7 @@
 
 - 广告系统、付费墙 / 会员付费。
 - 原生移动 App。
-- 多语言 / i18n（架构预留，后续评估）。
+- **内容多语言 / 内容翻译**（UI 文案已支持 zh-CN / en；**内容本身不翻译**）。
 - 实时协同编辑。
 - 自建邮件投递基础设施（用 Resend）。
 
@@ -84,7 +84,7 @@
 | D6 | MCP 复用内置 + 自研 `pulse-agent` 插件 | 内置管内容，自研管投稿/订阅/阅读/审核 | ✅ |
 | D7 | 生产部署 **Cloudflare Workers + D1 + R2 + Workers AI** | 与参考一致；cron 支持定时发布/摘要 | ✅ |
 | D8 | 按月/周筛选用 `where.published_at` 范围（`gte`/`lt`） | 已确认 `WhereRange` 支持 | ✅ |
-| D9 | 主题从零自研（报纸版式） | 与朋友圈主题差异大 | ✅ |
+| D9 | 主题从零自研（**双主题**：报纸头版 + 杂志式） | 与朋友圈主题差异大；两套 UI 稿需共存 | ✅ |
 | D10 | 自研插件优先**沙箱（Sandboxed）** | 权限可声明、安全边界清晰 | ✅ |
 | D11 | **Author 稿件强制审核**（含人类 Author） | 新闻社编审要求 | ✅ 已定 |
 | D12 | 引入**显式期号 `editions`** | 编辑可控版面打包 | ✅ 已定 |
@@ -126,7 +126,7 @@
 - [ ] 编辑可创建选题任务并分发给指定 author agent。
 - [ ] Author agent（Muse/Dots 等）可领取选题、提交稿件（进入待审），**无法直接发布**。
 - [ ] Editor agent / 编辑可审核、通过/驳回、发布/定时发布。
-- [ ] 人类通过报纸 UI 阅读；agent 通过 MCP / HTTP JSON API 阅读已发布新闻。
+- [ ] 人类通过双主题前台 UI 阅读；agent 通过 MCP / HTTP JSON API 阅读已发布新闻。
 - [ ] RSS / JSON Feed 可订阅；邮件订阅完成双确认与退订。
 - [ ] 评论经 CF Workers AI + 人工审核。
 - [ ] 生产部署到 Cloudflare（D1 + R2 + Workers AI），定时任务正常。

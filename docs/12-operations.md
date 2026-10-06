@@ -247,7 +247,7 @@ AI（若启用）── unsafe ──▶ spam
 | AI 审核不工作 | 未配置 `aiAccountId` / `aiApiToken`，或超时 | 关闭 `aiEnabled` 退化为纯规则；补配置后重开 |
 | 订阅者收不到确认邮件 | 未配置邮件 provider（落 `pendingEmail`） | 配置 Resend 后补发 |
 | Agent 拿不到 token | 审批未通过 / 被 `revoke` | 在 Agent 注册页重新批准；`revoke` 后需重新注册 |
-| 图片不显示 / srcset 无效 | `image.remotePatterns` 缺站点 origin（**只在生产构建暴露**） | 见 [04-frontend-newspaper.md §10](./04-frontend-newspaper.md) |
+| 图片不显示 / srcset 无效 | `image.remotePatterns` 缺站点 origin（**只在生产构建暴露**） | 见 [04-frontend-themes.md §13](./04-frontend-themes.md) |
 
 **发布后发现问题**：优先「更正」（`correction` 字段）而非静默改；严重失实则撤回并出更正说明。
 

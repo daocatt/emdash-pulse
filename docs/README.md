@@ -1,7 +1,7 @@
 # Suda Pulse — 报刊发布系统规划文档
 
 > 基于 [EmDash CMS](https://github.com/emdash-cms/emdash) + [Astro](https://astro.build/) 构建的 **AI 时代新闻 / 报刊发布系统**。
-> 前台报纸版式，后台内容审核 + 多用户，**Author agent 生产 / Editor agent 审核发布**，双阅读面（报纸 UI + Agent API），支持图片新闻、RSS、邮件订阅。
+> **双前台主题**（`news-factory` 报纸头版 / `pulse-news` 杂志式，构建期 `SITE_THEME` 切换），后台内容审核 + 多用户，**Author agent 生产 / Editor agent 审核发布**，双阅读面（人类 UI + Agent API），支持图片新闻、播客/视频、RSS、邮件订阅。
 
 **站点**：Suda Pulse · `ai.suda.im` · `Asia/Shanghai` · 部署于 Cloudflare（D1 + R2 + Workers AI）。
 
@@ -16,7 +16,7 @@
 | [01-overview.md](./01-overview.md) | 愿景、范围/非目标、角色（含 Agent）、关键决策（ADR）、决策收敛结果 |
 | [02-architecture.md](./02-architecture.md) | 技术栈、架构、R2 图片管线、部署、核心约束 |
 | [03-content-model.md](./03-content-model.md) | collections/fields/taxonomies/menus/widgets/seed（含图片新闻、期号、选题） |
-| [04-frontend-newspaper.md](./04-frontend-newspaper.md) | 报纸版式：路由、组件、月/周筛选、图片新闻、搜索、RSS/JSON Feed |
+| [04-frontend-themes.md](./04-frontend-themes.md) | **前台双主题**（news-factory / pulse-news）：`SITE_THEME` 切换、路由注入、令牌分层、i18n、页面模式、组件、响应式 |
 | [05-admin-review.md](./05-admin-review.md) | 后台、多用户角色、内容审核工作流、评论审核 |
 | [06-mcp-agents.md](./06-mcp-agents.md) | MCP 机制：通道、鉴权、工具、路由、安全 |
 | [07-plugins.md](./07-plugins.md) | 官方/社区插件采用 + 自研插件清单 |
@@ -33,6 +33,7 @@
 - **Phase 0**：脚手架 ✅、Spike 1（月/周查询）✅、Spike 5（沙箱插件 + 发布门禁）✅；Spike 2/3/4/6 待外部凭证。
 - **Phase 1**：内容模型 ✅、类型 ✅、搜索 ✅、本地媒体管线 ✅、角色/RBAC ✅、发布门禁 ✅、`audit-log` ✅；评论/订阅已由 Phase 3 的自研插件承担，Resend 待凭证。
 - **Phase 2**：报纸前台 ✅ —— 主题/布局/组件、头版、文章页、版块/标签/期号/静态页、月/周归档、搜索、RSS + JSON Feed；`npm run build` 通过。
+- **Phase 2b（双主题重构）**：前台重做为**两套可切换主题**（`news-factory` 报纸头版 / `pulse-news` 杂志式），构建期 `SITE_THEME` 二选一、`injectRoute` 注入 14 条人类路由；抽出**共享层**（`@shared` 组件 + `@utils` 数据层 + 令牌契约 `tokens.base.css`）与 **UI 文案 i18n**（`zh-CN` 默认 + `en`，cookie 运行期切换，内容不翻译）；内容模型扩展**播客 / 视频 / 热度**（`article_type` 加 `podcast`，新增 `audio_*` / `video_*` / `trending_rank`）；两套主题各 14 页全部实现，`typecheck:all` 两套 0 error、`build:*` 均通过。详见 [04-frontend-themes.md](./04-frontend-themes.md)。
 - **Phase 4（部分）**：**Agent Read API** ✅ —— 9 个公开只读端点（`/agent/news`、`/agent/news/{slug}`、`/agent/sections`、`/agent/editions`、`/agent/feed.json`、`/agent/schema`、`/llms.txt` 等）+ 按 IP 限流。
 - **Phase 4b（写侧）**：`pulse-editorial`（编辑台：选题 + 审核发布，独占 `content:publish`）与 `pulse-agent`（Agent 侧：自助注册/审批 + token、选题领取、投稿、订阅意向）✅；MD→PT 转换 ✅。
 - **Phase 4c（MCP 接入）**：三个插件的 MCP 工具已启用；`POST /_emdash/api/mcp`（Bearer token）`tools/list` 返回 **85 工具**（72 内置 + 13 插件），工具调用与 scope 强制均实测通过 ✅；客户端接入文档 `/pages/agents` ✅。
@@ -51,7 +52,7 @@
 ## 一句话架构
 
 ```
-人类读者 ──报纸UI──▶ Astro SSR ──┐
+人类读者 ──双主题UI──▶ Astro SSR ──┐
 人类读者 ──订阅──▶ pulse-subscriptions ──▶ 邮件传输（Resend，未配置则落库待发）
 Author agent ──MCP/HTTP──▶ pulse-agent ──▶ EmDash Core ──▶ D1(内容) + R2(媒体) + Workers AI
 Editor agent ──MCP/HTTP──▶ pulse-editorial ─┤
@@ -79,7 +80,7 @@ Reader agent ──MCP/HTTP JSON──▶ Agent Read API ─┘
 | 新闻分类 | taxonomy `section`（hierarchical） | 复用 |
 | 标签 | taxonomy `tag`（flat） | 复用 |
 | 评论 | 内置评论 + `pulse-review` 规则/AI 审核 + 报纸主题覆盖 | 复用 + 自研 |
-| 报纸 UI | 自研 Astro 主题 | 自研 |
+| 前台 UI | 自研双主题（`news-factory` / `pulse-news`，`SITE_THEME` 切换） | 自研 |
 | 按月/周筛选 | `where: { published_at: { gte, lt } }` + 归档路由 | 自研 |
 | 搜索 | EmDash 内置 FTS + LiveSearch | 复用 |
 | 部署 | Cloudflare Workers + D1 + R2 + Workers AI | 复用 |

@@ -44,7 +44,7 @@
 
 ---
 
-## Phase 2 · 报纸前台（Frontend）
+## Phase 2 · 前台（Frontend）
 
 **目标**：报纸版式前台完整可读，归档/搜索/图片新闻可用。
 
@@ -66,6 +66,23 @@
 - [x] `SubscribeForm`（Phase 3）✅；评论样式细化（Phase 3）✅。
 
 **验收**：可按月/周/版块/标签浏览 ✅；图片新闻正常 ✅；搜索可用 ✅（中文 ≥3 字精确、1–2 字模糊）；RSS/JSON Feed 校验通过 ✅；移动端良好（响应式已实现，待真机复核）。
+
+---
+
+## Phase 2b · 双主题重构（Dual Themes）
+
+**目标**：把单一报纸主题重做为**两套可切换主题**，细化前台页面实现。
+
+- [x] `SITE_THEME`（构建期）切换 + `injectRoute` 注入 14 条人类路由（缺页面直接抛错）。
+- [x] 抽出共享层：`@shared` 组件 + `@utils` 数据层 + 令牌契约 `src/styles/tokens.base.css`。
+- [x] **UI 文案 i18n**：`src/i18n/`（`zh-CN` 默认 + `en`，cookie / `?lang=` 运行期切换，菜单标签字典驱动）；**内容不翻译**（不打开 Astro i18n）。
+- [x] 内容模型扩展：`article_type` 加 `podcast`，新增 `audio_*` / `video_*` / `trending_rank`；`pulse-agent` zod 枚举同步。
+- [x] `news-factory`（报纸头版）14 页 + `pulse-news`（杂志式）14 页全部实现。
+- [x] 共享 `EpisodePlayer`（播客 / 视频播放块）；`pulse-news` 新增 `StoryGrid`。
+- [x] 验证：`typecheck:all` 两套 0 error；`build:news-factory` / `build:pulse-news` 均通过；两套逐路由 HTTP 冒烟 + 语言切换验证。
+- [ ] 分版块 RSS、真机 Lighthouse 实测、播客 / 视频真实媒体文件接入。
+
+**验收**：`SITE_THEME=news-factory|pulse-news` 各出一套完整站点 ✅；两套构建产物互不泄漏对方标记 ✅。详见 [04-frontend-themes.md](./04-frontend-themes.md)。
 
 ---
 
@@ -116,8 +133,8 @@
 **目标**：生产可用、可观测、可维护。
 
 - [ ] 发布前校验（`publish-check`/`preflight`）按需接入。
-- [x] **SEO 套件 / sitemap / robots / JSON-LD 复核**：JSON-LD 去重（新增可信插件 `pulse-seo`，单页单实体：文章 `NewsArticle` / 其余 `WebSite`）；`/sitemap.xml` 覆盖并补 `sitemap-sections.xml`/`sitemap-tags.xml`；`/robots.txt` 覆盖并 `Disallow: /spike/`；文章页 `og:image` 回退到题图。详见 [04-frontend-newspaper.md §9](./04-frontend-newspaper.md)、[07-plugins.md §2.6/§5.6](./07-plugins.md)。
-- [x] **性能：图片响应式 + LCP/CLS**：全站改用 `emdash/ui` 的 `<Image>`（`srcset` 640–3200w、`sizes` 按栅格给出、`width`/`height`、WebP、LQIP 占位），首屏图 `priority`；新增 `image.remotePatterns` 修复生产环境 srcset 退化为原图的问题。字体维持系统字体栈（无需子集，公开页 0 字体请求；产物里 944 KB 字体仅属后台编辑器 chunk）。详见 [04-frontend-newspaper.md §10](./04-frontend-newspaper.md)。
+- [x] **SEO 套件 / sitemap / robots / JSON-LD 复核**：JSON-LD 去重（新增可信插件 `pulse-seo`，单页单实体：文章 `NewsArticle` / 其余 `WebSite`）；`/sitemap.xml` 覆盖并补 `sitemap-sections.xml`/`sitemap-tags.xml`；`/robots.txt` 覆盖并 `Disallow: /spike/`；文章页 `og:image` 回退到题图。详见 [04-frontend-themes.md §12](./04-frontend-themes.md)、[07-plugins.md §2.6/§5.6](./07-plugins.md)。
+- [x] **性能：图片响应式 + LCP/CLS**：全站改用 `emdash/ui` 的 `<Image>`（`srcset` 640–3200w、`sizes` 按栅格给出、`width`/`height`、WebP、LQIP 占位），首屏图 `priority`；新增 `image.remotePatterns` 修复生产环境 srcset 退化为原图的问题。字体维持系统字体栈（无需子集，公开页 0 字体请求；产物里 944 KB 字体仅属后台编辑器 chunk）。详见 [04-frontend-themes.md §13](./04-frontend-themes.md)。
 - [ ] 真机移动端复核（Lighthouse 实测 LCP/CLS）。
 - [ ] 分析插件接入（可选）。
 - [ ] Cloudflare 资源：D1 + R2 + Workers AI；`wrangler.prod.jsonc` 配置。
@@ -171,7 +188,7 @@ Phase0 ─▶ Phase1 ─▶ Phase2 ─▶ Phase3 ─▶ Phase4 ─▶ Phase5
 | --- | --- | --- |
 | M0 骨架就绪 | Phase 0 | dev/admin 跑通，spike 完成，决策确认 |
 | M1 编辑可用 | Phase 1 | 审核流程生效（含图片新闻/期号/选题模型） |
-| M2 读者可读 | Phase 2 | 报纸前台 + 图片新闻 + 归档 + 搜索 + RSS/JSON Feed |
+| M2 读者可读 | Phase 2 / 2b | 双主题前台 + 图片新闻 / 播客 / 视频 + 归档 + 搜索 + RSS/JSON Feed |
 | M3 互动闭环 | Phase 3 | 评论(规则+AI 审核) + 邮件订阅 ✅ |
 | M4 Agent 接入 | Phase 4 | Author/Editor/Reader agent 全链路可用 ✅（`scripts/agent-e2e.mjs` 22/22） |
 | M5 上线 | Phase 5 | CF 生产部署 + 备份监控 |
