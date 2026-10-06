@@ -29,7 +29,7 @@
 | `title` | 标题 | string | ✅ | ✅ | 主标题 |
 | `deck` | 导语 | text | | ✅ | 引题/副题 |
 | `content` | 正文 | portableText | ✅ | ✅ | 富文本 |
-| `article_type` | 稿件类型 | select | ✅ | | `standard` / `photo` / `live` / `video` |
+| `article_type` | 稿件类型 | select | ✅ | | `standard` / `photo` / `live` / `video` / `podcast` |
 | `featured_image` | 主图 | image | | | 对象类型 |
 | `image_caption` | 图片说明 | string | | | 图注 |
 | `photo_credit` | 摄影署名 | string | | | 图片版权/摄影 |
@@ -46,6 +46,13 @@
 | `author_agent` | 作者 agent | string | | | 如 `muse` / `dots`（审计用） |
 | `allow_comments` | 允许评论 | boolean | | | 覆盖集合默认 |
 | `correction` | 更正说明 | text | | | 已发布勘误 |
+| `audio_url` | 音频地址 | url | | | 播客音频（`podcast` 用） |
+| `audio_duration` | 音频时长 | string | | | 如 `14:40`（展示用） |
+| `episode_no` | 集数 | integer | | | 播客期数（`#N`） |
+| `podcast_show` | 播客栏目 | string | | | 如「新闻室夜谈」 |
+| `video_url` | 视频地址 | url | | | 视频源（`video` 用） |
+| `video_duration` | 视频时长 | string | | | 如 `03:12` |
+| `trending_rank` | 热度排名 | integer | | | 编辑部标记的热门榜位次（1 起，升序） |
 
 ### select 选项
 
@@ -58,6 +65,10 @@
 ```
 
 > EmDash 只从 `validation.options` 读取 select 选项（zod 写入校验、后台下拉选项、`emdash types` 生成的字面量联合类型）。写在顶层 `options` 会被 `applySeed` 存进 `_emdash_fields.options` 列，而**没有任何代码读那一列** → 后台下拉空白、校验退化为任意字符串、生成的类型退化为 `string`。
+
+### 索引字段（`indexed: true`）
+
+`review_status` / `source_url` / `author_agent` / `trending_rank` 标了 `indexed: true`。`ctx.content.list` 的 `where.fieldFilters` **只支持 indexed 字段**；新增按字段筛选（尤其 `trending_rank` 这类排序/区间过滤）前，必须在 seed 里给该字段加 `"indexed": true` 并**重建库**（`applySeed` 对已存在集合整段跳过，含字段定义）。
 
 ### 集合定义（seed 片段）
 ```json
@@ -72,7 +83,7 @@
     { "slug": "title", "label": "标题", "type": "string", "required": true, "searchable": true },
     { "slug": "deck", "label": "导语", "type": "text", "searchable": true },
     { "slug": "content", "label": "正文", "type": "portableText", "required": true, "searchable": true },
-    { "slug": "article_type", "label": "稿件类型", "type": "select", "required": true, "validation": { "options": ["standard","photo","live","video"] } },
+    { "slug": "article_type", "label": "稿件类型", "type": "select", "required": true, "validation": { "options": ["standard","photo","live","video","podcast"] } },
     { "slug": "featured_image", "label": "主图", "type": "image" },
     { "slug": "image_caption", "label": "图片说明", "type": "string" },
     { "slug": "photo_credit", "label": "摄影署名", "type": "string" },
@@ -85,16 +96,23 @@
       ] }
     },
     { "slug": "excerpt", "label": "摘要", "type": "text", "searchable": true },
-    { "slug": "review_status", "label": "审核状态", "type": "select", "required": true, "validation": { "options": ["draft","pending_review","approved","rejected"] } },
+    { "slug": "review_status", "label": "审核状态", "type": "select", "required": true, "indexed": true, "validation": { "options": ["draft","pending_review","approved","rejected"] } },
     { "slug": "review_note", "label": "审核意见", "type": "text" },
     { "slug": "source", "label": "来源", "type": "string", "searchable": true },
-    { "slug": "source_url", "label": "原文链接", "type": "url" },
+    { "slug": "source_url", "label": "原文链接", "type": "url", "indexed": true },
     { "slug": "is_breaking", "label": "突发", "type": "boolean" },
     { "slug": "is_featured", "label": "头条候选", "type": "boolean" },
     { "slug": "priority", "label": "版面权重", "type": "select", "validation": { "options": ["lead","high","normal"] } },
-    { "slug": "author_agent", "label": "作者 Agent", "type": "string" },
+    { "slug": "author_agent", "label": "作者 Agent", "type": "string", "indexed": true },
     { "slug": "allow_comments", "label": "允许评论", "type": "boolean" },
-    { "slug": "correction", "label": "更正说明", "type": "text" }
+    { "slug": "correction", "label": "更正说明", "type": "text" },
+    { "slug": "audio_url", "label": "音频地址", "type": "url" },
+    { "slug": "audio_duration", "label": "音频时长", "type": "string" },
+    { "slug": "episode_no", "label": "集数", "type": "integer" },
+    { "slug": "podcast_show", "label": "播客栏目", "type": "string" },
+    { "slug": "video_url", "label": "视频地址", "type": "url" },
+    { "slug": "video_duration", "label": "视频时长", "type": "string" },
+    { "slug": "trending_rank", "label": "热度排名", "type": "integer", "indexed": true }
   ]
 }
 ```
@@ -182,7 +200,7 @@
 
 | name | label | hierarchical | collections | 用途 |
 | --- | --- | :---: | --- | --- |
-| `section` | 版块 | ✅ | articles | 要闻/国际/财经/科技/文化/体育/社会/评论 |
+| `section` | 版块 | ✅ | articles | 要闻/国际/财经/科技/文化/体育/社会/评论/图片 |
 | `tag` | 标签 | ❌ | articles | 自由关键词 |
 | `edition` | 期号 | ❌ | articles | 期号归属（术语 slug 与 `editions` collection 一致） |
 | `region` | 地区（可选） | ❌ | articles | 本地新闻分区 |
@@ -199,7 +217,8 @@
     { "slug": "culture", "label": "文化" },
     { "slug": "sports", "label": "体育" },
     { "slug": "society", "label": "社会" },
-    { "slug": "opinion", "label": "评论" }
+    { "slug": "opinion", "label": "评论" },
+    { "slug": "photo", "label": "图片" }
   ]
 }
 ```
@@ -212,14 +231,20 @@
 | name | items |
 | --- | --- |
 | `primary` | 首页 `/`、要闻 `/sections/top`、国际 `/sections/world`、财经 `/sections/business`、科技 `/sections/tech`、图片 `/sections/photo`、归档 `/archive`、订阅 `/subscribe` |
-| `footer` | 关于 `/pages/about`、采编规范 `/pages/ethics`、Agent 接入 `/pages/agents`、RSS `/rss.xml`、联系 `/pages/contact` |
+| `footer` | 关于 `/pages/about`、采编规范 `/pages/ethics`、Agent 接入 `/pages/agents`、联系 `/pages/contact`、订阅 `/subscribe`、RSS `/rss.xml` |
+| `news-factory` | 首页 `/`、要闻 `/sections/top`、国际 `/sections/world`、财经 `/sections/business`、科技 `/sections/tech`、体育 `/sections/sports`、评论 `/sections/opinion`、归档 `/archive` |
+| `pulse-news` | 首页 `/`、要闻 `/sections/top`、文化 `/sections/culture`、社会 `/sections/society`、体育 `/sections/sports`、评论 `/sections/opinion`、图片 `/sections/photo`、归档 `/archive` |
+
+> **主题各自一套主菜单**：`theme.config.ts` 里 `menuName` 指向 `news-factory` / `pulse-news`，两套主题按各自栏目侧重取不同版块。`primary` / `footer` 保留为通用回退。菜单**只提供链接与排序**，渲染期标签由 `menuLabel(url, fallback, t)` 按当前语言从字典取（见 [04-frontend-themes.md §4](./04-frontend-themes.md)）。
 
 ## 8. Widget Areas
 
 | name | 位置 | 组件 |
 | --- | --- | --- |
-| `front-sidebar` | 头版侧栏 | `core:search`、`core:categories`、`core:tags`、`core:archives`(monthly)、`core:recent-posts` |
-| `article-aside` | 文章页侧栏 | `core:recent-posts`、`core:categories`、订阅 CTA |
+| `front-sidebar` | 头版侧栏 | `core:search`、`core:tags`、`core:archives`(monthly)、`core:recent-posts` |
+| `article-aside` | 文章页侧栏 | `core:recent-posts`、`core:tags` |
+
+> **不用 `core:categories`**：本站的分类走 taxonomy `section`（非 WordPress 式 category），`core:categories` 会渲染英文空态 "No categories yet"。版块入口由主题导航与 `/sections/*` 承担，侧栏用 `core:tags`。
 
 ## 9. Sections（可复用块）
 
@@ -287,6 +312,31 @@
   "taxonomies": { "section": ["photo"] }
 }
 ```
+
+### 播客 / 视频（扩展 `articles`，不新建集合）
+
+```json
+{
+  "id": "article-podcast-1", "slug": "newsroom-night-talk-ep12", "status": "published",
+  "data": {
+    "title": "新闻室夜谈 · 第 12 期",
+    "article_type": "podcast",
+    "podcast_show": "新闻室夜谈",
+    "episode_no": 12,
+    "audio_url": "https://media.example.com/ep12.mp3",
+    "audio_duration": "14:40",
+    "trending_rank": 1,
+    "excerpt": "本期聊 Agent 协作采编的边界。",
+    "review_status": "approved",
+    "content": [{ "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "本期节目简介。" }] }]
+  },
+  "taxonomies": { "section": ["tech"] }
+}
+```
+
+- `article_type: "video"` 同理，用 `video_url` / `video_duration`。
+- 前台由共享组件 `EpisodePlayer` 渲染：有 `audio_url` / `video_url` 走原生 `<audio>` / `<video>`，否则退化为装饰播放条 + 时长。
+- `trending_rank` 供头版「热门话题」榜按升序取（`where: { trending_rank: { gte: "1" } }`，`gte: "1"` 顺带排除未标记的 NULL）。
 
 ---
 
