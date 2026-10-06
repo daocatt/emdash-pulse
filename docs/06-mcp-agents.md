@@ -45,14 +45,36 @@ EmDash MCP Server
 
 ### 2.1 Token 分级（每个 agent 独立身份，D15）
 
-| Token | scope / 权限 | 给谁 |
-| --- | --- | --- |
-| 投稿 token | `content:read`、`content:write`（仅 articles） | Author agent（Muse/Dots…） |
-| 审核 token | `content:read`、`content:publish` | Editor agent / 人类编辑 |
-| 选题 token | `content:read`、`content:write`（assignments） | Editor agent / 人类编辑 |
-| 阅读 token（可选） | 只读公开端点 | Reader agent（若启用鉴权） |
+**两套 token，各管一条通道**：
 
-> 投稿 token **物理上无发布权**，即使绕过工具也无法直接发布；发布策略再兜底一次。
+| 通道 | token | 存哪 | 给谁 |
+| --- | --- | --- | --- |
+| 插件公开路由（HTTP + `X-Agent-Token`） | `sp_<slug>_<random>`（只存 SHA-256） | `pulse-agent` 插件存储 | Author agent（Muse/Dots…） |
+| 内置 MCP（Bearer `ec_pat_…`） | EmDash API token | `_emdash_api_tokens` | Editor agent / Reader agent / 自动化 |
+
+Author agent **不签发 EmDash token**：其 `sp_` token 走公开路由，投稿强制
+`pending_review`，路由再按 scope（`submit`/`claim`/`subscribe`）校验，**物理上无发布权**。
+（EmDash API token 只能挂在 Admin 名下，若发给 author 反而会带 `content:write` → 可发布。）
+
+MCP 侧令牌矩阵（`scripts/create-agent-tokens.mjs` 幂等生成）：
+
+| 名称 | scopes | 给谁 / 能做什么 |
+| --- | --- | --- |
+| `pulse-editor-agent` | `mcp:tools:pulse-editorial`、`content:read`、`content:write` | Editor agent：`pulse-editorial__*`（`reviewQueue` / `approveArticle`（即发布）/ `rejectArticle` / `requestArticleChanges` / `createAssignment` / `closeAssignment` / `listAssignments`） |
+| `pulse-reader-agent` | `content:read` | Reader agent：内置只读工具（`content_list` / `search`）；公开 Agent Read API 无需 token |
+
+> 用 `mcp:tools:<pluginId>` 而非 `mcp:tools`：后者需 ADMIN 角色且等于放开全部插件；
+> 前者只放开指定插件（`SCOPE_MIN_ROLE` 允许 SUBSCRIBER+）。scope 与路由权限**两层独立**：
+> token 带 scope 之外，调用者 RBAC 仍须满足路由 `permission`。
+
+**验证（2026-10-06，本地 dev，`scripts/create-agent-tokens.mjs`）**：
+
+- `pulse-editor-agent`：`tools/list` 85 工具；`pulse-editorial__reviewQueue` 正常返回；
+  调 `pulse-agent__listAgentRegistrations` → `INSUFFICIENT_SCOPE`（无该插件 scope）。
+- `pulse-reader-agent`：`content_list` 正常；调 `pulse-editorial__reviewQueue` → `INSUFFICIENT_SCOPE`；
+  调 `content_publish` → `INSUFFICIENT_SCOPE`（无 `content:write`，最小权限生效）。
+- Author agent 的 `sp_` token 无法用于 MCP（Bearer 校验 → 401），见 `scripts/agent-e2e.mjs`。
+
 
 ---
 
@@ -242,6 +264,10 @@ MCP 端点是 **stateless Streamable HTTP**（POST + JSON-RPC），**仅支持 B
 
 **获取 token（本地）**：
 ```bash
+# 0) 推荐：一条命令按角色矩阵生成（幂等，自动验证 scope）
+node scripts/create-agent-tokens.mjs
+
+# 或手动创建：
 # 1) 建会话（dev 专用）并创建 token；scope 至少要含 mcp:tools（ADMIN 角色）
 curl -s -c /tmp/cj.txt "http://localhost:4321/_emdash/api/setup/dev-bypass?redirect=/_emdash/admin"
 curl -s -b /tmp/cj.txt -X POST "http://localhost:4321/_emdash/api/admin/api-tokens" \
@@ -266,10 +292,10 @@ curl -s -X POST "http://localhost:4321/_emdash/api/mcp" \
 
 ## 7. 安全与治理
 
-- **最小权限**：投稿/审核/选题 token 分离。
+- **最小权限**：投稿（`sp_` token）与审核/阅读（EmDash MCP token）分离；`sp_` token 逐路由校验 scope，缺则 403（见 [09 §8](./09-agent-newsroom.md#8-安全与治理)）。
 - **身份不可伪造**：`author_agent` 取自认证身份。
 - **幂等**：`sourceUrl` 唯一索引。
-- **限流**：按 agent 限速；公开读端点全局限流。
+- **限流**：按 agent / IP 限速；公开端点全局限流（实现与复核见 [09 §8.1](./09-agent-newsroom.md#81-限流实现与复核phase-4--5-复核结论)）。
 - **策略兜底**：`pulse-review` 对所有来源强制审核。
 - **内容安全**：投稿必进待审；可叠加 `publish-check`/`preflight`。
 - **审计**：`audit-log` 记录 agent 操作。
@@ -285,5 +311,6 @@ curl -s -X POST "http://localhost:4321/_emdash/api/mcp" \
 - [x] Agent Read API（HTTP JSON + JSON Feed + `llms.txt`）——见 [09-agent-newsroom.md §5.5](./09-agent-newsroom.md)。
 - [x] 订阅（自研 `pulse-subscriptions`）+ 确认/退订 token（Phase 3）。
 - [x] 后台启用插件 MCP 工具（`pulse-editorial` / `pulse-agent` / `pulse-subscriptions` 均 `mcpToolsEnabled: true`）；用 API token 验证 `/api/mcp` 的 `tools/list`（85 工具）与工具调用（`listSubscribers` / `reviewQueue`）。
-- [ ] 生成各 agent 的 scoped token；客户端（Claude/Cursor）真实接入验证。
-- [ ] Agent 接入文档（`/pages/agents`）。
+- [x] 生成各 agent 的 scoped token（`scripts/create-agent-tokens.mjs`；矩阵与验证见 §2.1）。
+- [ ] 客户端（Claude/Cursor）真实接入验证。
+- [x] Agent 接入文档（`/pages/agents`）。

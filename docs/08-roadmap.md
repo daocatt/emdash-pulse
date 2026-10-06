@@ -99,12 +99,12 @@
 - [x] **Agent Read API**：HTTP JSON（`/agent/news`、`/agent/news/{slug}`、`/agent/sections`、`/agent/editions`、`/agent/feed.json`、`/agent/schema`、`/llms.txt`），**公开只读 + 限流**。见 §10。
 - [x] markdown → Portable Text（`pulse-agent/src/markdown.ts`，投稿正文）；Portable Text → markdown 由 Agent Read API 提供。
 - [x] **Agent 身份**：**自助注册 + 审批**流程；审批后由插件签发 scoped token（不建 EmDash user/byline）。
-- [~] 速率限制（公开路由按 IP 的 `ctx.kv` 计数）、输入校验（zod）；**公开端点默认开启**（待 Phase 5 复核）。
+- [x] 速率限制（公开路由按 IP 的 `ctx.kv` 计数）、输入校验（zod）；**公开端点默认开启**。**Phase 5 复核完成**：修掉 KV 键无界增长（改为每 `(route,client)` 一键、窗口原地重置）与 epoch 对齐双倍放行；`clientIp` 回退 `unknown` 的共桶风险需生产设 `EMDASH_TRUSTED_PROXY_HEADERS`。实测 429 + `retry-after`；全局限流（CF Rate Limiting binding）留 Phase 5 上线项。见 [09 §8.1](./09-agent-newsroom.md#81-限流实现与复核phase-4--5-复核结论)。
 - [x] 插件测试：`pulse-agent`（注册/审批/token/限流）、`pulse-editorial`（审核流转）、`markdown` 转换。
 - [x] 后台启用插件 MCP 工具（`PUT /_emdash/api/admin/plugins/<id>/mcp`）；用 API token 验证 `tools/list`（85 工具）与工具调用。
 - [x] **端到端验收**：`scripts/agent-e2e.mjs` 真实 HTTP 全链路（注册→审批→选题→领取→投稿→审核发布→发布门禁→越权隔离），**26/26 通过**。
-- [ ] 生成各 agent 的 scoped token（`mcp:tools` + 业务 scope）。
-- [ ] 客户端接入验证（Claude / Cursor）。
+- [x] 生成各 agent 的 scoped token（`mcp:tools:<pluginId>` + 业务 scope）：`scripts/create-agent-tokens.mjs` 生成 `pulse-editor-agent`（`mcp:tools:pulse-editorial` + `content:read/write`）与 `pulse-reader-agent`（`content:read`）；Author agent 改用 `sp_` token（见 [06 §2.1](./06-mcp-agents.md#21-token-分级每个-agent-独立身份d15)）。另修掉 `pulse-agent` **scope 记录但不校验**的越权缺口（缺 scope 现返回 403）。
+- [~] 客户端接入验证（Claude / Cursor）：**token 级已验**（`tools/list` 85 工具 + 按 scope 的放行/拒绝，见 [06 §2.1](./06-mcp-agents.md#21-token-分级每个-agent-独立身份d15)）；**真实客户端会话待验**（需在 Claude Desktop / Cursor 里连 `/_emdash/api/mcp`）。
 - [x] **Agent 接入文档**：`/pages/agents`（CMS 页面，含 MCP 配置、Read API、投稿流程、门禁与最小权限）；`/llms.txt` 增加写侧 MCP 段并指向该页。
 
 **验收**：Muse/Dots 等 author agent 能领取选题并投稿（进待审）✅；editor agent 能审核发布 ✅；reader agent 能通过 MCP/HTTP 阅读 ✅；任何 agent 无法绕过审核发布 ✅（MCP/REST 双路径门禁已验）。**M4 达成**。

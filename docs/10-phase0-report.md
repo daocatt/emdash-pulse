@@ -21,6 +21,7 @@
 | **Phase 4b** | Agent 新闻室写侧（`pulse-editorial` + `pulse-agent`） | ✅ **完成**（见下） |
 | **Phase 4c** | MCP 接入验证（启用插件工具 + JSON-RPC `tools/list` / 调用） | ✅ **完成**（见下） |
 | **Phase 4d** | Agent 新闻室端到端验收（真实 HTTP 全链路 + 发布门禁） | ✅ **完成**（见下，`scripts/agent-e2e.mjs`） |
+| **Phase 4f** | 限流复核 + agent scoped token（MCP） | ✅ **完成**（见下） |
 | **Phase 3** | 评论审核（规则 + AI）+ 读者订阅（`pulse-subscriptions`） | ✅ **完成**（见下，详见 `11-phase3-comments-subscriptions.md`） |
 | **Phase 5a** | SEO 复核（JSON-LD 去重 + sitemap 补分类 + robots 覆盖） | ✅ **完成**（见下） |
 | **Phase 5b** | 性能（全站响应式图片 + LCP/CLS；字体维持系统栈） | ✅ **完成**（见下） |
@@ -178,6 +179,24 @@ node scripts/agent-e2e.mjs   # 需 dev server 运行中；BASE_URL 可覆盖
 4. **`_rev` 是乐观锁，来自 `content_get` 顶层**（`encodeRev(version, updatedAt)`），不是修订 id；`content_publish` 作用于**草稿修订**，故新建条目要先 `content_update` 造出草稿才能发布。MCP 写工具把 `_rev` 声明为必填，而底层 REST 的 `handleContentUpdate` 允许无 `_rev` 的"盲写"。
 5. **发布门禁对 MCP 路径同样生效**：`content_publish` 走同一 `publish()` 通路，`pulse-review` 的 `content:beforePublish` 拦截，工具级返回 `PUBLISH_REJECTED`（非 HTTP 码）。至此"未 approved 无法发布"在 REST（Spike 5）与 MCP 两条路径均已验证。
 6. **agent 身份与 EmDash 身份天然隔离**：`X-Agent-Token` 是插件自管凭证，当作 Bearer 调 `/api/mcp` 只会得到 401 INVALID_TOKEN；agent 路由中也没有发布能力。
+
+## Phase 4f 结果（限流复核 + agent scoped token）
+
+| 项 | 状态 | 证据 |
+| --- | :-: | --- |
+| 限流键无界增长 | ✅ 修复 | 旧实现把时间桶编进键名（`rl:<route>:<ip>:<bucket>`），`ctx.kv` 无 TTL → 每窗口新键、永不回收（本地库实测残留 14 键）。改为每 `(route, client)` **一个键**存 `{count, resetAt}`，窗口过期原地重置 |
+| 窗口语义 | ✅ 修正 | 旧实现按 epoch 对齐分桶（`floor(now/window)`）→ 跨整点可双倍放行；改为**锚定首次请求**，注释同步更正（原文误称「滑动窗口」） |
+| `clientIp` 回退 `unknown` | ⚠️ 记录 | 取不到 `meta.ip` 时所有请求共桶；生产须设 `EMDASH_TRUSTED_PROXY_HEADERS`（本地 dev 已用 `x-forwarded-for`） |
+| scope 越权缺口 | ✅ 修复 | `authorizeAgent` 原只验 token 不校验 `scopes` → 任何 approved token 可调全部业务路由。现按路由声明 `requiredScope`（`claim`/`submit`/`subscribe`），缺则 **403 `INSUFFICIENT_SCOPE`**；`whoami` 只验身份 |
+| agent scoped token（MCP） | ✅ 完成 | `scripts/create-agent-tokens.mjs` 幂等生成 `pulse-editor-agent`（`mcp:tools:pulse-editorial` + `content:read/write`）与 `pulse-reader-agent`（`content:read`）；Author agent 不签发 EmDash token（用 `sp_`） |
+| 实测 | ✅ | 限流：`agents/register` 5 放行 / 第 6 次 429、`retry-after=3599`（锚定首次请求，旧算法为整点余量）、异 IP 隔离；scope：仅 `claim` 的 agent 投稿/订阅 403、`available`/`whoami` 放行 |
+| 构建 / 测试 | ✅ | `npm run plugin:test` 全绿 **116**（review 40 + agent **36** + editorial 9 + subscriptions 27 + seo 4）；新增 `tests/rate-limit.test.ts`（5）+ `plugin.test.ts` scope 用例（2） |
+
+### Phase 4f 新增关键发现
+
+1. **`ctx.kv` 没有 TTL**（`KVAccess` 只有 `get/set/delete/list/compareAndSet`）：任何「把时间编进键名」的限流/缓存写法都会永久堆积 → 应把过期语义放进**值**里（`resetAt`）并原地覆盖。
+2. **scope 必须显式校验**：`AgentRecord.scopes` 只被写入与回显，路由层不查 → 「最小权限」只是文档承诺。补 `requiredScope` 后才是真的强制。
+3. **API token 只能挂在 Admin 名下**（`POST /api/admin/api-tokens` 需 ADMIN，token 继承该 user 的 RBAC）→ 想给 Author agent「最小权限」，不能发 EmDash token（`content:write` 即可发布）；正确做法是用插件自管的 `sp_` token + 公开路由。MCP 侧则用 `mcp:tools:<pluginId>`（`SCOPE_MIN_ROLE` 允许 SUBSCRIBER+）而非 `mcp:tools`（需 ADMIN、且放开全部插件）。
 
 ## Phase 5a 结果（SEO 复核）
 

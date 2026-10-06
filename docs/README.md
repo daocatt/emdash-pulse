@@ -33,13 +33,14 @@
 - **Phase 0**：脚手架 ✅、Spike 1（月/周查询）✅、Spike 5（沙箱插件 + 发布门禁）✅；Spike 2/3/4/6 待外部凭证。
 - **Phase 1**：内容模型 ✅、类型 ✅、搜索 ✅、本地媒体管线 ✅、角色/RBAC ✅、发布门禁 ✅、`audit-log` ✅；评论/订阅已由 Phase 3 的自研插件承担，Resend 待凭证。
 - **Phase 2**：报纸前台 ✅ —— 主题/布局/组件、头版、文章页、版块/标签/期号/静态页、月/周归档、搜索、RSS + JSON Feed；`npm run build` 通过。
-- **Phase 4（部分）**：**Agent Read API** ✅ —— 9 个公开只读端点（`/agent/news`、`/agent/news/{slug}`、`/agent/sections`、`/agent/editions`、`/agent/feed.json`、`/agent/schema`、`/llms.txt` 等）+ 滑动窗口限流。
+- **Phase 4（部分）**：**Agent Read API** ✅ —— 9 个公开只读端点（`/agent/news`、`/agent/news/{slug}`、`/agent/sections`、`/agent/editions`、`/agent/feed.json`、`/agent/schema`、`/llms.txt` 等）+ 按 IP 限流。
 - **Phase 4b（写侧）**：`pulse-editorial`（编辑台：选题 + 审核发布，独占 `content:publish`）与 `pulse-agent`（Agent 侧：自助注册/审批 + token、选题领取、投稿、订阅意向）✅；MD→PT 转换 ✅。
-- **Phase 4c（MCP 接入）**：三个插件的 MCP 工具已启用；`POST /_emdash/api/mcp`（Bearer token）`tools/list` 返回 **85 工具**（72 内置 + 13 插件），工具调用与 scope 强制均实测通过 ✅；客户端接入文档（`/pages/agents`）待办。
+- **Phase 4c（MCP 接入）**：三个插件的 MCP 工具已启用；`POST /_emdash/api/mcp`（Bearer token）`tools/list` 返回 **85 工具**（72 内置 + 13 插件），工具调用与 scope 强制均实测通过 ✅；客户端接入文档 `/pages/agents` ✅。
 - **Phase 4d（端到端验收）**：`scripts/agent-e2e.mjs` 真实 HTTP 全链路 **26/26 通过**（注册→审批→选题→领取→投稿→审核发布→发布门禁→越权隔离）；E2E 暴露并修复两个真实 bug（沙箱写 reference 字段、`assignments` 草稿化导致重复领取）✅。**M4 达成**。
 - **Phase 4e（接入文档）**：`/pages/agents` 接入文档（MCP 配置 / Read API / 投稿流程 / 审核门禁 / 最小权限）✅；`/llms.txt` 增加写侧 MCP 段。
+- **Phase 4f（限流复核 + scoped token）**：限流改为**每 `(route,client)` 一键、窗口锚定首次请求**（修掉 KV 键无界增长与整点双倍放行），实测 429 + `retry-after` ✅；`pulse-agent` 补齐 **scope 逐路由强制**（缺则 403，修掉「记录但不校验」的越权缺口）✅；`scripts/create-agent-tokens.mjs` 幂等生成 editor/reader 的 MCP scoped token 并自动验证 ✅。
 - **Phase 3**：评论审核（`pulse-review` 独占 `comment:moderate`：规则引擎 + Workers AI，失败降级不自动通过）✅；评论主题（`--ec-*`）✅；**自研 `pulse-subscriptions`**（双确认 / 退订 / 订阅者管理 + 后台页 + MCP）✅；订阅前台（`SubscribeForm` + `/subscribe`、`/subscribe/confirm`、`/subscribe/unsubscribe`）✅。Resend 真实投递待凭证（未配置时落库 `pendingEmail`）。
-- **Phase 5a（SEO 复核）**：新增**可信插件 `pulse-seo`**（`page:metadata`）统一 JSON-LD，文章页由 2 → 1 个 `ld+json`（`NewsArticle`）✅；`/sitemap.xml` 覆盖并补 `sitemap-sections.xml`/`sitemap-tags.xml` ✅；`/robots.txt` 覆盖并 `Disallow: /spike/` ✅；文章页 `og:image` 回退题图 ✅。插件测试合计 **109**。
+- **Phase 5a（SEO 复核）**：新增**可信插件 `pulse-seo`**（`page:metadata`）统一 JSON-LD，文章页由 2 → 1 个 `ld+json`（`NewsArticle`）✅；`/sitemap.xml` 覆盖并补 `sitemap-sections.xml`/`sitemap-tags.xml` ✅；`/robots.txt` 覆盖并 `Disallow: /spike/` ✅；文章页 `og:image` 回退题图 ✅。插件测试合计 **116**。
 - **Phase 5b（性能）**：全站图片改用 `emdash/ui` 的 `<Image>`（`srcset` 640–3200w、按栅格给出 `sizes`、`width`/`height`、WebP、LQIP），首屏图 `priority` ✅；新增 `image.remotePatterns` 修复**生产环境** srcset 退化为原图 ✅；字体维持系统栈（公开页 0 字体请求）✅；顺带修 `seed-local-media.mjs`（PUT 覆盖导致图片进不了 live）与 dev watcher（`uploads/` 触发重启）。
 - **Phase 5c（运营文档）**：新增 [12-operations.md](./12-operations.md) —— 角色职责、每日/周/月巡检清单、编辑流程 SOP（选题→跟稿→审稿→发布→更正）、Agent 投稿规范（字段约束/正文/图片/来源/禁则/审稿清单）、评论与订阅规范、异常处理、权限红线与工具速查。
 - 详见 [10-phase0-report.md](./10-phase0-report.md) 与 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)（含每阶段关键发现与踩坑）。

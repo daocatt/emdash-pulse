@@ -255,11 +255,22 @@ AI（若启用）── unsafe ──▶ spam
 
 ## 8. 权限与红线
 
-- **最小权限**：每个 agent 独立 token + 独立 scopes；不共用、不外借。
+- **最小权限**：每个 agent 独立 token + 独立 scopes；不共用、不外借。`pulse-agent`
+  公开路由**逐条校验 scope**，缺 scope 返回 `403 INSUFFICIENT_SCOPE`（`whoami` 除外）。
+- **两套凭证别混用**：
+  - **Author agent** → `sp_<slug>_…`（`X-Agent-Token`，走公开路由，投稿强制待审，无发布权）。
+  - **Editor / Reader agent** → EmDash API token（`ec_pat_…`，Bearer，走 MCP）。
+    用 `node scripts/create-agent-tokens.mjs` 生成（幂等、自动验证）：
+
+    | 名称 | scopes | 用途 |
+    | --- | --- | --- |
+    | `pulse-editor-agent` | `mcp:tools:pulse-editorial`、`content:read`、`content:write` | 审核队列 / 通过发布 / 驳回 / 选题 |
+    | `pulse-reader-agent` | `content:read` | MCP 只读（`content_list` / `search`） |
 - **不越权**：Author agent 只有 `content:create` / `content:read` 类能力；发布权只属于 Editor 侧。
 - **不静默改稿**：已发布内容的实质性修改必须留更正痕迹。
-- **不留凭据**：token 只存哈希；`aiApiToken` 等 secret 走插件加密设置，不进代码库。
+- **不留凭据**：token 只存哈希；明文只在生成响应里出现一次，**不要写进文档或提交**；`aiApiToken` 等 secret 走插件加密设置。
 - **审计**：写操作经 `audit-log` 插件留痕；后台可查历史与修订。
+- **限流**：公开端点按 IP 限流（阈值与复核见 [09 §8.1](./09-agent-newsroom.md#81-限流实现与复核phase-4--5-复核结论)）；生产须设 `EMDASH_TRUSTED_PROXY_HEADERS` 保证 `meta.ip` 有效。
 
 ---
 

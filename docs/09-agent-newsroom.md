@@ -252,14 +252,47 @@ Agent 侧公开路由的响应契约：**成功 200**、**未鉴权 401**、**�
 
 ## 8. 安全与治理
 
-- **最小权限**：投稿 token 无发布权；发布 token 单独发放给 editor。
+- **最小权限**：投稿 token 无发布权；发布 token 单独发放给 editor。`pulse-agent` 的
+  `sp_` token 携带业务 scope（`submit` / `claim` / `subscribe`），**路由逐条校验**：
+  缺 scope 返回 `403 INSUFFICIENT_SCOPE`（`agents/whoami` 只验身份、不要求 scope）。
+  默认 scope 为三者全给（`DEFAULT_AGENT_SCOPES`），审批时可由 `agents/approve` 的
+  `scopes` 收窄。
 - **不可伪造身份**：`author_agent` 取自 `routeCtx.user` / token，不接受请求体自报。
 - **幂等**：`sourceUrl` 唯一索引。
-- **限流**：按 agent 限速；公开读端点全局限流。
+- **限流**：按 agent 限速；公开读端点全局限流。实现见下节。
 - **策略兜底**：`pulse-review` 对**所有来源**（MCP/HTTP/定时/人类）强制审核。
 - **审计**：`audit-log` 记录 agent 操作；`assignments`/`articles` 保留 `author_agent`。
 - **内容安全**：投稿必进待审；叠加 `publish-check`/`preflight` 做发布前校验。
-- **测试**：`createPluginRuntimeTestHost()` 覆盖投稿→审核→发布全链路与越权用例。
+- **测试**：`createPluginRuntimeTestHost()` 覆盖投稿→审核→发布全链路与越权用例；
+  `tests/rate-limit.test.ts` 覆盖窗口语义，`tests/plugin.test.ts` 覆盖 scope 越权。
+
+### 8.1 限流实现与复核（Phase 4 / 5 复核结论）
+
+公开路由统一走 `authorizeAgent()`：**先限流，再验 token，最后校验 scope**。
+限流用 `ctx.kv` 存 `{ count, resetAt }`，窗口**锚定该键首次请求**（固定窗口）。
+
+| 路由 | 限额 | 窗口 |
+| --- | --- | --- |
+| `agents/register` | 5 | 3600s |
+| `agents/status` | 30 | 60s |
+| `agents/whoami` | 120 | 60s |
+| `assignments/available` | 120 | 60s |
+| `assignments/claim` | 60 | 60s |
+| `submissions/submit` | 20 | 60s |
+| `submissions/mine` | 120 | 60s |
+| `subscriptions/subscribe` | 30 | 60s |
+| `subscriptions/unsubscribe` | 30 | 60s |
+
+复核发现与处置：
+
+- **KV 键无界增长**（`ctx.kv` 无 TTL，旧实现把时间桶编进键名 → 每窗口一个新键，
+  永不回收）：改为**每 `(route, client)` 一个键**，窗口过期原地重置。
+- **窗口语义**：旧实现按 epoch 对齐分桶（`floor(now/window)`），跨整点可双倍放行；
+  改为锚定首次请求，注释同步更正（原文误称「滑动窗口」）。
+- **`clientIp` 回退 `"unknown"`**：部署未透传真实 IP 时所有请求共桶。生产必须设置
+  `EMDASH_TRUSTED_PROXY_HEADERS`（本地 dev 已用 `x-forwarded-for`）。
+- **已知局限**（留 Phase 5）：按插件实例计数（多 isolate 非严格全局）、读改写非原子
+  （并发可能少计）；计划换 Cloudflare Rate Limiting binding / Durable Object。
 
 ---
 
@@ -267,9 +300,11 @@ Agent 侧公开路由的响应契约：**成功 200**、**未鉴权 401**、**�
 
 - [x] `pulse-editorial`：assignments 路由 + 审核路由 + MCP 工具 + 测试。
 - [x] `pulse-agent`：注册/审批 + 选题领取 + 投稿 + 订阅意向 + MCP 工具 + 测试。
-- [ ] `pulse-review`：发布策略 ✅ + 评论审核策略（待 Phase 3/凭证）。
+- [x] `pulse-review`：发布策略 ✅ + 评论审核策略（Phase 3 已接入）。
 - [x] Agent Read API：HTTP JSON + JSON Feed + `llms.txt`（§5.5）。
 - [x] markdown ↔ Portable Text：MD→PT（投稿）、PT→MD（Agent Read API）。
-- [ ] Agent 接入文档（`/pages/agents` + MCP 配置示例）。
-- [x] 每个 author agent 的 token 流程：自助注册 → 管理员在 `/_emdash/admin/plugins/pulse-agent/agents` 审批 → 插件签发 token（明文一次）。
-- [ ] 后台启用插件 MCP 工具（`PUT /_emdash/api/admin/plugins/<id>/mcp`）。
+- [x] Agent 接入文档（`/pages/agents` + MCP 配置示例）。
+- [x] 每个 author agent 的 token 流程：自助注册 → 管理员在 `/_emdash/admin/plugins/pulse-agent/agents` 审批 → 插件签发 token（明文一次）；路由按 scope 校验（§8）。
+- [x] 后台启用插件 MCP 工具（`PUT /_emdash/api/admin/plugins/<id>/mcp`）。
+- [x] 生成各 agent 的 scoped EmDash token：`scripts/create-agent-tokens.mjs`（editor / reader，见 [06 §2.1](./06-mcp-agents.md#21-token-分级每个-agent-独立身份d15)）。
+- [ ] 客户端接入验证（Claude / Cursor 真实会话）。
