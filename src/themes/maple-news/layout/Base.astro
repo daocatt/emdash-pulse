@@ -8,9 +8,12 @@ import { getSiteSettingsWithCacheHint } from "emdash";
 import { EmDashHead, EmDashBodyStart, EmDashBodyEnd } from "emdash/ui";
 import { createPublicPageContext } from "emdash/page";
 import { resolveSiteIdentity } from "@utils/site-identity";
+import LanguageSwitcher from "@shared/LanguageSwitcher.astro";
+import { getTranslations } from "../../../i18n";
 import theme from "../theme.config";
-import "../../../styles/tokens.css";
-import "../../../styles/theme.css";
+import "../../../styles/tokens.base.css";
+import "../../../styles/base.css";
+import "../styles/tokens.css";
 
 interface Props {
 	title: string;
@@ -44,6 +47,7 @@ const settingsResult = await getSiteSettingsWithCacheHint();
 if (Astro.cache?.enabled) Astro.cache.set(settingsResult.cacheHint);
 
 const { siteTitle, siteTagline } = resolveSiteIdentity(settingsResult.data);
+const { locale, t } = getTranslations(Astro);
 const fullTitle = title === siteTitle ? title : `${title} — ${siteTitle}`;
 
 const pageCtx = createPublicPageContext({
@@ -64,7 +68,7 @@ const pageCtx = createPublicPageContext({
 ---
 
 <!doctype html>
-<html lang="zh-CN" data-site-theme={theme.name}>
+<html lang={locale} data-site-theme={theme.name}>
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -88,12 +92,15 @@ const pageCtx = createPublicPageContext({
 	<body>
 		<EmDashBodyStart page={pageCtx} />
 
-		<a class="skip-link" href="#main">跳至正文</a>
+		<a class="skip-link" href="#main">{t("common.skipToContent")}</a>
 
 		<header class="site-header">
-			<div class="container">
+			<div class="container site-header__inner">
 				<a class="site-header__brand" href="/">{siteTitle}</a>
-				<p class="site-header__tagline">{siteTagline}</p>
+				<div class="site-header__tools">
+					<LanguageSwitcher />
+					<p class="site-header__tagline">{siteTagline}</p>
+				</div>
 			</div>
 		</header>
 
@@ -105,7 +112,7 @@ const pageCtx = createPublicPageContext({
 
 		<footer class="site-footer">
 			<div class="container">
-				<p>© {new Date().getFullYear()} {siteTitle}</p>
+				<p>{t("footer.credit", { year: new Date().getFullYear(), siteTitle })}</p>
 			</div>
 		</footer>
 
@@ -136,6 +143,19 @@ const pageCtx = createPublicPageContext({
 	.site-header {
 		border-bottom: var(--rule-hairline);
 		padding-block: var(--spacing-5);
+	}
+
+	.site-header__inner {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--spacing-6);
+	}
+
+	.site-header__tools {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-5);
 	}
 
 	.site-header__brand {

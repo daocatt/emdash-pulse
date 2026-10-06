@@ -1,4 +1,6 @@
 ---
+import { getTranslations } from "../i18n";
+
 interface Props {
 	/** 当前页码（从 1 开始）。 */
 	page: number;
@@ -12,6 +14,7 @@ interface Props {
 }
 
 const { page, hasMore, basePath, params = {}, class: className } = Astro.props;
+const { t } = getTranslations(Astro);
 
 function href(target: number): string {
 	const search = new URLSearchParams(params);
@@ -22,19 +25,19 @@ function href(target: number): string {
 ---
 
 {(page > 1 || hasMore) && (
-	<nav class:list={["pagination", className]} aria-label="分页">
+	<nav class:list={["pagination", className]} aria-label={t("pagination.navLabel")}>
 		{page > 1 ? (
-			<a class="pagination__link" href={href(page - 1)} rel="prev">← 上一页</a>
+			<a class="pagination__link" href={href(page - 1)} rel="prev">← {t("pagination.prev")}</a>
 		) : (
-			<span class="pagination__link pagination__link--disabled">← 上一页</span>
+			<span class="pagination__link pagination__link--disabled">← {t("pagination.prev")}</span>
 		)}
 
-		<span class="pagination__status">第 {page} 页</span>
+		<span class="pagination__status">{t("pagination.status", { page })}</span>
 
 		{hasMore ? (
-			<a class="pagination__link" href={href(page + 1)} rel="next">下一页 →</a>
+			<a class="pagination__link" href={href(page + 1)} rel="next">{t("pagination.next")} →</a>
 		) : (
-			<span class="pagination__link pagination__link--disabled">下一页 →</span>
+			<span class="pagination__link pagination__link--disabled">{t("pagination.next")} →</span>
 		)}
 	</nav>
 )}

@@ -1,4 +1,5 @@
 ---
+import { getTranslations } from "../i18n";
 import { formatDate } from "../utils/format";
 
 interface Props {
@@ -10,22 +11,25 @@ interface Props {
 }
 
 const { publishedAt, readingTime, source, sourceUrl, class: className } = Astro.props;
+const { locale, t } = getTranslations(Astro);
 const date = publishedAt ? new Date(publishedAt) : null;
 const iso = date && !Number.isNaN(date.getTime()) ? date.toISOString() : null;
 ---
 
 <div class:list={["article-meta", className]}>
 	{iso && (
-		<time datetime={iso} class="article-meta__item">{formatDate(date)}</time>
+		<time datetime={iso} class="article-meta__item">{formatDate(date, locale)}</time>
 	)}
-	{readingTime ? <span class="article-meta__item">{readingTime} 分钟阅读</span> : null}
+	{readingTime ? (
+		<span class="article-meta__item">{t("common.readingTime", { minutes: readingTime })}</span>
+	) : null}
 	{source &&
 		(sourceUrl ? (
 			<a class="article-meta__item article-meta__source" href={sourceUrl} rel="noopener noreferrer" target="_blank">
-				来源：{source}
+				{t("common.source", { source })}
 			</a>
 		) : (
-			<span class="article-meta__item">来源：{source}</span>
+			<span class="article-meta__item">{t("common.source", { source })}</span>
 		))}
 </div>
 

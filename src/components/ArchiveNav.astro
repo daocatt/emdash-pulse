@@ -1,4 +1,6 @@
 ---
+import { getTranslations } from "../i18n";
+
 interface NavOption {
 	href: string;
 	label: string;
@@ -19,11 +21,12 @@ interface Props {
 }
 
 const { modeLinks, prevHref, nextHref, periodOptions, yearOptions, class: className } = Astro.props;
+const { t } = getTranslations(Astro);
 const periodCurrent = periodOptions.find((option) => option.current);
 const yearCurrent = yearOptions.find((option) => option.current);
 ---
 
-<nav class:list={["archive-nav", className]} aria-label="归档导航">
+<nav class:list={["archive-nav", className]} aria-label={t("archive.navLabel")}>
 	<div class="archive-nav__modes" role="tablist">
 		{modeLinks.map((link) => (
 			<a class:list={["archive-nav__mode", link.active && "is-active"]} href={link.href} aria-current={link.active ? "page" : undefined}>
@@ -33,17 +36,17 @@ const yearCurrent = yearOptions.find((option) => option.current);
 	</div>
 
 	<div class="archive-nav__controls">
-		{prevHref ? <a class="archive-nav__step" href={prevHref}>← 上一期</a> : <span class="archive-nav__step is-disabled">← 上一期</span>}
+		{prevHref ? <a class="archive-nav__step" href={prevHref}>← {t("archive.prevPeriod")}</a> : <span class="archive-nav__step is-disabled">← {t("archive.prevPeriod")}</span>}
 
 		<form class="archive-nav__form" data-archive-form>
-			<label class="sr-only" for="archive-year">年份</label>
+			<label class="sr-only" for="archive-year">{t("archive.yearLabel")}</label>
 			<select id="archive-year" class="archive-nav__select" data-archive-year>
 				{yearOptions.map((option) => (
 					<option value={option.href} selected={option.current}>{option.label}</option>
 				))}
 			</select>
 
-			<label class="sr-only" for="archive-period">期间</label>
+			<label class="sr-only" for="archive-period">{t("archive.periodLabel")}</label>
 			<select id="archive-period" class="archive-nav__select" data-archive-period>
 				{periodOptions.map((option) => (
 					<option value={option.href} selected={option.current}>{option.label}</option>
@@ -51,7 +54,7 @@ const yearCurrent = yearOptions.find((option) => option.current);
 			</select>
 		</form>
 
-		{nextHref ? <a class="archive-nav__step" href={nextHref}>下一期 →</a> : <span class="archive-nav__step is-disabled">下一期 →</span>}
+		{nextHref ? <a class="archive-nav__step" href={nextHref}>{t("archive.nextPeriod")} →</a> : <span class="archive-nav__step is-disabled">{t("archive.nextPeriod")} →</span>}
 	</div>
 
 	<p class="archive-nav__current">

@@ -1,4 +1,5 @@
 ---
+import { getTranslations } from "../i18n";
 import { formatDate } from "../utils/format";
 
 interface Props {
@@ -8,12 +9,17 @@ interface Props {
 }
 
 const { text, date, class: className } = Astro.props;
+const { locale, t } = getTranslations(Astro);
 ---
 
-<aside class:list={["correction", className]} role="note" aria-label="更正说明">
-	<span class="correction__label">更正</span>
+<aside class:list={["correction", className]} role="note" aria-label={t("correction.ariaLabel")}>
+	<span class="correction__label">{t("correction.label")}</span>
 	<p class="correction__text">{text}</p>
-	{date && <time class="correction__date" datetime={new Date(date).toISOString()}>{formatDate(date)}</time>}
+	{date && (
+		<time class="correction__date" datetime={new Date(date).toISOString()}>
+			{formatDate(date, locale)}
+		</time>
+	)}
 </aside>
 
 <style>

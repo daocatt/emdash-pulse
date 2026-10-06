@@ -1,13 +1,12 @@
 /*
-  theme.css — Suda Pulse 报纸主题的身份覆盖与全局基础样式。
+  base.css — 全局基础样式（共享层，两套主题共用）。
 
-  本文件不在 @layer 内，因此总是覆盖 tokens.css 的默认值。
-  只在此处放：站点身份（报头字、强调色）与全局元素样式（body/a/排版/prose）。
+  这里放：reset、全局元素（body/a/标题/图片）、布局工具（.container/.kicker）、
+  正文排版（.prose）、EmDash 评论组件主题（--ec-*）、减少动效偏好。
+
+  不放：任何主题身份（调色 / 标题字体 / 线型）—— 那些属于
+  src/themes/<theme>/styles/tokens.css。
 */
-
-:root {
-	--site-accent: var(--color-brand);
-}
 
 /* 显式浅色 */
 :root[data-theme="light"],
@@ -134,11 +133,6 @@ hr {
 	.container {
 		padding-inline: var(--spacing-6);
 	}
-}
-
-/* 报章分隔线 */
-.rule-thick {
-	border-top: var(--rule-thick);
 }
 
 /* 版块眉题（section label） */

@@ -3,8 +3,11 @@
  *
  * 站点时区固定为 Asia/Shanghai：展示用 Intl 做时区换算，
  * 归档边界仍走 date-range.ts 的 UTC 半开区间（Phase 5 再精修）。
+ *
+ * 展示语言由调用方传入（默认中文）；UI 文案的多语言见 src/i18n/。
  */
 
+import { DEFAULT_LOCALE, type Locale } from "../i18n";
 import { extractPlainText } from "./text";
 
 export const SITE_TIMEZONE = "Asia/Shanghai";
@@ -15,11 +18,15 @@ export function toDate(value: Date | string | null | undefined): Date | null {
 	return Number.isNaN(date.getTime()) ? null : date;
 }
 
-/** 例：2026年10月6日 */
-export function formatDate(value: Date | string | null | undefined, timeZone = SITE_TIMEZONE): string {
+/** 例：2026年10月6日 / October 6, 2026 */
+export function formatDate(
+	value: Date | string | null | undefined,
+	locale: Locale = DEFAULT_LOCALE,
+	timeZone = SITE_TIMEZONE,
+): string {
 	const date = toDate(value);
 	if (!date) return "";
-	return new Intl.DateTimeFormat("zh-CN", {
+	return new Intl.DateTimeFormat(locale, {
 		year: "numeric",
 		month: "long",
 		day: "numeric",
@@ -27,11 +34,15 @@ export function formatDate(value: Date | string | null | undefined, timeZone = S
 	}).format(date);
 }
 
-/** 例：2026年10月6日 14:30 */
-export function formatDateTime(value: Date | string | null | undefined, timeZone = SITE_TIMEZONE): string {
+/** 例：2026年10月6日 14:30 / October 6, 2026, 14:30 */
+export function formatDateTime(
+	value: Date | string | null | undefined,
+	locale: Locale = DEFAULT_LOCALE,
+	timeZone = SITE_TIMEZONE,
+): string {
 	const date = toDate(value);
 	if (!date) return "";
-	return new Intl.DateTimeFormat("zh-CN", {
+	return new Intl.DateTimeFormat(locale, {
 		year: "numeric",
 		month: "long",
 		day: "numeric",
@@ -42,10 +53,14 @@ export function formatDateTime(value: Date | string | null | undefined, timeZone
 	}).format(date);
 }
 
-/** 报头用短日期，例：2026年10月6日 星期二 */
-export function formatMastheadDate(value: Date | string = new Date(), timeZone = SITE_TIMEZONE): string {
+/** 报头用短日期，例：2026年10月6日 星期二 / Tuesday, October 6, 2026 */
+export function formatMastheadDate(
+	value: Date | string = new Date(),
+	locale: Locale = DEFAULT_LOCALE,
+	timeZone = SITE_TIMEZONE,
+): string {
 	const date = toDate(value) ?? new Date();
-	return new Intl.DateTimeFormat("zh-CN", {
+	return new Intl.DateTimeFormat(locale, {
 		year: "numeric",
 		month: "long",
 		day: "numeric",
@@ -54,18 +69,33 @@ export function formatMastheadDate(value: Date | string = new Date(), timeZone =
 	}).format(date);
 }
 
-/** 例：2026年10月 */
-export function formatMonthLabel(year: number, month: number): string {
-	return `${year}年${month}月`;
+/** 例：2026年10月 / October 2026 */
+export function formatMonthLabel(
+	year: number,
+	month: number,
+	locale: Locale = DEFAULT_LOCALE,
+): string {
+	return new Intl.DateTimeFormat(locale, {
+		year: "numeric",
+		month: "long",
+		timeZone: "UTC",
+	}).format(new Date(Date.UTC(year, month - 1, 1)));
 }
 
-/** 例：2026年第40周 */
-export function formatWeekLabel(year: number, week: number): string {
+/** 例：2026年第40周 / Week 40, 2026 */
+export function formatWeekLabel(
+	year: number,
+	week: number,
+	locale: Locale = DEFAULT_LOCALE,
+): string {
+	if (locale === "en") return `Week ${week}, ${year}`;
 	return `${year}年第${week}周`;
 }
 
 /** 返回某个日期所在的 ISO 周（周一为一周起点）。 */
-export function isoWeekOf(value: Date | string | null | undefined): { year: number; week: number } | null {
+export function isoWeekOf(
+	value: Date | string | null | undefined,
+): { year: number; week: number } | null {
 	const date = toDate(value);
 	if (!date) return null;
 	// 复制到该日 UTC 正午，避免时区抖动

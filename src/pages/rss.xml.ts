@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { getEmDashCollection, getSiteSettings } from "emdash";
+import { DEFAULT_LOCALE } from "../i18n";
 import { resolveSiteIdentity } from "../utils/site-identity";
 import { extractPlainText } from "../utils/text";
 
@@ -63,7 +64,7 @@ ${categories}
     <description>${escapeXml(siteTagline)}</description>
     <link>${siteUrl.href}</link>
     <atom:link href="${new URL("/rss.xml", siteUrl).href}" rel="self" type="application/rss+xml"/>
-    <language>zh-cn</language>
+    <language>${DEFAULT_LOCALE.toLowerCase()}</language>
     <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
 ${items}
   </channel>

@@ -3,13 +3,15 @@ import { getMenuWithCacheHint, getSiteSettingsWithCacheHint } from "emdash";
 import { EmDashHead, EmDashBodyStart, EmDashBodyEnd } from "emdash/ui";
 import { createPublicPageContext } from "emdash/page";
 import { resolveSiteIdentity } from "@utils/site-identity";
+import { getTranslations } from "../../../i18n";
 import Masthead from "../components/Masthead.astro";
 import NavBar from "../components/NavBar.astro";
 import Footer from "../components/Footer.astro";
 import Lightbox from "@shared/Lightbox.astro";
 import theme from "../theme.config";
-import "../../../styles/tokens.css";
-import "../../../styles/theme.css";
+import "../../../styles/tokens.base.css";
+import "../../../styles/base.css";
+import "../styles/tokens.css";
 
 interface Props {
 	title: string;
@@ -52,6 +54,7 @@ if (Astro.cache?.enabled) {
 }
 
 const { siteTitle, siteTagline } = resolveSiteIdentity(settingsResult.data);
+const { locale, t } = getTranslations(Astro);
 const menuItems = menuResult.data?.items ?? [];
 const footerItems = footerResult.data?.items ?? [];
 const fullTitle = title === siteTitle ? title : `${title} — ${siteTitle}`;
@@ -74,7 +77,7 @@ const pageCtx = createPublicPageContext({
 ---
 
 <!doctype html>
-<html lang="zh-CN" data-site-theme={theme.name}>
+<html lang={locale} data-site-theme={theme.name}>
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -98,7 +101,7 @@ const pageCtx = createPublicPageContext({
 	<body>
 		<EmDashBodyStart page={pageCtx} />
 
-		<a class="skip-link" href="#main">跳至正文</a>
+		<a class="skip-link" href="#main">{t("common.skipToContent")}</a>
 
 		<div class="container">
 			<Masthead siteTitle={siteTitle} siteTagline={siteTagline} />

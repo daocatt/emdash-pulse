@@ -1,5 +1,7 @@
 ---
 import LiveSearch from "emdash/ui/search";
+import LanguageSwitcher from "@shared/LanguageSwitcher.astro";
+import { getTranslations } from "../../../i18n";
 import { formatMastheadDate } from "@utils/format";
 
 interface Props {
@@ -9,17 +11,24 @@ interface Props {
 }
 
 const { siteTitle, siteTagline, class: className } = Astro.props;
-const today = formatMastheadDate();
+const { locale, t } = getTranslations(Astro);
+const today = formatMastheadDate(new Date(), locale);
 const isHome = (Astro.url.pathname.replace(/\/$/, "") || "/") === "/";
 const BrandTag = isHome ? "h1" : "div";
 ---
 
 <header class:list={["masthead", className]}>
 	<div class="masthead__utility">
-		<span class="masthead__date">{today}</span>
+		<LanguageSwitcher />
 		<div class="masthead__tools">
-			<a class="masthead__subscribe" href="/subscribe">订阅</a>
-			<button class="masthead__theme" type="button" data-theme-toggle aria-label="切换深浅色">
+			<span class="masthead__date">{today}</span>
+			<a class="masthead__subscribe" href="/subscribe">{t("common.subscribe")}</a>
+			<button
+				class="masthead__theme"
+				type="button"
+				data-theme-toggle
+				aria-label={t("common.themeToggle")}
+			>
 				<span data-theme-icon aria-hidden="true">◐</span>
 			</button>
 		</div>
@@ -34,7 +43,7 @@ const BrandTag = isHome ? "h1" : "div";
 
 	<div class="masthead__search">
 		<LiveSearch
-			placeholder="搜索新闻…"
+			placeholder={t("common.searchPlaceholder")}
 			collections={["articles", "pages"]}
 			searchPage="/search"
 			routeMap={{ articles: "/articles/:slug", pages: "/pages/:slug" }}

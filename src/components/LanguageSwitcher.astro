@@ -1,0 +1,77 @@
+---
+/**
+ * 语言切换控件（UI 文案语言，不涉及内容翻译）。
+ *
+ * 每个选项是一个 `?lang=` 链接，并带一个内联脚本把选择写进 cookie：
+ * 首次点击时 cookie 还没写，请求靠查询参数生效；之后一直用 cookie。
+ */
+import { LOCALE_LABELS, LOCALES, getTranslations, localeHref, resolveLocale } from "../i18n";
+
+interface Props {
+	class?: string;
+}
+
+const { class: className } = Astro.props;
+const { t } = getTranslations(Astro);
+const current = resolveLocale(Astro);
+---
+
+<nav class:list={["lang", className]} aria-label={t("common.language")}>
+	{
+		LOCALES.map((locale) => (
+			<a
+				class:list={["lang__option", locale === current && "lang__option--current"]}
+				href={localeHref(Astro.url, locale)}
+				hreflang={locale}
+				data-lang={locale}
+				aria-current={locale === current ? "true" : undefined}
+			>
+				{LOCALE_LABELS[locale]}
+			</a>
+		))
+	}
+</nav>
+
+<script is:inline>
+	// 切换语言时顺手把选择写进 cookie，后续请求就不必再带 ?lang=
+	document.addEventListener("click", (event) => {
+		const target = event.target;
+		if (!(target instanceof Element)) return;
+		const option = target.closest("[data-lang]");
+		if (!option) return;
+		document.cookie =
+			"suda-pulse-lang=" +
+			option.getAttribute("data-lang") +
+			"; path=/; max-age=31536000; samesite=lax";
+	});
+</script>
+
+<style>
+	.lang {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--spacing-2);
+		font-size: var(--font-size-xs);
+		letter-spacing: var(--tracking-wide);
+		text-transform: uppercase;
+	}
+
+	.lang__option {
+		color: var(--color-muted);
+	}
+
+	.lang__option:hover {
+		color: var(--color-brand);
+	}
+
+	.lang__option--current {
+		color: var(--color-text);
+		font-weight: 700;
+	}
+
+	.lang__option + .lang__option::before {
+		content: "|";
+		margin-right: var(--spacing-2);
+		color: var(--color-border);
+	}
+</style>

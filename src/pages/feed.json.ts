@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { getEmDashCollection, getSiteSettings } from "emdash";
+import { DEFAULT_LOCALE } from "../i18n";
 import { resolveSiteIdentity } from "../utils/site-identity";
 import { extractPlainText } from "../utils/text";
 
@@ -44,7 +45,7 @@ export const GET: APIRoute = async ({ site, url }) => {
 		home_page_url: siteUrl.href,
 		feed_url: new URL("/feed.json", siteUrl).href,
 		description: siteTagline,
-		language: "zh-CN",
+		language: DEFAULT_LOCALE,
 		items,
 	};
 

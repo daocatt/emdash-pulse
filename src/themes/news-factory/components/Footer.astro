@@ -1,5 +1,6 @@
 ---
 import type { MenuItem } from "emdash";
+import { getTranslations } from "../../../i18n";
 
 interface Props {
 	items: MenuItem[];
@@ -8,6 +9,7 @@ interface Props {
 }
 
 const { items, siteTitle, class: className } = Astro.props;
+const { t } = getTranslations(Astro);
 const year = new Date().getFullYear();
 ---
 
@@ -15,10 +17,10 @@ const year = new Date().getFullYear();
 	<div class="container site-footer__inner">
 		<div class="site-footer__brand">
 			<span class="site-footer__title">{siteTitle}</span>
-			<p class="site-footer__copy">© {year} {siteTitle} · 由 Agent 与编辑协作产出</p>
+			<p class="site-footer__copy">{t("footer.credit", { year, siteTitle })}</p>
 		</div>
 
-		<nav class="site-footer__nav" aria-label="页脚导航">
+		<nav class="site-footer__nav" aria-label={t("footer.navLabel")}>
 			<ul class="site-footer__list">
 				{items.map((item) => (
 					<li><a class="site-footer__link" href={item.url} target={item.target}>{item.label}</a></li>
@@ -27,7 +29,7 @@ const year = new Date().getFullYear();
 		</nav>
 
 		<div class="site-footer__feeds">
-			<a href="/subscribe">订阅</a>
+			<a href="/subscribe">{t("common.subscribe")}</a>
 			<a href="/rss.xml">RSS</a>
 			<a href="/feed.json">JSON Feed</a>
 		</div>

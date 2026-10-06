@@ -1,0 +1,35 @@
+/*
+  news-factory — 主题令牌覆盖。
+
+  报纸头版语言：暖白纸色 + 深红强调 + 细横线 + 极小圆角 + 衬线标题。
+  本文件不在 @layer 内，因此总是覆盖 src/styles/tokens.base.css 的默认值。
+*/
+
+:root {
+	/* 纸张质感：暖白 / 近黑 */
+	--color-bg: light-dark(#fdfcfa, #0d0d0d);
+	--color-bg-subtle: light-dark(#f5f3ef, #141414);
+	--color-surface: light-dark(#ffffff, #181818);
+	--color-text: light-dark(#141414, #ededed);
+	--color-text-secondary: light-dark(#4a4a4a, #a6a6a6);
+	--color-muted: light-dark(#767676, #8a8a8a);
+	--color-border: light-dark(#dcd8d0, #2c2c2c);
+	--color-border-strong: light-dark(#141414, #d8d8d8);
+	--color-border-subtle: light-dark(#ebe8e1, #202020);
+	--color-rule: light-dark(#141414, #e0e0e0);
+
+	/* 单一强调色：报章深红 */
+	--color-brand: light-dark(#b3261e, #ff6b61);
+	--color-brand-hover: light-dark(#8f1d17, #ff8b83);
+	--color-brand-subtle: light-dark(#f7e9e7, #2a1513);
+
+	/* 衬线标题（纯系统栈，零 webfont） */
+	--font-heading: "Songti SC", "STSong", Georgia, "Times New Roman", serif;
+
+	/* 报章细节：细横线与双线，几乎不圆角 */
+	--radius: 2px;
+	--radius-lg: 4px;
+	--rule-hairline: 1px solid var(--color-border);
+	--rule-thick: 3px solid var(--color-rule);
+	--rule-double: 3px double var(--color-rule);
+}
