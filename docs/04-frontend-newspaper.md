@@ -225,10 +225,14 @@ const { entries: articles } = await getEmDashCollection("articles", {
 ## 10. 无障碍与性能
 
 - 语义标签：`<article>`、`<nav>`、`<time datetime>`、`<figure>/<figcaption>`。
-- 图片：`<Image>` + 响应式 + `loading="lazy"` + 必填 `alt`（图注字段）。
+- **图片一律走 `emdash/ui` 的 `<Image image={...}>`**（不再手写 `<img>`）：由 Astro 的 image service（本地 `sharp` / 生产 Cloudflare Images）生成 `srcset`（640–3200w）、`sizes`、`width`/`height`、WebP 转换与 LQIP 占位。
+  - `sizes` 按各组件真实栅格宽度显式给出（头版 58vw / 卡片 33vw / 正文列 680px），避免默认 `100vw` 造成过度下载。
+  - 首屏图（头版主图、文章 hero、图片新闻首格、合辑封面）传 `priority` → `loading="eager"` + `fetchpriority="high"`。
+  - **`image.remotePatterns` 必须包含站点自身 origin**（见 `astro.config.mjs`）：EmDash 把同源媒体路径解析成绝对 URL 交给 Astro，未授权时生产构建会静默退回原图（srcset 各档位指向同一张全尺寸图）。
+- **字体：纯系统字体栈，零 webfont**。`--font-heading` 的 `"Source Serif 4"` / `"Noto Serif SC"` 与 `--font-mono` 的 `"JetBrains Mono"` 仅在本机安装时生效，否则回退到系统衬线/等宽（宋体、Georgia、Menlo 等）。因此无需子集化，也不产生字体请求。
+  - 构建产物里出现的 16 个 woff2（约 944 KB）属于**后台编辑器**（CodeEditor 等懒加载 chunk），公开页面不加载它们（已实测：公开页只加载 2 个 CSS ≈ 31 KB + 一个搜索脚本）。
 - 首屏主题脚本 `is:inline` 防闪烁。
-- 字体子集化（Astro fonts 配置），避免布局抖动。
-- 目标：LCP < 2.5s，CLS < 0.1。
+- 目标：LCP < 2.5s，CLS < 0.1。CLS 由「容器 `aspect-ratio` + `<Image>` 输出的 `width`/`height`」双重保障。
 
 ## 11. 响应式断点
 
@@ -264,4 +268,5 @@ const { entries: articles } = await getEmDashCollection("articles", {
 - [x] `/subscribe` 订阅页与 `SubscribeForm`（Phase 3）—— 另含 `/subscribe/confirm`、`/subscribe/unsubscribe` 结果页与页脚/头版入口。
 - [x] 评论样式细化（Phase 3，`emdash/ui/comments` 的 `--ec-*` 覆盖）。
 - [ ] 分版块 RSS `/sections/[slug]/rss.xml`（可选）。
-- [ ] 真实字体子集化（当前用系统衬线栈，零网络依赖）；真机移动端复核。
+- [x] 性能复核（Phase 5）：全站改用 `emdash/ui` 的 `<Image>`（响应式 `srcset`/`sizes`/宽高/WebP/LQIP），首屏图 `priority`；`image.remotePatterns` 修复生产环境 srcset 退化；字体决策为纯系统栈（无需子集化）。
+- [ ] 真机移动端复核（Lighthouse 实测 LCP/CLS）。

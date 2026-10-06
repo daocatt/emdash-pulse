@@ -23,6 +23,7 @@
 | **Phase 4d** | Agent 新闻室端到端验收（真实 HTTP 全链路 + 发布门禁） | ✅ **完成**（见下，`scripts/agent-e2e.mjs`） |
 | **Phase 3** | 评论审核（规则 + AI）+ 读者订阅（`pulse-subscriptions`） | ✅ **完成**（见下，详见 `11-phase3-comments-subscriptions.md`） |
 | **Phase 5a** | SEO 复核（JSON-LD 去重 + sitemap 补分类 + robots 覆盖） | ✅ **完成**（见下） |
+| **Phase 5b** | 性能（全站响应式图片 + LCP/CLS；字体维持系统栈） | ✅ **完成**（见下） |
 
 ## Phase 1 结果（内容模型与后台）
 
@@ -193,6 +194,29 @@ node scripts/agent-e2e.mjs   # 需 dev server 运行中；BASE_URL 可覆盖
 2. **覆盖 `sitemap.xml`/`robots.txt` 是官方支持的扩展点**：`injectCoreRoutes` 先探测项目 `src/pages/<basename>.<ext>`（`hasUserDefinedPublicRoute`），存在则不注入内置路由。
 3. **覆盖后路径必须保持原样**：中间件把 `/sitemap.xml`、`/robots.txt` 列入 `PUBLIC_RUNTIME_ROUTES`、把 `/sitemap-<slug>.xml` 交给 `SITEMAP_COLLECTION_RE`，命中才会走「带 `locals.emdash.db`」的分支；否则公开快路径不注入 `db`，路由会拿不到数据库。
 4. **可信插件（`plugins: []`）适合每页都跑的轻量 hook**：沙箱插件走 isolate，`page:metadata` 每次页面渲染都要跨边界；`pulse-seo` 放宿主进程内，零查询、零 isolate 开销。
+
+## Phase 5b 结果（性能：图片响应式与 LCP/CLS）
+
+| 项 | 状态 | 证据 |
+| --- | :-: | --- |
+| 图片响应式 | ✅ | 全站 6 处原生 `<img>` 改用 `emdash/ui` 的 `<Image image={...}>`（LeadStory / StoryCard / PhotoGrid / Gallery / 文章 hero / 合辑封面）：`srcset` 640–3200w、`sizes` 按真实栅格给出、WebP、LQIP。首页 `srcset` **7**、文章页 **4**；`/_image` 实测 `200 image/webp`（1600×900：260 KB → **129 KB**） |
+| CLS | ✅ | `<Image>` 输出 `width`/`height` 属性，叠加容器既有 `aspect-ratio` |
+| LCP | ✅ | 首屏图传 `priority` → `loading="eager"` + `fetchpriority="high"`（头版主图、文章 hero、图片新闻首格、合辑封面） |
+| 生产 srcset 退化 | ✅ 修复 | 新增 `image.remotePatterns`（本地 `localhost`/`127.0.0.1` + 生产域名）。未授权时 Astro 在**生产构建**静默退回原图（`srcset` 各档位指向同一张全尺寸图） |
+| 字体 | ✅ 决策 | 维持系统字体栈（公开页 **0** webfont 请求）。产物里 16 个 woff2（944 KB）属**后台编辑器** chunk，公开页不加载（实测公开页仅 2 个 CSS ≈ 31 KB + 1 个搜索脚本） |
+| 构建 / 测试 | ✅ | `npm run build` 通过；`astro check` **0 error**；`npm run plugin:test` 全绿 |
+
+### Phase 5b 新增关键发现
+
+1. **`<Image>` 的 `sizes` 必须按真实栅格显式给出**：Astro 的 `constrained` layout 默认 `sizes` 以图片原始宽为准（如 `(min-width: 1600px) 1600px, 100vw`），对头版 58vw、卡片 33vw 这类容器会过度下载。
+2. **`image.remotePatterns` 是生产必需项**：EmDash 的 `<Image>` 把同源媒体路径（`/_emdash/api/media/file/...`）解析成绝对 URL 交给 Astro；Astro 只优化绝对 URL，且要求 origin 在白名单内。**dev 宽松放行、生产严格执行**——这个差异只在跑生产构建时暴露（`astro dev` 下永远正常）。
+3. **`getImage()` 与 `<Image>` 组件共用同一 `imageConfig`**：定位时可 `import` 产物里的 `dist/server/chunks/_virtual_astro_get-image_*.mjs` 直接调 `getImage`，快速区分「配置问题」与「组件问题」。
+4. **`uploads/` 属运行时数据，应从 Vite watcher 排除**：否则每次媒体上传都触发 dev server 重启，打断进行中的请求（`seed-local-media.mjs` 会在上传后拿到登录页 HTML 而报 `Unexpected token '<'`）。
+
+### Phase 5b 附带修复
+
+- `scripts/seed-local-media.mjs`：PUT 改为「先 GET 完整 data → 合并图片字段 → PUT」，并在 `gallery` 里剔除 `image: null` 项。原先只 PUT 图片字段会**整体替换** draft revision、清掉 `review_status` → 被发布门禁拒绝 → 图片只留在 draft、条目行仍无图。
+- `astro.config.mjs`：`vite.server.watch.ignored: ["**/uploads/**"]`。
 
 ## Phase 3 结果（评论与邮件订阅）
 

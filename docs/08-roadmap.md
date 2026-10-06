@@ -117,7 +117,8 @@
 
 - [ ] 发布前校验（`publish-check`/`preflight`）按需接入。
 - [x] **SEO 套件 / sitemap / robots / JSON-LD 复核**：JSON-LD 去重（新增可信插件 `pulse-seo`，单页单实体：文章 `NewsArticle` / 其余 `WebSite`）；`/sitemap.xml` 覆盖并补 `sitemap-sections.xml`/`sitemap-tags.xml`；`/robots.txt` 覆盖并 `Disallow: /spike/`；文章页 `og:image` 回退到题图。详见 [04-frontend-newspaper.md §9](./04-frontend-newspaper.md)、[07-plugins.md §2.6/§5.6](./07-plugins.md)。
-- [ ] 性能：LCP/CLS 达标；字体子集；图片响应式（R2）。
+- [x] **性能：图片响应式 + LCP/CLS**：全站改用 `emdash/ui` 的 `<Image>`（`srcset` 640–3200w、`sizes` 按栅格给出、`width`/`height`、WebP、LQIP 占位），首屏图 `priority`；新增 `image.remotePatterns` 修复生产环境 srcset 退化为原图的问题。字体维持系统字体栈（无需子集，公开页 0 字体请求；产物里 944 KB 字体仅属后台编辑器 chunk）。详见 [04-frontend-newspaper.md §10](./04-frontend-newspaper.md)。
+- [ ] 真机移动端复核（Lighthouse 实测 LCP/CLS）。
 - [ ] 分析插件接入（可选）。
 - [ ] Cloudflare 资源：D1 + R2 + Workers AI；`wrangler.prod.jsonc` 配置。
 - [ ] `HOME=~/.wrangler-a npm run deploy` 部署；cron 生效。
