@@ -19,6 +19,7 @@ export const zhCN = {
 	"common.searchLabel": "搜索关键词",
 	"common.searchSubmit": "搜索",
 	"common.subscribe": "订阅",
+	"common.login": "登录",
 	"common.backHome": "返回头版",
 	"common.browseArchive": "浏览归档",
 	"common.more": "更多",
@@ -88,7 +89,6 @@ export const zhCN = {
 	"notFound.text": "你要找的报道可能已下架，或链接有误。",
 
 	// news-factory 首页
-	"nf.login": "登录",
 	"nf.subscribeCta": "订阅通讯",
 	"nf.mainStory": "主稿",
 	"nf.trending": "热门话题",
@@ -101,11 +101,14 @@ export const zhCN = {
 	"nf.aside": "侧栏",
 
 	// maple-news 首页
+	"mn.menu": "菜单",
+	"mn.subscribeCta": "年度订阅",
 	"mn.latestUpdates": "最新更新",
 	"mn.spotlight": "焦点",
 	"mn.podcast": "播客",
 	"mn.allPodcasts": "全部播客",
 	"mn.contributor": "撰稿人",
+	"mn.updated": "更新于 {date}",
 };
 
 export type MessageKey = keyof typeof zhCN;

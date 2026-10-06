@@ -12,6 +12,7 @@ export const en: Record<MessageKey, string> = {
 	"common.searchLabel": "Search keywords",
 	"common.searchSubmit": "Search",
 	"common.subscribe": "Subscribe",
+	"common.login": "Log in",
 	"common.backHome": "Back to front page",
 	"common.browseArchive": "Browse the archive",
 	"common.more": "More",
@@ -80,7 +81,6 @@ export const en: Record<MessageKey, string> = {
 	"notFound.text": "This story may have been taken down, or the link is wrong.",
 
 	// news-factory 首页
-	"nf.login": "Log in",
 	"nf.subscribeCta": "Subscribe",
 	"nf.mainStory": "Main story",
 	"nf.trending": "Trending topic",
@@ -93,9 +93,12 @@ export const en: Record<MessageKey, string> = {
 	"nf.aside": "Sidebar",
 
 	// maple-news 首页
+	"mn.menu": "Menu",
+	"mn.subscribeCta": "Annual subscription",
 	"mn.latestUpdates": "Latest Updates",
 	"mn.spotlight": "Spotlight",
 	"mn.podcast": "Podcast",
 	"mn.allPodcasts": "All podcasts",
 	"mn.contributor": "Contributor",
+	"mn.updated": "Updated {date}",
 };
