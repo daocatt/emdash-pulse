@@ -53,6 +53,23 @@ export const zhCN = {
 	"subscribe.network": "网络异常，请稍后再试。",
 	"subscribe.needsJs": "需要启用 JavaScript 才能提交订阅。",
 
+	// 菜单标签
+	// 后台菜单只提供链接与排序，显示标签由字典按当前语言渲染（见 menuLabel）。
+	// 表里没有的地址回退到菜单自身的标签。
+	"menu.home": "首页",
+	"menu.archive": "归档",
+	"menu.subscribe": "订阅",
+	"menu.rss": "RSS",
+	"menu.section.top": "要闻",
+	"menu.section.world": "国际",
+	"menu.section.business": "财经",
+	"menu.section.tech": "科技",
+	"menu.section.photo": "图片",
+	"menu.page.about": "关于",
+	"menu.page.ethics": "采编规范",
+	"menu.page.agents": "Agent 接入",
+	"menu.page.contact": "联系",
+
 	// 归档导航
 	"archive.navLabel": "归档导航",
 	"archive.modeMonth": "按月",

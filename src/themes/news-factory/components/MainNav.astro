@@ -3,7 +3,7 @@
  * 主导航：报纸式横排，条目之间用细竖线分隔。
  */
 import type { MenuItem } from "emdash";
-import { getTranslations } from "../../../i18n";
+import { getTranslations, menuLabel } from "../../../i18n";
 
 interface Props {
 	items: MenuItem[];
@@ -34,7 +34,7 @@ function isActive(url: string): boolean {
 							title={item.titleAttr}
 							aria-current={isActive(item.url) ? "page" : undefined}
 						>
-							{item.label}
+							{menuLabel(item.url, item.label, t)}
 						</a>
 					</li>
 				))}

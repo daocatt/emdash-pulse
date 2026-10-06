@@ -47,6 +47,21 @@ export const en: Record<MessageKey, string> = {
 	"subscribe.network": "Network error. Please try again later.",
 	"subscribe.needsJs": "JavaScript is required to subscribe.",
 
+	// 菜单标签
+	"menu.home": "Home",
+	"menu.archive": "Archive",
+	"menu.subscribe": "Subscribe",
+	"menu.rss": "RSS",
+	"menu.section.top": "Top stories",
+	"menu.section.world": "World",
+	"menu.section.business": "Business",
+	"menu.section.tech": "Tech",
+	"menu.section.photo": "Photo",
+	"menu.page.about": "About",
+	"menu.page.ethics": "Editorial standards",
+	"menu.page.agents": "Agent access",
+	"menu.page.contact": "Contact",
+
 	// 归档导航
 	"archive.navLabel": "Archive navigation",
 	"archive.modeMonth": "By month",

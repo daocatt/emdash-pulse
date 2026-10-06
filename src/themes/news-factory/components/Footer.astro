@@ -1,6 +1,6 @@
 ---
 import type { MenuItem } from "emdash";
-import { getTranslations } from "../../../i18n";
+import { getTranslations, menuLabel } from "../../../i18n";
 
 interface Props {
 	items: MenuItem[];
@@ -23,7 +23,7 @@ const year = new Date().getFullYear();
 		<nav class="site-footer__nav" aria-label={t("footer.navLabel")}>
 			<ul class="site-footer__list">
 				{items.map((item) => (
-					<li><a class="site-footer__link" href={item.url} target={item.target}>{item.label}</a></li>
+					<li><a class="site-footer__link" href={item.url} target={item.target}>{menuLabel(item.url, item.label, t)}</a></li>
 				))}
 			</ul>
 		</nav>

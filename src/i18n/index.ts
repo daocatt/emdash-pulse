@@ -77,3 +77,32 @@ export function localeHref(url: URL, locale: Locale): string {
 	next.searchParams.set("lang", locale);
 	return `${next.pathname}${next.search}`;
 }
+
+/**
+ * 菜单标签的字典键，按「规范化后的路径」匹配。
+ *
+ * 后台菜单只负责链接与排序，标签在渲染期按当前语言取，避免英文界面里
+ * 导航仍是中文。表里没有的地址回退到菜单自身的标签（后台填的中文）。
+ */
+const MENU_LABEL_KEYS: Record<string, MessageKey> = {
+	"/": "menu.home",
+	"/archive": "menu.archive",
+	"/subscribe": "menu.subscribe",
+	"/rss.xml": "menu.rss",
+	"/sections/top": "menu.section.top",
+	"/sections/world": "menu.section.world",
+	"/sections/business": "menu.section.business",
+	"/sections/tech": "menu.section.tech",
+	"/sections/photo": "menu.section.photo",
+	"/pages/about": "menu.page.about",
+	"/pages/ethics": "menu.page.ethics",
+	"/pages/agents": "menu.page.agents",
+	"/pages/contact": "menu.page.contact",
+};
+
+/** 菜单项的显示标签：命中字典键用当前语言，否则回退菜单自身标签。 */
+export function menuLabel(url: string, fallback: string, t: Translator): string {
+	const path = url.split(/[?#]/)[0].replace(/\/$/, "") || "/";
+	const key = MENU_LABEL_KEYS[path];
+	return key ? t(key) : fallback;
+}
