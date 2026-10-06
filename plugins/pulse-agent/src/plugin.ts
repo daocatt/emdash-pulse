@@ -52,6 +52,7 @@ const fail = (error: string, extra: Json = {}): Json => ({ ok: false, error, ...
 const HTTP_STATUS: Record<string, number> = {
 	INVALID_INPUT: 400,
 	UNAUTHORIZED: 401,
+	INSUFFICIENT_SCOPE: 403,
 	NOT_FOUND: 404,
 	SLUG_TAKEN: 409,
 	NOT_OPEN: 409,
@@ -154,12 +155,18 @@ function contentOf(ctx: PluginContext) {
 
 type AgentAuth = { ok: true; agent: AgentRecord } | { ok: false; result: Json };
 
-/** 限流 + agent token 校验（公开路由统一入口）。 */
+/**
+ * 限流 + agent token 校验 + 能力（scope）校验（公开路由统一入口）。
+ *
+ * `requiredScope` 为 `undefined` 时只验身份（如 `whoami`，agent 需要能自查）。
+ * scope 在审批时由 `agents/approve` 的 `scopes` 决定，默认 `DEFAULT_AGENT_SCOPES`。
+ */
 async function authorizeAgent(
 	ctx: PluginContext,
 	routeCtx: SandboxedRouteContext,
 	route: string,
 	limit = 60,
+	requiredScope?: string,
 ): Promise<AgentAuth> {
 	const rate = await checkRateLimit(ctx, `${route}:${clientIp(routeCtx.requestMeta)}`, limit, 60);
 	if (!rate.allowed) {
@@ -167,6 +174,9 @@ async function authorizeAgent(
 	}
 	const agent = await authenticateAgent(ctx, readHeader(routeCtx, AGENT_TOKEN_HEADER));
 	if (!agent) return { ok: false, result: fail("UNAUTHORIZED") };
+	if (requiredScope && !agent.scopes.includes(requiredScope)) {
+		return { ok: false, result: fail("INSUFFICIENT_SCOPE", { required_scope: requiredScope }) };
+	}
 	return { ok: true, agent };
 }
 
@@ -389,7 +399,7 @@ const plugin: SandboxedPlugin = {
 			methods: ["GET"],
 			request: { body: "none", headers: [AGENT_TOKEN_HEADER] },
 			handler: rawJson(async (routeCtx, ctx): Promise<Json> => {
-				const auth = await authorizeAgent(ctx, routeCtx, "assignments/available", 120);
+				const auth = await authorizeAgent(ctx, routeCtx, "assignments/available", 120, "claim");
 				if (!auth.ok) return auth.result;
 
 				const query = (routeCtx.input ?? {}) as { limit?: string };
@@ -420,7 +430,7 @@ const plugin: SandboxedPlugin = {
 			methods: ["POST"],
 			request: { body: "json", headers: [AGENT_TOKEN_HEADER] },
 			handler: rawJson(async (routeCtx, ctx): Promise<Json> => {
-				const auth = await authorizeAgent(ctx, routeCtx, "assignments/claim", 60);
+				const auth = await authorizeAgent(ctx, routeCtx, "assignments/claim", 60, "claim");
 				if (!auth.ok) return auth.result;
 
 				const parsed = claimInput.safeParse(routeCtx.input);
@@ -453,7 +463,7 @@ const plugin: SandboxedPlugin = {
 			methods: ["POST"],
 			request: { body: "json", headers: [AGENT_TOKEN_HEADER] },
 			handler: rawJson(async (routeCtx, ctx): Promise<Json> => {
-				const auth = await authorizeAgent(ctx, routeCtx, "submissions/submit", 20);
+				const auth = await authorizeAgent(ctx, routeCtx, "submissions/submit", 20, "submit");
 				if (!auth.ok) return auth.result;
 
 				const parsed = submitInput.safeParse(routeCtx.input);
@@ -539,7 +549,7 @@ const plugin: SandboxedPlugin = {
 			methods: ["GET"],
 			request: { body: "none", headers: [AGENT_TOKEN_HEADER] },
 			handler: rawJson(async (routeCtx, ctx): Promise<Json> => {
-				const auth = await authorizeAgent(ctx, routeCtx, "submissions/mine", 120);
+				const auth = await authorizeAgent(ctx, routeCtx, "submissions/mine", 120, "submit");
 				if (!auth.ok) return auth.result;
 
 				const query = (routeCtx.input ?? {}) as { limit?: string };
@@ -572,7 +582,7 @@ const plugin: SandboxedPlugin = {
 			methods: ["POST"],
 			request: { body: "json", headers: [AGENT_TOKEN_HEADER] },
 			handler: rawJson(async (routeCtx, ctx): Promise<Json> => {
-				const auth = await authorizeAgent(ctx, routeCtx, "subscriptions/subscribe", 30);
+				const auth = await authorizeAgent(ctx, routeCtx, "subscriptions/subscribe", 30, "subscribe");
 				if (!auth.ok) return auth.result;
 
 				const parsed = subscribeInput.safeParse(routeCtx.input);
@@ -597,7 +607,7 @@ const plugin: SandboxedPlugin = {
 			methods: ["POST"],
 			request: { body: "json", headers: [AGENT_TOKEN_HEADER] },
 			handler: rawJson(async (routeCtx, ctx): Promise<Json> => {
-				const auth = await authorizeAgent(ctx, routeCtx, "subscriptions/unsubscribe", 30);
+				const auth = await authorizeAgent(ctx, routeCtx, "subscriptions/unsubscribe", 30, "subscribe");
 				if (!auth.ok) return auth.result;
 
 				const parsed = subscribeInput.safeParse(routeCtx.input);

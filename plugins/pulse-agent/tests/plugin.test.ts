@@ -186,3 +186,56 @@ describe("pulse-agent 身份校验", () => {
 		expect(list.agents.some((a: Res) => a.slug === "orion")).toBe(true);
 	});
 });
+
+describe("pulse-agent 能力（scope）隔离", () => {
+	it("scope 不足时业务路由返回 403 INSUFFICIENT_SCOPE", async () => {
+		const created = await register("narrow");
+		const approved = await call(
+			"agents/approve",
+			{ agent_id: created.agent_id, scopes: ["claim"] },
+			postReq(),
+		);
+		expect(approved.ok).toBe(true);
+		expect(approved.scopes).toEqual(["claim"]);
+
+		// 身份自查不需要 scope。
+		const who = await call("agents/whoami", undefined, getReq({ "x-agent-token": approved.token }));
+		expect(who.ok).toBe(true);
+		expect(who.scopes).toEqual(["claim"]);
+
+		// 无 submit → 投稿被拒（且不落任何内容）。
+		const submit = await call(
+			"submissions/submit",
+			{ title: "越权投稿" },
+			postReq(nextIp(), { "x-agent-token": approved.token }),
+		);
+		expect(submit.ok).toBe(false);
+		expect(submit.error).toBe("INSUFFICIENT_SCOPE");
+		expect(submit.__status).toBe(403);
+		expect(submit.required_scope).toBe("submit");
+
+		// 无 subscribe → 订阅被拒。
+		const subscribe = await call(
+			"subscriptions/subscribe",
+			{ email: "reader@example.com" },
+			postReq(nextIp(), { "x-agent-token": approved.token }),
+		);
+		expect(subscribe.ok).toBe(false);
+		expect(subscribe.error).toBe("INSUFFICIENT_SCOPE");
+		expect(subscribe.__status).toBe(403);
+	});
+
+	it("默认 scopes 覆盖全部业务路由", async () => {
+		const created = await register("broad");
+		const approved = await call("agents/approve", { agent_id: created.agent_id }, postReq());
+		expect(approved.scopes).toEqual(["submit", "claim", "subscribe"]);
+
+		const subscribe = await call(
+			"subscriptions/subscribe",
+			{ email: "reader@example.com" },
+			postReq(nextIp(), { "x-agent-token": approved.token }),
+		);
+		expect(subscribe.ok).toBe(true);
+		expect(subscribe.__status).toBe(200);
+	});
+});
