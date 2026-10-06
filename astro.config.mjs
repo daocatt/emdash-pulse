@@ -68,4 +68,13 @@ export default defineConfig({
 	},
 	integrations: [react(), emdash(emdashConfig)],
 	devToolbar: { enabled: false },
+	vite: {
+		server: {
+			watch: {
+				// 上传的媒体是运行时数据，不属于源码：否则每次上传都会触发
+				// dev server 重启，正在进行的请求会被打断（如 seed-local-media）。
+				ignored: ["**/uploads/**"],
+			},
+		},
+	},
 });
