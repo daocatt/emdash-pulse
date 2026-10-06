@@ -1,0 +1,137 @@
+---
+/**
+ * 作者卡：头像（或首字色块）+ 姓名 + 角色 / 日期。
+ *
+ * 两套主题共用，靠令牌换肤；maple-news 的「撰稿人」卡与文章页署名列都用它。
+ */
+import type { BylineSummary } from "emdash";
+import { getTranslations } from "../i18n";
+import { bylineAvatarUrl, bylineInitials } from "../utils/byline";
+import { formatDate } from "../utils/format";
+
+interface Props {
+	byline: BylineSummary;
+	/** 署名角色（credit.roleLabel），为空时退回到「撰稿人」。 */
+	roleLabel?: string | null;
+	date?: Date | string | null;
+	size?: "sm" | "md";
+	/** 只展示头像 + 姓名（无角色 / 日期）。 */
+	compact?: boolean;
+	class?: string;
+}
+
+const {
+	byline,
+	roleLabel,
+	date,
+	size = "md",
+	compact = false,
+	class: className,
+} = Astro.props;
+
+const { locale, t } = getTranslations(Astro);
+const avatarUrl = bylineAvatarUrl(byline);
+const initials = bylineInitials(byline.displayName);
+const role = roleLabel ?? t("mn.contributor");
+const dateLabel = date ? formatDate(date, locale) : null;
+---
+
+<div class:list={["author-card", `author-card--${size}`, className]}>
+	{
+		avatarUrl ? (
+			<img
+				class="author-card__avatar"
+				src={avatarUrl}
+				alt={byline.avatarAlt ?? byline.displayName}
+				width="48"
+				height="48"
+				loading="lazy"
+				decoding="async"
+			/>
+		) : (
+			<span class="author-card__avatar author-card__avatar--initials" aria-hidden="true">
+				{initials}
+			</span>
+		)
+	}
+
+	<div class="author-card__body">
+		<span class="author-card__name">{byline.displayName}</span>
+		{
+			!compact && (
+				<span class="author-card__meta">
+					<span class="author-card__role">{role}</span>
+					{dateLabel && <span class="author-card__date">{dateLabel}</span>}
+				</span>
+			)
+		}
+	</div>
+</div>
+
+<style>
+	.author-card {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-3);
+	}
+
+	.author-card__avatar {
+		flex: none;
+		width: 48px;
+		height: 48px;
+		border-radius: 50%;
+		object-fit: cover;
+		background: var(--color-bg-subtle);
+	}
+
+	.author-card--sm .author-card__avatar {
+		width: 36px;
+		height: 36px;
+	}
+
+	.author-card__avatar--initials {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--color-brand-soft);
+		color: var(--color-text);
+		font-family: var(--font-heading);
+		font-weight: var(--font-weight-heading);
+		font-size: var(--font-size-base);
+	}
+
+	.author-card__body {
+		display: flex;
+		flex-direction: column;
+		gap: 0.1em;
+		min-width: 0;
+	}
+
+	.author-card__name {
+		font-family: var(--font-heading);
+		font-size: var(--font-size-lg);
+		line-height: var(--leading-snug);
+		color: var(--color-text);
+	}
+
+	.author-card--sm .author-card__name {
+		font-size: var(--font-size-base);
+	}
+
+	.author-card__meta {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: var(--spacing-3);
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+
+	.author-card__role {
+		font-style: italic;
+	}
+
+	.author-card__date {
+		white-space: nowrap;
+	}
+</style>
