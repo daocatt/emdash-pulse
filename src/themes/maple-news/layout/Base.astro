@@ -1,0 +1,162 @@
+---
+/**
+ * Maple News 主题外壳（P0 骨架版）。
+ *
+ * P0 只保证「路由注入 + 主题标识 + SEO 上下文」这条链路可用，视觉留待 P3 实现。
+ */
+import { getSiteSettingsWithCacheHint } from "emdash";
+import { EmDashHead, EmDashBodyStart, EmDashBodyEnd } from "emdash/ui";
+import { createPublicPageContext } from "emdash/page";
+import { resolveSiteIdentity } from "@utils/site-identity";
+import theme from "../theme.config";
+import "../../../styles/tokens.css";
+import "../../../styles/theme.css";
+
+interface Props {
+	title: string;
+	pageTitle?: string | null;
+	description?: string | null;
+	image?: string | null;
+	canonical?: string | null;
+	robots?: string | null;
+	type?: "website" | "article";
+	publishedTime?: string | null;
+	modifiedTime?: string | null;
+	author?: string | null;
+	content?: { collection: string; id: string; slug?: string | null };
+}
+
+const {
+	title,
+	pageTitle,
+	description,
+	image,
+	canonical,
+	robots,
+	type = "website",
+	publishedTime,
+	modifiedTime,
+	author,
+	content,
+} = Astro.props;
+
+const settingsResult = await getSiteSettingsWithCacheHint();
+if (Astro.cache?.enabled) Astro.cache.set(settingsResult.cacheHint);
+
+const { siteTitle, siteTagline } = resolveSiteIdentity(settingsResult.data);
+const fullTitle = title === siteTitle ? title : `${title} — ${siteTitle}`;
+
+const pageCtx = createPublicPageContext({
+	Astro,
+	kind: content ? "content" : "custom",
+	pageType: type,
+	title: fullTitle,
+	pageTitle: pageTitle ?? title,
+	description: description ?? siteTagline,
+	canonical,
+	image,
+	content,
+	seo: { ogImage: image, robots },
+	articleMeta: { publishedTime, modifiedTime, author },
+	siteName: siteTitle,
+	breadcrumbs: [],
+});
+---
+
+<!doctype html>
+<html lang="zh-CN" data-site-theme={theme.name}>
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+		<title>{fullTitle}</title>
+		<link rel="alternate" type="application/rss+xml" title={siteTitle} href="/rss.xml" />
+		<link rel="alternate" type="application/feed+json" title={siteTitle} href="/feed.json" />
+		<EmDashHead page={pageCtx} />
+		<script is:inline>
+			// 首屏主题初始化，避免闪烁
+			(function () {
+				try {
+					var stored = localStorage.getItem("suda-pulse-theme");
+					var theme =
+						stored ||
+						(window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+					document.documentElement.setAttribute("data-theme", theme);
+				} catch (e) {}
+			})();
+		</script>
+	</head>
+	<body>
+		<EmDashBodyStart page={pageCtx} />
+
+		<a class="skip-link" href="#main">跳至正文</a>
+
+		<header class="site-header">
+			<div class="container">
+				<a class="site-header__brand" href="/">{siteTitle}</a>
+				<p class="site-header__tagline">{siteTagline}</p>
+			</div>
+		</header>
+
+		<main id="main">
+			<div class="container">
+				<slot />
+			</div>
+		</main>
+
+		<footer class="site-footer">
+			<div class="container">
+				<p>© {new Date().getFullYear()} {siteTitle}</p>
+			</div>
+		</footer>
+
+		<EmDashBodyEnd page={pageCtx} />
+	</body>
+</html>
+
+<style>
+	.skip-link {
+		position: absolute;
+		left: -9999px;
+		top: 0;
+		z-index: 100;
+		background: var(--color-brand);
+		color: var(--color-on-brand);
+		padding: var(--spacing-2) var(--spacing-4);
+	}
+
+	.skip-link:focus {
+		left: 0;
+	}
+
+	main {
+		display: block;
+		min-height: 50vh;
+	}
+
+	.site-header {
+		border-bottom: var(--rule-hairline);
+		padding-block: var(--spacing-5);
+	}
+
+	.site-header__brand {
+		font-family: var(--font-heading);
+		font-size: var(--font-size-2xl);
+		font-weight: 700;
+		text-decoration: none;
+		color: inherit;
+	}
+
+	.site-header__tagline {
+		margin: var(--spacing-1) 0 0;
+		color: var(--color-muted);
+		font-size: var(--font-size-sm);
+	}
+
+	.site-footer {
+		border-top: var(--rule-hairline);
+		margin-top: var(--spacing-12);
+		padding-block: var(--spacing-6);
+		color: var(--color-muted);
+		font-size: var(--font-size-sm);
+	}
+</style>

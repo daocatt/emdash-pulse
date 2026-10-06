@@ -1,0 +1,106 @@
+---
+import { getEmDashCollection, getTaxonomyTermsWithCacheHint, decodeSlug } from "emdash";
+import Base from "../../layout/Base.astro";
+import StoryCard from "../../components/StoryCard.astro";
+import Pagination from "@shared/Pagination.astro";
+
+const PER_PAGE = 12;
+
+const slug = decodeSlug(Astro.params.slug);
+const termsResult = await getTaxonomyTermsWithCacheHint("tag", { includeCounts: true });
+const term = slug ? termsResult.data.find((item) => item.slug === slug) : null;
+if (!term) return Astro.redirect("/404");
+
+const page = Math.max(1, Number.parseInt(Astro.url.searchParams.get("page") ?? "1", 10) || 1);
+
+const { entries: articles, cacheHint, hasMore } = await getEmDashCollection("articles", {
+	where: { tag: term.slug },
+	orderBy: { published_at: "desc" },
+	limit: PER_PAGE,
+	offset: (page - 1) * PER_PAGE,
+});
+
+if (Astro.cache?.enabled) {
+	Astro.cache.set(termsResult.cacheHint);
+	Astro.cache.set(cacheHint);
+}
+---
+
+<Base
+	title={`标签：${term.label}`}
+	pageTitle={`标签：${term.label}`}
+	description={`带有「${term.label}」标签的报道`}
+	canonical={`${Astro.url.origin}/tags/${term.slug}`}
+>
+	<div class="container tag-page">
+		<header class="tag-page__header">
+			<span class="kicker">标签</span>
+			<h1 class="tag-page__title">#{term.label}</h1>
+			<p class="tag-page__count">共 {term.count ?? articles.length} 篇</p>
+		</header>
+
+		{articles.length === 0 ? (
+			<p class="tag-page__empty">该标签下暂无内容。</p>
+		) : (
+			<ul class="tag-page__list">
+				{articles.map((article) => (
+					<li>
+						<StoryCard article={article} showImage size="md" headingLevel="h2" />
+					</li>
+				))}
+			</ul>
+		)}
+
+		<Pagination page={page} hasMore={Boolean(hasMore)} basePath={`/tags/${term.slug}`} />
+	</div>
+</Base>
+
+<style>
+	.tag-page {
+		padding-top: var(--spacing-8);
+	}
+
+	.tag-page__header {
+		padding-bottom: var(--spacing-5);
+		border-bottom: var(--rule-double);
+		margin-bottom: var(--spacing-8);
+	}
+
+	.tag-page__title {
+		font-size: var(--font-size-4xl);
+		margin-top: var(--spacing-2);
+	}
+
+	.tag-page__count {
+		margin: var(--spacing-3) 0 0;
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+
+	.tag-page__list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--spacing-8);
+	}
+
+	@media (min-width: 700px) {
+		.tag-page__list {
+			grid-template-columns: repeat(2, 1fr);
+		}
+	}
+
+	@media (min-width: 1000px) {
+		.tag-page__list {
+			grid-template-columns: repeat(3, 1fr);
+		}
+	}
+
+	.tag-page__empty {
+		padding: var(--spacing-16) 0;
+		text-align: center;
+		color: var(--color-muted);
+	}
+</style>

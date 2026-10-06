@@ -1,0 +1,99 @@
+---
+/**
+ * Maple News 首页（P0 骨架版）。
+ *
+ * 只验证「主题路由注入 + 数据加载 + 主题标识」链路；设计稿的
+ * SPOTLIGHT / 主视觉 / Podcast 区块在 P3 实现。
+ */
+import { getEmDashCollection, getSiteSettings } from "emdash";
+import Base from "../layout/Base.astro";
+import { resolveSiteIdentity } from "@utils/site-identity";
+import { formatDate } from "@utils/format";
+
+const settings = await getSiteSettings();
+const { siteTitle, siteTagline } = resolveSiteIdentity(settings);
+
+const latestResult = await getEmDashCollection("articles", {
+	orderBy: { published_at: "desc" },
+	limit: 8,
+});
+if (Astro.cache?.enabled) Astro.cache.set(latestResult.cacheHint);
+
+const latest = latestResult.entries;
+---
+
+<Base title={siteTitle} description={siteTagline} type="website">
+	<section class="front">
+		<h1 class="front__title">{siteTitle}</h1>
+		<p class="front__tagline">{siteTagline}</p>
+
+		<h2 class="front__section-heading">最新报道</h2>
+		<ul class="front__list">
+			{latest.map((article) => (
+				<li class="front__item">
+					<a class="front__link" href={`/articles/${article.id}`}>{article.data.title}</a>
+					{article.data.publishedAt && (
+						<time class="front__date" datetime={new Date(article.data.publishedAt).toISOString()}>
+							{formatDate(article.data.publishedAt)}
+						</time>
+					)}
+				</li>
+			))}
+		</ul>
+
+		<p class="front__note">Maple News 主题的首页设计（P3）尚未实现，当前为骨架版。</p>
+	</section>
+</Base>
+
+<style>
+	.front {
+		padding-block: var(--spacing-12);
+	}
+
+	.front__title {
+		font-size: var(--font-size-5xl);
+		margin: 0;
+	}
+
+	.front__tagline {
+		color: var(--color-muted);
+		margin: var(--spacing-2) 0 var(--spacing-10);
+	}
+
+	.front__section-heading {
+		font-size: var(--font-size-2xl);
+		margin: 0 0 var(--spacing-5);
+	}
+
+	.front__list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.front__item {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--spacing-4);
+		padding: var(--spacing-3) 0;
+		border-bottom: var(--rule-hairline);
+	}
+
+	.front__link {
+		font-family: var(--font-heading);
+		font-size: var(--font-size-lg);
+	}
+
+	.front__date {
+		color: var(--color-muted);
+		font-size: var(--font-size-xs);
+		white-space: nowrap;
+	}
+
+	.front__note {
+		margin-top: var(--spacing-8);
+		color: var(--color-muted);
+		font-size: var(--font-size-sm);
+	}
+</style>

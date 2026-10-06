@@ -1,0 +1,20 @@
+---
+import Base from "../layout/Base.astro";
+import Placeholder from "../components/Placeholder.astro";
+---
+
+<Base title="页面未找到" pageTitle="404" description="未找到该页面">
+	<Placeholder heading="页面未找到" note="你要找的报道可能已下架，或链接有误。" />
+	<p class="not-found__actions">
+		<a href="/">返回头版</a>
+		<a href="/archive">浏览归档</a>
+	</p>
+</Base>
+
+<style>
+	.not-found__actions {
+		display: flex;
+		gap: var(--spacing-6);
+		margin-top: var(--spacing-6);
+	}
+</style>

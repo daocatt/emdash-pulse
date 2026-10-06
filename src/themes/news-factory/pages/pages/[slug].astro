@@ -1,0 +1,57 @@
+---
+import { getEmDashEntry, getSiteSettings, getSeoMeta, decodeSlug } from "emdash";
+import { PortableText } from "emdash/ui";
+import Base from "../../layout/Base.astro";
+import { resolveSiteIdentity } from "@utils/site-identity";
+
+const slug = decodeSlug(Astro.params.slug);
+if (!slug) return Astro.redirect("/404");
+
+const { entry: page, cacheHint } = await getEmDashEntry("pages", slug);
+if (!page) return Astro.redirect("/404");
+if (Astro.cache?.enabled) Astro.cache.set(cacheHint);
+
+const settings = await getSiteSettings();
+const { siteTitle } = resolveSiteIdentity(settings);
+const seo = getSeoMeta(page, {
+	siteTitle,
+	siteUrl: Astro.url.origin,
+	path: Astro.url.pathname.replace(/\/$/, ""),
+});
+---
+
+<Base
+	title={seo.title}
+	pageTitle={page.data.title}
+	description={seo.description}
+	canonical={seo.canonical}
+	robots={seo.robots}
+	content={{ collection: "pages", id: page.data.id, slug }}
+>
+	<article class="container page">
+		<header class="page__header">
+			<h1 class="page__title" {...page.edit.title}>{page.data.title}</h1>
+		</header>
+
+		<div class="prose page__content" {...page.edit.content}>
+			<PortableText value={page.data.content} />
+		</div>
+	</article>
+</Base>
+
+<style>
+	.page {
+		padding-top: var(--spacing-10);
+		max-width: var(--content-width);
+	}
+
+	.page__header {
+		padding-bottom: var(--spacing-5);
+		border-bottom: var(--rule-double);
+		margin-bottom: var(--spacing-8);
+	}
+
+	.page__title {
+		font-size: var(--font-size-4xl);
+	}
+</style>

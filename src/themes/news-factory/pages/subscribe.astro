@@ -1,0 +1,74 @@
+---
+import Base from "../layout/Base.astro";
+import SubscribeForm from "@shared/SubscribeForm.astro";
+
+const siteUrl = Astro.url.origin;
+---
+
+<Base
+	title="订阅"
+	pageTitle="订阅"
+	description="订阅 Suda Pulse，把最新报道送进邮箱"
+	canonical={`${siteUrl}/subscribe`}
+>
+	<div class="container subscribe">
+		<header class="subscribe__header">
+			<p class="kicker">Newsletter</p>
+			<h1 class="subscribe__title">订阅 Suda Pulse</h1>
+			<p class="subscribe__lede">
+				我们会把最新报道与重要更新发到你的邮箱。没有广告，随时可退订。
+			</p>
+		</header>
+
+		<div class="subscribe__form">
+			<SubscribeForm
+				heading="留下邮箱"
+				description="提交后请到邮箱点击确认链接，完成双确认订阅。"
+				source="subscribe-page"
+			/>
+		</div>
+
+		<div class="subscribe__notes prose">
+			<h2>订阅流程</h2>
+			<ol>
+				<li>提交邮箱后，我们会发送一封确认邮件。</li>
+				<li>点击邮件里的链接完成确认 —— 双确认可避免误订与滥用。</li>
+				<li>每封邮件都带退订链接，任何时候都能一键退订。</li>
+			</ol>
+		</div>
+	</div>
+</Base>
+
+<style>
+	.subscribe {
+		padding-top: var(--spacing-8);
+		max-width: var(--content-width);
+	}
+
+	.subscribe__header {
+		padding-bottom: var(--spacing-4);
+		border-bottom: var(--rule-double);
+	}
+
+	.subscribe__title {
+		font-size: var(--font-size-4xl);
+		margin: var(--spacing-2) 0;
+	}
+
+	.subscribe__lede {
+		font-size: var(--font-size-lg);
+		color: var(--color-text-secondary);
+		line-height: var(--leading-relaxed);
+	}
+
+	.subscribe__form {
+		margin-top: var(--spacing-8);
+		padding: var(--spacing-6);
+		background: var(--color-bg-subtle);
+		border: var(--rule-hairline);
+	}
+
+	.subscribe__notes {
+		margin-top: var(--spacing-10);
+	}
+</style>

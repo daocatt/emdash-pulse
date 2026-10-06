@@ -1,7 +1,11 @@
 {
 	"extends": "astro/tsconfigs/base",
 	"compilerOptions": {
-		"types": ["node"]
+		"types": ["node"],
+		"paths": {
+			"@shared/*": ["./src/components/*"],
+			"@utils/*": ["./src/utils/*"]
+		}
 	},
 	"include": ["src", ".astro/types.d.ts", "emdash-env.d.ts"]
 }

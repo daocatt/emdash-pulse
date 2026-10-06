@@ -1,0 +1,190 @@
+---
+import { search } from "emdash";
+import Base from "../layout/Base.astro";
+import { fallbackSearch } from "@utils/search";
+
+const query = Astro.url.searchParams.get("q")?.trim() ?? "";
+
+interface Hit {
+	collection: string;
+	id: string;
+	slug: string | null;
+	title: string;
+	snippet?: string;
+}
+
+let results: Hit[] = [];
+let usedFallback = false;
+
+if (query) {
+	const { items } = await search(query, { collections: ["articles", "pages"], limit: 30 });
+	results = items.map((item) => ({
+		collection: item.collection,
+		id: item.id,
+		slug: item.slug,
+		title: item.title ?? "未命名",
+		snippet: item.snippet,
+	}));
+
+	// trigram 分词器要求 >= 3 字符；短查询（如两字中文）走内存回退扫描。
+	if (results.length === 0) {
+		const fallback = await fallbackSearch(query, 30);
+		if (fallback.length > 0) {
+			results = fallback;
+			usedFallback = true;
+		}
+	}
+}
+
+function resultHref(collection: string, slug: string | null, id: string): string {
+	const path = slug ?? id;
+	return collection === "pages" ? `/pages/${path}` : `/articles/${path}`;
+}
+---
+
+<Base
+	title={query ? `搜索：${query}` : "搜索"}
+	pageTitle="搜索"
+	description="搜索 Suda Pulse 的报道与页面"
+	canonical={`${Astro.url.origin}/search`}
+>
+	<div class="container search">
+		<header class="search__header">
+			<h1 class="search__title">搜索</h1>
+		</header>
+
+		<form class="search__form" method="get" action="/search" role="search">
+			<label class="sr-only" for="search-input">搜索关键词</label>
+			<input
+				id="search-input"
+				class="search__input"
+				type="search"
+				name="q"
+				value={query}
+				placeholder="输入关键词，如「审核」「图片新闻」…"
+				autofocus
+			/>
+			<button class="search__submit" type="submit">搜索</button>
+		</form>
+
+		{query && (
+			<p class="search__status">
+				{results.length === 0
+					? `未找到与「${query}」相关的内容`
+					: `找到 ${results.length} 条与「${query}」相关的结果${usedFallback ? "（模糊匹配）" : ""}`}
+			</p>
+		)}
+
+		{results.length > 0 && (
+			<ul class="search__results">
+				{results.map((result) => (
+					<li class="search__result">
+						<a class="search__result-link" href={resultHref(result.collection, result.slug, result.id)}>
+							<span class="search__result-collection">{result.collection === "pages" ? "页面" : "报道"}</span>
+							<h2 class="search__result-title">{result.title ?? "未命名"}</h2>
+							{result.snippet && <p class="search__result-snippet" set:html={result.snippet} />}
+						</a>
+					</li>
+				))}
+			</ul>
+		)}
+	</div>
+</Base>
+
+<style>
+	.search {
+		padding-top: var(--spacing-8);
+		max-width: var(--content-width);
+	}
+
+	.search__header {
+		padding-bottom: var(--spacing-4);
+		border-bottom: var(--rule-double);
+	}
+
+	.search__title {
+		font-size: var(--font-size-4xl);
+	}
+
+	.search__form {
+		display: flex;
+		gap: var(--spacing-3);
+		margin-top: var(--spacing-6);
+	}
+
+	.search__input {
+		flex: 1;
+		font: inherit;
+		font-size: var(--font-size-lg);
+		padding: var(--spacing-3) var(--spacing-4);
+		background: var(--color-surface);
+		color: var(--color-text);
+		border: 2px solid var(--color-border-strong);
+	}
+
+	.search__input:focus {
+		outline: none;
+		border-color: var(--color-brand);
+	}
+
+	.search__submit {
+		font-family: var(--font-heading);
+		font-size: var(--font-size-lg);
+		font-weight: 700;
+		padding: 0 var(--spacing-6);
+		background: var(--color-brand);
+		color: var(--color-on-brand);
+		border: none;
+		cursor: pointer;
+	}
+
+	.search__status {
+		margin: var(--spacing-5) 0;
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+
+	.search__results {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.search__result {
+		border-bottom: var(--rule-hairline);
+	}
+
+	.search__result-link {
+		display: block;
+		padding: var(--spacing-5) 0;
+	}
+
+	.search__result-collection {
+		font-size: var(--font-size-xs);
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide);
+		color: var(--color-brand);
+	}
+
+	.search__result-title {
+		font-size: var(--font-size-xl);
+		margin-top: var(--spacing-1);
+	}
+
+	.search__result-link:hover .search__result-title {
+		color: var(--color-brand);
+	}
+
+	.search__result-snippet {
+		margin: var(--spacing-2) 0 0;
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+		line-height: var(--leading-normal);
+	}
+
+	.search__result-snippet :global(mark) {
+		background: var(--color-brand-subtle);
+		color: var(--color-brand);
+		padding: 0 2px;
+	}
+</style>

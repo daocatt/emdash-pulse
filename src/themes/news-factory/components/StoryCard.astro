@@ -1,0 +1,148 @@
+---
+import { Image } from "emdash/ui";
+import type { ArticleEntry } from "@utils/types";
+import { resolveMediaAlt } from "@utils/media";
+import { formatDate } from "@utils/format";
+import Byline from "@shared/Byline.astro";
+
+interface Props {
+	article: ArticleEntry;
+	showImage?: boolean;
+	/** 标题层级：列表用 h3，区块主稿可用 h2。 */
+	headingLevel?: "h2" | "h3" | "h4";
+	size?: "sm" | "md" | "lg";
+	class?: string;
+}
+
+const { article, showImage = false, headingLevel = "h3", size = "md", class: className } = Astro.props;
+const data = article.data;
+const section = data.terms?.section?.[0];
+const href = `/articles/${article.id}`;
+const alt = resolveMediaAlt(data.featured_image, data.title);
+const publishedAt = data.publishedAt ?? data.createdAt;
+const Heading = headingLevel;
+---
+
+<article class:list={["story-card", `story-card--${size}`, className]}>
+	{showImage && data.featured_image && (
+		<a class="story-card__media" href={href} tabindex="-1" aria-hidden="true">
+			<Image
+				image={data.featured_image}
+				alt={alt}
+				sizes="(min-width: 1000px) 33vw, (min-width: 640px) 50vw, 100vw"
+			/>
+		</a>
+	)}
+
+	<div class="story-card__body">
+		<div class="story-card__topline">
+			{data.is_breaking && <span class="story-card__breaking">突发</span>}
+			{section && <a class="kicker story-card__section" href={`/sections/${section.slug}`}>{section.label}</a>}
+		</div>
+
+		<Heading class="story-card__title">
+			<a href={href} {...article.edit.title}>{data.title}</a>
+		</Heading>
+
+		{(data.deck || data.excerpt) && <p class="story-card__deck">{data.deck || data.excerpt}</p>}
+
+		<div class="story-card__footer">
+			<Byline bylines={data.bylines} authorAgent={data.author_agent} compact />
+			{data.publishedAt && <span class="story-card__date">{formatDate(publishedAt)}</span>}
+		</div>
+	</div>
+</article>
+
+<style>
+	.story-card {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-3);
+	}
+
+	.story-card--md,
+	.story-card--lg {
+		gap: var(--spacing-4);
+	}
+
+	.story-card__media {
+		display: block;
+		overflow: hidden;
+		background: var(--color-bg-subtle);
+		aspect-ratio: 16 / 10;
+	}
+
+	.story-card__media img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		transition: transform var(--transition-base);
+	}
+
+	.story-card__media:hover img {
+		transform: scale(1.03);
+	}
+
+	.story-card__topline {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-3);
+		margin-bottom: var(--spacing-2);
+	}
+
+	.story-card__section:hover {
+		color: var(--color-brand-hover);
+		text-decoration: underline;
+	}
+
+	.story-card__breaking {
+		display: inline-block;
+		background: var(--color-brand);
+		color: var(--color-on-brand);
+		font-size: var(--font-size-xs);
+		font-weight: 700;
+		letter-spacing: var(--tracking-wide);
+		padding: 1px 6px;
+	}
+
+	.story-card__title {
+		font-size: var(--font-size-xl);
+	}
+
+	.story-card--sm .story-card__title {
+		font-size: var(--font-size-base);
+	}
+
+	.story-card--lg .story-card__title {
+		font-size: var(--font-size-3xl);
+	}
+
+	.story-card__title a:hover {
+		color: var(--color-brand);
+	}
+
+	.story-card__deck {
+		margin: var(--spacing-2) 0 0;
+		color: var(--color-text-secondary);
+		font-size: var(--font-size-sm);
+		line-height: var(--leading-snug);
+	}
+
+	.story-card--lg .story-card__deck {
+		font-size: var(--font-size-lg);
+	}
+
+	.story-card__footer {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--spacing-2);
+		margin-top: var(--spacing-3);
+	}
+
+	.story-card__date {
+		font-size: var(--font-size-xs);
+		color: var(--color-muted);
+	}
+</style>

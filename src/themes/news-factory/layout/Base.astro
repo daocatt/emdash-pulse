@@ -1,0 +1,139 @@
+---
+import { getMenuWithCacheHint, getSiteSettingsWithCacheHint } from "emdash";
+import { EmDashHead, EmDashBodyStart, EmDashBodyEnd } from "emdash/ui";
+import { createPublicPageContext } from "emdash/page";
+import { resolveSiteIdentity } from "@utils/site-identity";
+import Masthead from "../components/Masthead.astro";
+import NavBar from "../components/NavBar.astro";
+import Footer from "../components/Footer.astro";
+import Lightbox from "@shared/Lightbox.astro";
+import theme from "../theme.config";
+import "../../../styles/tokens.css";
+import "../../../styles/theme.css";
+
+interface Props {
+	title: string;
+	pageTitle?: string | null;
+	description?: string | null;
+	image?: string | null;
+	canonical?: string | null;
+	robots?: string | null;
+	type?: "website" | "article";
+	publishedTime?: string | null;
+	modifiedTime?: string | null;
+	author?: string | null;
+	content?: { collection: string; id: string; slug?: string | null };
+}
+
+const {
+	title,
+	pageTitle,
+	description,
+	image,
+	canonical,
+	robots,
+	type = "website",
+	publishedTime,
+	modifiedTime,
+	author,
+	content,
+} = Astro.props;
+
+const [settingsResult, menuResult, footerResult] = await Promise.all([
+	getSiteSettingsWithCacheHint(),
+	getMenuWithCacheHint(theme.menuName),
+	getMenuWithCacheHint(theme.footerMenuName),
+]);
+
+if (Astro.cache?.enabled) {
+	Astro.cache.set(settingsResult.cacheHint);
+	Astro.cache.set(menuResult.cacheHint);
+	Astro.cache.set(footerResult.cacheHint);
+}
+
+const { siteTitle, siteTagline } = resolveSiteIdentity(settingsResult.data);
+const menuItems = menuResult.data?.items ?? [];
+const footerItems = footerResult.data?.items ?? [];
+const fullTitle = title === siteTitle ? title : `${title} — ${siteTitle}`;
+
+const pageCtx = createPublicPageContext({
+	Astro,
+	kind: content ? "content" : "custom",
+	pageType: type,
+	title: fullTitle,
+	pageTitle: pageTitle ?? title,
+	description: description ?? siteTagline,
+	canonical,
+	image,
+	content,
+	seo: { ogImage: image, robots },
+	articleMeta: { publishedTime, modifiedTime, author },
+	siteName: siteTitle,
+	breadcrumbs: [],
+});
+---
+
+<!doctype html>
+<html lang="zh-CN" data-site-theme={theme.name}>
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+		<title>{fullTitle}</title>
+		<link rel="alternate" type="application/rss+xml" title={siteTitle} href="/rss.xml" />
+		<link rel="alternate" type="application/feed+json" title={siteTitle} href="/feed.json" />
+		<EmDashHead page={pageCtx} />
+		<script is:inline>
+			// 首屏主题初始化，避免闪烁
+			(function () {
+				try {
+					var stored = localStorage.getItem("suda-pulse-theme");
+					var theme =
+						stored ||
+						(window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+					document.documentElement.setAttribute("data-theme", theme);
+				} catch (e) {}
+			})();
+		</script>
+	</head>
+	<body>
+		<EmDashBodyStart page={pageCtx} />
+
+		<a class="skip-link" href="#main">跳至正文</a>
+
+		<div class="container">
+			<Masthead siteTitle={siteTitle} siteTagline={siteTagline} />
+			<NavBar items={menuItems} />
+		</div>
+
+		<main id="main">
+			<slot />
+		</main>
+
+		<Footer items={footerItems} siteTitle={siteTitle} />
+
+		<Lightbox />
+
+		<EmDashBodyEnd page={pageCtx} />
+	</body>
+</html>
+
+<style>
+	.skip-link {
+		position: absolute;
+		left: -9999px;
+		top: 0;
+		z-index: 100;
+		background: var(--color-brand);
+		color: var(--color-on-brand);
+		padding: var(--spacing-2) var(--spacing-4);
+	}
+
+	.skip-link:focus {
+		left: 0;
+	}
+
+	main {
+		display: block;
+		min-height: 50vh;
+	}
+</style>

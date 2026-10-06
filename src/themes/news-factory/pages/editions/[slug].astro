@@ -1,0 +1,194 @@
+---
+import { getEmDashEntry, getEmDashCollection, decodeSlug, getSeoMeta, getSiteSettings } from "emdash";
+import { Image } from "emdash/ui";
+import Base from "../../layout/Base.astro";
+import { resolveSiteIdentity } from "@utils/site-identity";
+import { resolveMediaUrl, resolveMediaAlt } from "@utils/media";
+import { formatDate } from "@utils/format";
+
+const slug = decodeSlug(Astro.params.slug);
+if (!slug) return Astro.redirect("/404");
+
+const { entry: edition, cacheHint } = await getEmDashEntry("editions", slug);
+if (!edition) return Astro.redirect("/404");
+if (Astro.cache?.enabled) Astro.cache.set(cacheHint);
+
+const settings = await getSiteSettings();
+const { siteTitle } = resolveSiteIdentity(settings);
+const seo = getSeoMeta(edition, {
+	siteTitle,
+	siteUrl: Astro.url.origin,
+	path: Astro.url.pathname.replace(/\/$/, ""),
+});
+
+const { entries: articles, cacheHint: articlesHint } = await getEmDashCollection("articles", {
+	where: { edition: slug },
+	orderBy: { published_at: "desc" },
+	limit: 60,
+});
+if (Astro.cache?.enabled) Astro.cache.set(articlesHint);
+
+const cover = resolveMediaUrl(edition.data.cover_image);
+const coverAlt = resolveMediaAlt(edition.data.cover_image, edition.data.title);
+
+// 按版块分组
+const groups = new Map<string, { label: string; slug: string; entries: typeof articles }>();
+for (const article of articles) {
+	const section = article.data.terms?.section?.[0];
+	const key = section?.slug ?? "other";
+	if (!groups.has(key)) {
+		groups.set(key, { label: section?.label ?? "其他", slug: key, entries: [] });
+	}
+	groups.get(key)!.entries.push(article);
+}
+const sections = [...groups.values()];
+---
+
+<Base
+	title={seo.title}
+	pageTitle={edition.data.title}
+	description={seo.description ?? edition.data.summary}
+	image={cover ? cover : undefined}
+	canonical={seo.canonical}
+	content={{ collection: "editions", id: edition.data.id, slug }}
+>
+	<div class="container edition-page">
+		<header class="edition-page__header">
+			<span class="kicker">{edition.data.period_type === "week" ? "周报" : "月报"}</span>
+			<h1 class="edition-page__title">{edition.data.title}</h1>
+			{edition.data.summary && <p class="edition-page__summary">{edition.data.summary}</p>}
+			<p class="edition-page__meta">
+				{edition.data.year} 年 · 第 {edition.data.period_no} 期 · 共 {articles.length} 篇
+			</p>
+		</header>
+
+		{edition.data.cover_image && (
+			<figure class="edition-page__cover">
+				<Image
+					image={edition.data.cover_image}
+					alt={coverAlt}
+					priority
+					sizes="(min-width: 1240px) 1240px, 100vw"
+				/>
+			</figure>
+		)}
+
+		{articles.length === 0 ? (
+			<p class="edition-page__empty">本期暂无收录文章。</p>
+		) : (
+			sections.map((section) => (
+				<section class="edition-page__section">
+					<h2 class="edition-page__section-title">
+						<a href={`/sections/${section.slug}`}>{section.label}</a>
+					</h2>
+					<ul class="edition-page__list">
+						{section.entries.map((article) => (
+							<li>
+								<a class="edition-page__item" href={`/articles/${article.id}`}>
+									<span class="edition-page__item-title">{article.data.title}</span>
+									{article.data.publishedAt && (
+										<time class="edition-page__item-date" datetime={new Date(article.data.publishedAt).toISOString()}>
+											{formatDate(article.data.publishedAt)}
+										</time>
+									)}
+								</a>
+							</li>
+						))}
+					</ul>
+				</section>
+			))
+		)}
+	</div>
+</Base>
+
+<style>
+	.edition-page {
+		padding-top: var(--spacing-8);
+	}
+
+	.edition-page__header {
+		text-align: center;
+		padding-bottom: var(--spacing-6);
+		border-bottom: var(--rule-double);
+	}
+
+	.edition-page__title {
+		font-size: var(--font-size-5xl);
+		margin-top: var(--spacing-3);
+	}
+
+	.edition-page__summary {
+		max-width: 60ch;
+		margin: var(--spacing-4) auto 0;
+		font-family: var(--font-heading);
+		font-style: italic;
+		font-size: var(--font-size-lg);
+		color: var(--color-text-secondary);
+	}
+
+	.edition-page__meta {
+		margin: var(--spacing-4) 0 0;
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+		letter-spacing: var(--tracking-wide);
+	}
+
+	.edition-page__cover {
+		margin: var(--spacing-8) 0;
+	}
+
+	.edition-page__cover img {
+		width: 100%;
+	}
+
+	.edition-page__section {
+		margin-top: var(--spacing-10);
+	}
+
+	.edition-page__section-title {
+		font-size: var(--font-size-2xl);
+		padding-bottom: var(--spacing-2);
+		border-bottom: var(--rule-hairline);
+		margin-bottom: var(--spacing-4);
+	}
+
+	.edition-page__section-title a:hover {
+		color: var(--color-brand);
+	}
+
+	.edition-page__list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.edition-page__item {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--spacing-4);
+		padding: var(--spacing-3) 0;
+		border-bottom: var(--rule-hairline);
+	}
+
+	.edition-page__item-title {
+		font-family: var(--font-heading);
+		font-size: var(--font-size-lg);
+	}
+
+	.edition-page__item:hover .edition-page__item-title {
+		color: var(--color-brand);
+	}
+
+	.edition-page__item-date {
+		font-size: var(--font-size-xs);
+		color: var(--color-muted);
+		white-space: nowrap;
+	}
+
+	.edition-page__empty {
+		padding: var(--spacing-16) 0;
+		text-align: center;
+		color: var(--color-muted);
+	}
+</style>

@@ -9,6 +9,10 @@
 
 ```bash
 npm run dev                       # 构建插件 + 启动 Astro dev（SQLite data.db + ./uploads）
+SITE_THEME=maple-news npm run dev # 换主题起 dev（默认 news-factory）
+npm run build:news-factory        # 构建 news-factory 主题（= plugin:build + SITE_THEME=... astro build）
+npm run build:maple-news          # 构建 maple-news 主题
+npm run typecheck:all             # 两套主题各跑一次 astro check
 npm run plugin:build              # 构建全部沙箱插件（--workspaces：pulse-review/pulse-agent/pulse-editorial）
 npm run plugin:test               # 全部插件单测
 node scripts/configure-search.mjs # 中文搜索：切 trigram 分词器并重建索引（重建库后需重跑）
@@ -19,11 +23,29 @@ HOME=~/.wrangler-a npm run deploy # 构建并部署到 Cloudflare
 
 后台：`http://localhost:4321/_emdash/admin`
 
+## 前台主题
+
+两套前台主题都在仓库里，**构建期**用 `SITE_THEME` 选一套（默认 `news-factory`），一次只出一套：
+
+| 主题 | 设计来源 | 目录 |
+| --- | --- | --- |
+| `news-factory` | 报纸头版（深红 + 细横线 + 三栏） | `src/themes/news-factory/` |
+| `maple-news` | 杂志式（米白纸色 + 大留白 + 作者卡） | `src/themes/maple-news/` |
+
+- 主题页面**不是** `src/pages/` 下的文件路由，而是 `astro.config.mjs` 里 `THEME_ROUTES` + `themeRoutes()` 用 `injectRoute()` 注入的。**新增人类页面必须同时**：① 在 `THEME_ROUTES` 注册；② 两套主题各放一份同路径文件（缺文件会在 `astro:config:setup` 直接抛错）。
+- `src/pages/` 只保留主题无关的机器端点（`rss.xml` / `feed.json` / `llms.txt` / `robots.txt` / `sitemap*.xml` / `agent/**` / `spike/**`）。
+- 跨目录引用共享层用别名：`@shared/*` → `src/components/`，`@utils/*` → `src/utils/`（Vite alias 在 `astro.config.mjs`，TS paths 在 `tsconfig.json`，两处必须同步）。
+- 主题自述在 `src/themes/<name>/theme.config.ts`（`defineTheme()`，声明 `data-site-theme` 标识与 EmDash 菜单名）。
+- 主题目录只放「布局 + 视觉组件 + 页面拼装」；查询 / SEO / 缓存 / 媒体解析 / 日期区间一律进 `src/utils/`，保持主题无关。
+
 ## Key Files
 
 | File | Purpose |
 | --- | --- |
-| `astro.config.mjs` | emdash() 集成、数据库、存储、插件注册 |
+| `astro.config.mjs` | emdash() 集成、数据库、存储、插件注册、**主题选择 + 路由注入** |
+| `src/themes/<theme>/` | 前台主题（`theme.config.ts` / `layout/` / `components/` / `pages/`） |
+| `src/components/` | 主题无关共享组件（`@shared`） |
+| `src/utils/` | 主题无关数据层（`@utils`） |
 | `src/live.config.ts` | EmDash loader 注册（样板，勿改） |
 | `src/worker.ts` | Cloudflare Worker 入口 + scheduled |
 | `wrangler.jsonc` | D1 / R2 / Workers AI 绑定 + cron |

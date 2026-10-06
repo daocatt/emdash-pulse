@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import node from "@astrojs/node";
 import react from "@astrojs/react";
 import { defineConfig } from "astro/config";
@@ -10,6 +11,61 @@ import pulseEditorial from "pulse-editorial";
 import pulseReview from "pulse-review";
 import pulseSeo from "pulse-seo";
 import pulseSubscriptions from "pulse-subscriptions";
+
+// ---------------------------------------------------------------------------
+// 主题选择
+//
+// 两套主题（news-factory / maple-news）都在仓库里，用 SITE_THEME 在构建期选一套，
+// 一次只出一套。主题页面不是 src/pages 下的文件路由，而是通过下面的
+// themeRoutes() integration 注入 —— 这样同一个 URL 在不同主题下可以指向不同实现。
+//
+// 新增人类页面时必须同时：① 在 THEME_ROUTES 注册；② 在两套主题里各放一份文件。
+// ---------------------------------------------------------------------------
+const THEME_NAMES = ["news-factory", "maple-news"];
+const SITE_THEME = process.env.SITE_THEME ?? "news-factory";
+if (!THEME_NAMES.includes(SITE_THEME)) {
+	throw new Error(
+		`Unknown SITE_THEME="${SITE_THEME}"（可选：${THEME_NAMES.join(" / ")}）`,
+	);
+}
+const themeDir = `src/themes/${SITE_THEME}`;
+
+// 人类页面路由表（机器端点仍在 src/pages/*.ts，主题无关）
+const THEME_ROUTES = [
+	["/", "pages/index.astro"],
+	["/articles/[slug]", "pages/articles/[slug].astro"],
+	["/sections/[slug]", "pages/sections/[slug].astro"],
+	["/tags/[slug]", "pages/tags/[slug].astro"],
+	["/archive", "pages/archive/index.astro"],
+	["/archive/[year]/[month]", "pages/archive/[year]/[month].astro"],
+	["/archive/[year]/week/[week]", "pages/archive/[year]/week/[week].astro"],
+	["/editions/[slug]", "pages/editions/[slug].astro"],
+	["/pages/[slug]", "pages/pages/[slug].astro"],
+	["/search", "pages/search.astro"],
+	["/subscribe", "pages/subscribe.astro"],
+	["/subscribe/confirm", "pages/subscribe/confirm.astro"],
+	["/subscribe/unsubscribe", "pages/subscribe/unsubscribe.astro"],
+	["/404", "pages/404.astro"],
+];
+
+function themeRoutes() {
+	return {
+		name: "suda-pulse:theme-routes",
+		hooks: {
+			"astro:config:setup": ({ injectRoute }) => {
+				for (const [pattern, rel] of THEME_ROUTES) {
+					const entrypoint = `${themeDir}/${rel}`;
+					if (!existsSync(fileURLToPath(new URL(entrypoint, import.meta.url)))) {
+						throw new Error(
+							`主题 "${SITE_THEME}" 缺少路由 ${pattern} 的页面：${entrypoint}`,
+						);
+					}
+					injectRoute({ pattern, entrypoint });
+				}
+			},
+		},
+	};
+}
 
 const isCloudflare =
 	process.env.DEPLOY_TARGET === "cloudflare" ||
@@ -66,9 +122,16 @@ export default defineConfig({
 			{ protocol: "https", hostname: "ai.suda.im" },
 		],
 	},
-	integrations: [react(), emdash(emdashConfig)],
+	integrations: [themeRoutes(), react(), emdash(emdashConfig)],
 	devToolbar: { enabled: false },
 	vite: {
+		resolve: {
+			// 主题页面跨目录引用共享层用别名，避免随页面深度变化的 ../ 前缀。
+			alias: {
+				"@shared": fileURLToPath(new URL("./src/components", import.meta.url)),
+				"@utils": fileURLToPath(new URL("./src/utils", import.meta.url)),
+			},
+		},
 		server: {
 			watch: {
 				// 上传的媒体是运行时数据，不属于源码：否则每次上传都会触发

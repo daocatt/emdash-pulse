@@ -1,0 +1,61 @@
+---
+import Base from "../layout/Base.astro";
+---
+
+<Base title="页面未找到" pageTitle="404" description="未找到该页面">
+	<div class="container not-found">
+		<p class="not-found__code">404</p>
+		<h1 class="not-found__title">页面未找到</h1>
+		<p class="not-found__text">你要找的报道可能已下架，或链接有误。</p>
+		<div class="not-found__actions">
+			<a class="not-found__link" href="/">返回头版</a>
+			<a class="not-found__link not-found__link--muted" href="/archive">浏览归档</a>
+		</div>
+	</div>
+</Base>
+
+<style>
+	.not-found {
+		padding-block: var(--spacing-24);
+		text-align: center;
+	}
+
+	.not-found__code {
+		font-family: var(--font-heading);
+		font-size: 6rem;
+		font-weight: 800;
+		line-height: 1;
+		margin: 0;
+		color: var(--color-brand);
+	}
+
+	.not-found__title {
+		font-size: var(--font-size-3xl);
+		margin-top: var(--spacing-4);
+	}
+
+	.not-found__text {
+		margin: var(--spacing-4) 0 var(--spacing-8);
+		color: var(--color-text-secondary);
+	}
+
+	.not-found__actions {
+		display: flex;
+		justify-content: center;
+		gap: var(--spacing-6);
+	}
+
+	.not-found__link {
+		font-family: var(--font-heading);
+		font-size: var(--font-size-lg);
+		color: var(--color-brand);
+	}
+
+	.not-found__link--muted {
+		color: var(--color-text-secondary);
+	}
+
+	.not-found__link:hover {
+		text-decoration: underline;
+	}
+</style>
