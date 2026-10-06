@@ -5,7 +5,11 @@
  * 提交由浏览器直接 POST 到 pulse-subscriptions 的公开路由 —— 该端点按客户端 IP
  * 限流，必须由浏览器发起（SSR 代理会丢失真实 IP）。确认 / 退订邮件里的链接
  * 走 SSR 页面，与此无关。
+ *
+ * 状态文案走 data-* 传给脚本：脚本是模块级的、整页只加载一次，
+ * 不能按组件实例内联不同语言，所以在渲染期把当前语言的文案挂到表单上。
  */
+import { getTranslations } from "../i18n";
 import { SUBSCRIPTIONS_API_BASE } from "../utils/subscriptions";
 
 interface Props {
@@ -15,24 +19,52 @@ interface Props {
 	description?: string;
 	/** 紧凑版（用于头版 / 侧栏）。 */
 	compact?: boolean;
+	/** 视觉变体：default 为块状表单，card 为报纸侧栏的通讯卡。 */
+	variant?: "default" | "card";
 }
 
-const { source = "web", heading, description, compact = false } = Astro.props;
+const { source = "web", heading, description, compact = false, variant = "default" } = Astro.props;
+const { t } = getTranslations(Astro);
 const endpoint = `${SUBSCRIPTIONS_API_BASE}/subscribe/request`;
 const inputId = `subscribe-email-${Math.random().toString(36).slice(2, 8)}`;
+
+const messages = {
+	required: t("subscribe.required"),
+	pending: t("subscribe.pending"),
+	confirmed: t("subscribe.confirmed"),
+	sent: t("subscribe.sent"),
+	undelivered: t("subscribe.undelivered"),
+	rateLimited: t("subscribe.rateLimited"),
+	invalid: t("subscribe.invalid"),
+	failed: t("subscribe.failed"),
+	network: t("subscribe.network"),
+};
 ---
 
 <form
-	class:list={["subscribe-form", compact && "subscribe-form--compact"]}
+	class:list={[
+		"subscribe-form",
+		`subscribe-form--${variant}`,
+		compact && "subscribe-form--compact",
+	]}
 	data-subscribe-form
 	data-endpoint={endpoint}
 	data-source={source}
+	data-msg-required={messages.required}
+	data-msg-pending={messages.pending}
+	data-msg-confirmed={messages.confirmed}
+	data-msg-sent={messages.sent}
+	data-msg-undelivered={messages.undelivered}
+	data-msg-rate-limited={messages.rateLimited}
+	data-msg-invalid={messages.invalid}
+	data-msg-failed={messages.failed}
+	data-msg-network={messages.network}
 >
 	{heading && <h2 class="subscribe-form__heading">{heading}</h2>}
 	{description && <p class="subscribe-form__desc">{description}</p>}
 
 	<div class="subscribe-form__row">
-		<label class="sr-only" for={inputId}>邮箱地址</label>
+		<label class="sr-only" for={inputId}>{t("subscribe.emailLabel")}</label>
 		<input
 			id={inputId}
 			class="subscribe-form__input"
@@ -41,14 +73,21 @@ const inputId = `subscribe-email-${Math.random().toString(36).slice(2, 8)}`;
 			required
 			autocomplete="email"
 			inputmode="email"
-			placeholder="you@example.com"
+			placeholder={t("subscribe.emailPlaceholder")}
 		/>
-		<button class="subscribe-form__button" type="submit">订阅</button>
+		<button
+			class="subscribe-form__button"
+			type="submit"
+			aria-label={t("common.subscribe")}
+		>
+			<span class="subscribe-form__button-label">{t("common.subscribe")}</span>
+			<span class="subscribe-form__button-arrow" aria-hidden="true">→</span>
+		</button>
 	</div>
 
 	<p class="subscribe-form__status" data-subscribe-status role="status" aria-live="polite"></p>
 	<noscript>
-		<p class="subscribe-form__status">需要启用 JavaScript 才能提交订阅。</p>
+		<p class="subscribe-form__status">{t("subscribe.needsJs")}</p>
 	</noscript>
 </form>
 
@@ -63,6 +102,7 @@ const inputId = `subscribe-email-${Math.random().toString(36).slice(2, 8)}`;
 		const input = form.querySelector<HTMLInputElement>("input[name=email]");
 		const endpoint = form.dataset.endpoint ?? "";
 		const source = form.dataset.source ?? "web";
+		const msg = (key: string): string => form.dataset[`msg${key}`] ?? "";
 
 		const setStatus = (message: string, kind: Status): void => {
 			if (!statusEl) return;
@@ -76,12 +116,12 @@ const inputId = `subscribe-email-${Math.random().toString(36).slice(2, 8)}`;
 
 			const email = input.value.trim();
 			if (!email) {
-				setStatus("请输入邮箱地址。", "error");
+				setStatus(msg("Required"), "error");
 				return;
 			}
 
 			button.disabled = true;
-			setStatus("提交中…", "pending");
+			setStatus(msg("Pending"), "pending");
 
 			try {
 				const response = await fetch(endpoint, {
@@ -92,25 +132,20 @@ const inputId = `subscribe-email-${Math.random().toString(36).slice(2, 8)}`;
 				const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
 
 				if (response.ok && data.status === "confirmed") {
-					setStatus("已订阅，感谢关注。", "success");
+					setStatus(msg("Confirmed"), "success");
 					form.reset();
 				} else if (response.ok) {
-					setStatus(
-						data.delivered === false
-							? "订阅已记录。邮件服务尚未配置，暂时无法发送确认邮件。"
-							: "确认邮件已发送，请查收并点击链接完成订阅。",
-						"success",
-					);
+					setStatus(data.delivered === false ? msg("Undelivered") : msg("Sent"), "success");
 					form.reset();
 				} else if (response.status === 429) {
-					setStatus("提交过于频繁，请稍后再试。", "error");
+					setStatus(msg("RateLimited"), "error");
 				} else if (data.error === "INVALID_INPUT") {
-					setStatus("邮箱格式不正确。", "error");
+					setStatus(msg("Invalid"), "error");
 				} else {
-					setStatus("提交失败，请稍后再试。", "error");
+					setStatus(msg("Failed"), "error");
 				}
 			} catch {
-				setStatus("网络异常，请稍后再试。", "error");
+				setStatus(msg("Network"), "error");
 			} finally {
 				button.disabled = false;
 			}
@@ -195,12 +230,70 @@ const inputId = `subscribe-email-${Math.random().toString(36).slice(2, 8)}`;
 		font-size: var(--font-size-xl);
 	}
 
+	/* ---------- card：报纸侧栏的通讯卡（下划线输入框 + 圆形箭头按钮） ---------- */
+
+	.subscribe-form--card {
+		padding: var(--spacing-6);
+		background: var(--color-surface);
+		border: var(--rule-hairline);
+	}
+
+	.subscribe-form--card .subscribe-form__heading {
+		font-size: var(--font-size-2xl);
+		line-height: var(--leading-snug);
+		margin: 0 0 var(--spacing-6);
+	}
+
+	.subscribe-form--card .subscribe-form__row {
+		position: relative;
+		display: block;
+	}
+
+	.subscribe-form--card .subscribe-form__input {
+		width: 100%;
+		padding: var(--spacing-2) var(--spacing-10) var(--spacing-2) 0;
+		background: transparent;
+		border: none;
+		border-bottom: var(--rule-hairline);
+	}
+
+	.subscribe-form--card .subscribe-form__input:focus {
+		border-bottom-color: var(--color-brand);
+	}
+
+	.subscribe-form--card .subscribe-form__button {
+		position: absolute;
+		right: 0;
+		bottom: var(--spacing-1);
+		width: 30px;
+		height: 30px;
+		padding: 0;
+		border-radius: 50%;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.subscribe-form--card .subscribe-form__button-label {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+	}
+
+	.subscribe-form--card .subscribe-form__button-arrow {
+		font-size: var(--font-size-base);
+		line-height: 1;
+	}
+
 	@media (max-width: 520px) {
-		.subscribe-form__row {
+		.subscribe-form--default .subscribe-form__row {
 			flex-direction: column;
 		}
 
-		.subscribe-form__button {
+		.subscribe-form--default .subscribe-form__button {
 			padding-block: var(--spacing-3);
 		}
 	}

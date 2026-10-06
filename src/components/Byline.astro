@@ -1,5 +1,6 @@
 ---
 import type { ContentBylineCredit } from "emdash";
+import { getTranslations } from "../i18n";
 
 interface Props {
 	bylines?: ContentBylineCredit[];
@@ -7,10 +8,13 @@ interface Props {
 	authorAgent?: string | null;
 	/** 紧凑模式（列表卡片用），仅展示姓名。 */
 	compact?: boolean;
+	/** 姓名用强调色（报纸头版的署名样式）。 */
+	accent?: boolean;
 	class?: string;
 }
 
-const { bylines = [], authorAgent, compact = false, class: className } = Astro.props;
+const { bylines = [], authorAgent, compact = false, accent = false, class: className } = Astro.props;
+const { t } = getTranslations(Astro);
 
 // 去重并保留顺序
 const credits = bylines.filter(
@@ -18,8 +22,8 @@ const credits = bylines.filter(
 );
 ---
 
-<span class:list={["byline", compact && "byline--compact", className]}>
-	{credits.length === 0 && <span class="byline__name">Suda Pulse 编辑部</span>}
+<span class:list={["byline", compact && "byline--compact", accent && "byline--accent", className]}>
+	{credits.length === 0 && <span class="byline__name">{t("byline.newsroom")}</span>}
 	{credits.map((credit, index) => (
 		<>
 			{index > 0 && <span class="byline__sep">·</span>}
@@ -51,6 +55,10 @@ const credits = bylines.filter(
 	.byline__name {
 		font-weight: 600;
 		color: var(--color-text);
+	}
+
+	.byline--accent .byline__name {
+		color: var(--color-brand);
 	}
 
 	.byline--compact .byline__name {
