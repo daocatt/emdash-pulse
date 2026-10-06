@@ -1,8 +1,9 @@
 ---
+/**
+ * 报头：左搜索、中站名、右登录 / 订阅按钮（三栏，窄屏堆叠）。
+ */
 import LiveSearch from "emdash/ui/search";
-import LanguageSwitcher from "@shared/LanguageSwitcher.astro";
 import { getTranslations } from "../../../i18n";
-import { formatMastheadDate } from "@utils/format";
 
 interface Props {
 	siteTitle: string;
@@ -11,27 +12,19 @@ interface Props {
 }
 
 const { siteTitle, siteTagline, class: className } = Astro.props;
-const { locale, t } = getTranslations(Astro);
-const today = formatMastheadDate(new Date(), locale);
+const { t } = getTranslations(Astro);
 const isHome = (Astro.url.pathname.replace(/\/$/, "") || "/") === "/";
 const BrandTag = isHome ? "h1" : "div";
 ---
 
 <header class:list={["masthead", className]}>
-	<div class="masthead__utility">
-		<LanguageSwitcher />
-		<div class="masthead__tools">
-			<span class="masthead__date">{today}</span>
-			<a class="masthead__subscribe" href="/subscribe">{t("common.subscribe")}</a>
-			<button
-				class="masthead__theme"
-				type="button"
-				data-theme-toggle
-				aria-label={t("common.themeToggle")}
-			>
-				<span data-theme-icon aria-hidden="true">◐</span>
-			</button>
-		</div>
+	<div class="masthead__search">
+		<LiveSearch
+			placeholder={t("common.searchPlaceholder")}
+			collections={["articles", "pages"]}
+			searchPage="/search"
+			routeMap={{ articles: "/articles/:slug", pages: "/pages/:slug" }}
+		/>
 	</div>
 
 	<div class="masthead__brand">
@@ -41,84 +34,28 @@ const BrandTag = isHome ? "h1" : "div";
 		<p class="masthead__tagline">{siteTagline}</p>
 	</div>
 
-	<div class="masthead__search">
-		<LiveSearch
-			placeholder={t("common.searchPlaceholder")}
-			collections={["articles", "pages"]}
-			searchPage="/search"
-			routeMap={{ articles: "/articles/:slug", pages: "/pages/:slug" }}
-		/>
+	<div class="masthead__actions">
+		<a class="masthead__login" href="/_emdash/admin">{t("nf.login")}</a>
+		<a class="masthead__subscribe" href="/subscribe">{t("nf.subscribeCta")}</a>
 	</div>
 </header>
 
-<script>
-	(() => {
-		const root = document.documentElement;
-		const button = document.querySelector("[data-theme-toggle]");
-		const icon = document.querySelector("[data-theme-icon]");
-
-		const syncIcon = () => {
-			const theme = root.getAttribute("data-theme") ?? "light";
-			if (icon) icon.textContent = theme === "dark" ? "☀" : "◐";
-		};
-		syncIcon();
-
-		button?.addEventListener("click", () => {
-			const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
-			root.setAttribute("data-theme", next);
-			try {
-				localStorage.setItem("suda-pulse-theme", next);
-			} catch {}
-			syncIcon();
-		});
-	})();
-</script>
-
 <style>
 	.masthead {
-		border-bottom: var(--rule-double);
-		padding-top: var(--spacing-4);
-	}
-
-	.masthead__utility {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--spacing-4);
-		font-size: var(--font-size-xs);
-		color: var(--color-muted);
-		text-transform: uppercase;
-		letter-spacing: var(--tracking-wide);
-	}
-
-	.masthead__tools {
-		display: flex;
+		display: grid;
+		grid-template-columns: 1fr;
 		align-items: center;
 		gap: var(--spacing-4);
+		padding-block: var(--spacing-6);
+		border-bottom: var(--rule-hairline);
 	}
 
-	.masthead__subscribe {
-		color: var(--color-brand);
-		font-weight: 700;
-	}
-
-	.masthead__theme {
-		background: none;
-		border: var(--rule-hairline);
-		border-radius: 50%;
-		width: 26px;
-		height: 26px;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		cursor: pointer;
-		font-size: 0.8rem;
-		color: var(--color-text-secondary);
+	.masthead__search {
+		max-width: 320px;
 	}
 
 	.masthead__brand {
 		text-align: center;
-		padding: var(--spacing-5) 0 var(--spacing-4);
 	}
 
 	.masthead__title {
@@ -128,6 +65,7 @@ const BrandTag = isHome ? "h1" : "div";
 		font-weight: var(--font-weight-display);
 		letter-spacing: var(--tracking-tight);
 		line-height: 1;
+		text-transform: uppercase;
 		color: var(--color-text);
 	}
 
@@ -140,12 +78,6 @@ const BrandTag = isHome ? "h1" : "div";
 		color: var(--color-text);
 	}
 
-	@media (max-width: 640px) {
-		.masthead__title {
-			font-size: var(--font-size-4xl);
-		}
-	}
-
 	.masthead__tagline {
 		margin: var(--spacing-3) 0 0;
 		font-family: var(--font-heading);
@@ -154,8 +86,62 @@ const BrandTag = isHome ? "h1" : "div";
 		color: var(--color-text-secondary);
 	}
 
-	.masthead__search {
-		max-width: 420px;
-		margin: 0 auto var(--spacing-4);
+	.masthead__actions {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: var(--spacing-5);
+	}
+
+	.masthead__login {
+		font-size: var(--font-size-sm);
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide);
+	}
+
+	.masthead__subscribe {
+		display: inline-block;
+		padding: var(--spacing-3) var(--spacing-5);
+		background: var(--color-text);
+		color: var(--color-bg);
+		font-size: var(--font-size-sm);
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide);
+		white-space: nowrap;
+	}
+
+	.masthead__subscribe:hover {
+		background: var(--color-brand);
+		color: var(--color-on-brand);
+	}
+
+	@media (min-width: 900px) {
+		.masthead {
+			grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+			gap: var(--spacing-8);
+		}
+	}
+
+	@media (max-width: 899px) {
+		.masthead__brand {
+			order: -1;
+		}
+
+		.masthead__actions {
+			justify-content: center;
+		}
+
+		.masthead__search {
+			margin-inline: auto;
+			width: 100%;
+		}
+	}
+
+	@media (max-width: 640px) {
+		.masthead__title {
+			font-size: var(--font-size-4xl);
+		}
 	}
 </style>

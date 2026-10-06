@@ -27,12 +27,6 @@ const year = new Date().getFullYear();
 				))}
 			</ul>
 		</nav>
-
-		<div class="site-footer__feeds">
-			<a href="/subscribe">{t("common.subscribe")}</a>
-			<a href="/rss.xml">RSS</a>
-			<a href="/feed.json">JSON Feed</a>
-		</div>
 	</div>
 </footer>
 
@@ -81,15 +75,5 @@ const year = new Date().getFullYear();
 	.site-footer__link:hover {
 		color: var(--color-brand);
 		text-decoration: underline;
-	}
-
-	.site-footer__feeds {
-		display: flex;
-		gap: var(--spacing-4);
-		font-size: var(--font-size-sm);
-	}
-
-	.site-footer__feeds a {
-		color: var(--color-brand);
 	}
 </style>

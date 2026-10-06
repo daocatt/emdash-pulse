@@ -1,0 +1,113 @@
+---
+/**
+ * 中栏次条：左缩略图 + 右标题/摘要/署名的横排条目。
+ */
+import { Image } from "emdash/ui";
+import type { ArticleEntry } from "@utils/types";
+import Byline from "@shared/Byline.astro";
+import { getTranslations } from "../../../i18n";
+import { formatDate } from "@utils/format";
+import { resolveMediaAlt } from "@utils/media";
+
+interface Props {
+	article: ArticleEntry;
+	class?: string;
+}
+
+const { article, class: className } = Astro.props;
+const { locale } = getTranslations(Astro);
+const data = article.data;
+const publishedAt = data.publishedAt ?? data.createdAt;
+---
+
+<article class:list={["inline-story", className]}>
+	{data.featured_image && (
+		<a class="inline-story__media" href={`/articles/${article.id}`} tabindex="-1" aria-hidden="true">
+			<Image
+				image={data.featured_image}
+				alt={resolveMediaAlt(data.featured_image, data.title)}
+				sizes="(min-width: 1100px) 220px, 40vw"
+			/>
+		</a>
+	)}
+
+	<div class="inline-story__body">
+		<h3 class="inline-story__title">
+			<a href={`/articles/${article.id}`} {...article.edit.title}>{data.title}</a>
+		</h3>
+
+		{(data.deck || data.excerpt) && <p class="inline-story__deck">{data.deck || data.excerpt}</p>}
+
+		<div class="inline-story__meta">
+			<Byline bylines={data.bylines} authorAgent={data.author_agent} compact accent />
+			{publishedAt && (
+				<time class="inline-story__date" datetime={new Date(publishedAt).toISOString()}>
+					{formatDate(publishedAt, locale)}
+				</time>
+			)}
+		</div>
+	</div>
+</article>
+
+<style>
+	.inline-story {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--spacing-4);
+	}
+
+	.inline-story__media {
+		display: block;
+		overflow: hidden;
+		background: var(--color-bg-subtle);
+		aspect-ratio: 3 / 2;
+	}
+
+	.inline-story__media img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		transition: transform var(--transition-base);
+	}
+
+	.inline-story__media:hover img {
+		transform: scale(1.03);
+	}
+
+	.inline-story__title {
+		font-size: var(--font-size-xl);
+		line-height: var(--leading-snug);
+	}
+
+	.inline-story__title a:hover {
+		color: var(--color-brand);
+	}
+
+	.inline-story__deck {
+		margin: var(--spacing-2) 0 0;
+		font-size: var(--font-size-sm);
+		line-height: var(--leading-snug);
+		color: var(--color-text-secondary);
+	}
+
+	.inline-story__meta {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--spacing-2);
+		margin-top: var(--spacing-3);
+	}
+
+	.inline-story__date {
+		font-size: var(--font-size-xs);
+		color: var(--color-muted);
+		white-space: nowrap;
+	}
+
+	@media (min-width: 480px) {
+		.inline-story {
+			grid-template-columns: minmax(0, 40%) minmax(0, 1fr);
+		}
+	}
+</style>

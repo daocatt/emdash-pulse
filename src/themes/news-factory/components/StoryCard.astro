@@ -1,9 +1,10 @@
 ---
 import { Image } from "emdash/ui";
 import type { ArticleEntry } from "@utils/types";
-import { resolveMediaAlt } from "@utils/media";
-import { formatDate } from "@utils/format";
 import Byline from "@shared/Byline.astro";
+import { getTranslations } from "../../../i18n";
+import { formatDate } from "@utils/format";
+import { resolveMediaAlt } from "@utils/media";
 
 interface Props {
 	article: ArticleEntry;
@@ -15,6 +16,7 @@ interface Props {
 }
 
 const { article, showImage = false, headingLevel = "h3", size = "md", class: className } = Astro.props;
+const { locale, t } = getTranslations(Astro);
 const data = article.data;
 const section = data.terms?.section?.[0];
 const href = `/articles/${article.id}`;
@@ -29,14 +31,14 @@ const Heading = headingLevel;
 			<Image
 				image={data.featured_image}
 				alt={alt}
-				sizes="(min-width: 1000px) 33vw, (min-width: 640px) 50vw, 100vw"
+				sizes="(min-width: 1000px) 25vw, (min-width: 640px) 50vw, 100vw"
 			/>
 		</a>
 	)}
 
 	<div class="story-card__body">
 		<div class="story-card__topline">
-			{data.is_breaking && <span class="story-card__breaking">突发</span>}
+			{data.is_breaking && <span class="story-card__breaking">{t("nf.breaking")}</span>}
 			{section && <a class="kicker story-card__section" href={`/sections/${section.slug}`}>{section.label}</a>}
 		</div>
 
@@ -48,7 +50,7 @@ const Heading = headingLevel;
 
 		<div class="story-card__footer">
 			<Byline bylines={data.bylines} authorAgent={data.author_agent} compact />
-			{data.publishedAt && <span class="story-card__date">{formatDate(publishedAt)}</span>}
+			{data.publishedAt && <span class="story-card__date">{formatDate(publishedAt, locale)}</span>}
 		</div>
 	</div>
 </article>

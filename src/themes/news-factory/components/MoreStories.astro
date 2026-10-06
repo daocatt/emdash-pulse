@@ -1,0 +1,81 @@
+---
+/**
+ * 头版底部区块：左标题 + 右延伸细线的「更多头条」，下面是卡片栅格。
+ */
+import type { ArticleEntry } from "@utils/types";
+import StoryCard from "./StoryCard.astro";
+import { getTranslations } from "../../../i18n";
+
+interface Props {
+	articles: ArticleEntry[];
+	title?: string;
+	class?: string;
+}
+
+const { articles, title, class: className } = Astro.props;
+const { t } = getTranslations(Astro);
+---
+
+{
+	articles.length > 0 && (
+		<section class:list={["more-stories", className]}>
+			<header class="more-stories__header">
+				<h2 class="more-stories__title">{title ?? t("nf.moreTopStories")}</h2>
+				<span class="more-stories__rule" aria-hidden="true" />
+			</header>
+
+			<div class="more-stories__grid">
+				{articles.map((article) => (
+					<StoryCard article={article} showImage size="sm" />
+				))}
+			</div>
+		</section>
+	)
+}
+
+<style>
+	.more-stories {
+		padding-block: var(--spacing-10);
+		border-top: var(--rule-thick);
+		margin-top: var(--spacing-10);
+	}
+
+	.more-stories__header {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-5);
+		margin-bottom: var(--spacing-6);
+	}
+
+	.more-stories__title {
+		font-family: var(--font-body);
+		font-size: var(--font-size-xl);
+		font-weight: 800;
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide);
+		white-space: nowrap;
+	}
+
+	.more-stories__rule {
+		flex: 1;
+		border-top: var(--rule-hairline);
+	}
+
+	.more-stories__grid {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--spacing-6);
+	}
+
+	@media (min-width: 640px) {
+		.more-stories__grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+
+	@media (min-width: 1100px) {
+		.more-stories__grid {
+			grid-template-columns: repeat(4, minmax(0, 1fr));
+		}
+	}
+</style>

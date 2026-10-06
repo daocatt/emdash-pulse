@@ -1,0 +1,110 @@
+---
+/**
+ * 顶栏（报纸头版最上面那条细线栏）：语言切换 + 日期 + 订阅入口 + 深浅色切换。
+ */
+import LanguageSwitcher from "@shared/LanguageSwitcher.astro";
+import { getTranslations } from "../../../i18n";
+import { formatMastheadDate } from "@utils/format";
+
+const { locale, t } = getTranslations(Astro);
+const today = formatMastheadDate(new Date(), locale);
+---
+
+<div class="top-bar">
+	<div class="container top-bar__inner">
+		<div class="top-bar__left">
+			<LanguageSwitcher />
+		</div>
+
+		<div class="top-bar__right">
+			<span class="top-bar__date">{today}</span>
+			<a class="top-bar__cta" href="/subscribe">{t("common.subscribe")}</a>
+			<button
+				class="top-bar__theme"
+				type="button"
+				data-theme-toggle
+				aria-label={t("common.themeToggle")}
+			>
+				<span data-theme-icon aria-hidden="true">◐</span>
+			</button>
+		</div>
+	</div>
+</div>
+
+<script>
+	(() => {
+		const root = document.documentElement;
+		const button = document.querySelector("[data-theme-toggle]");
+		const icon = document.querySelector("[data-theme-icon]");
+
+		const syncIcon = () => {
+			const theme = root.getAttribute("data-theme") ?? "light";
+			if (icon) icon.textContent = theme === "dark" ? "☀" : "◐";
+		};
+		syncIcon();
+
+		button?.addEventListener("click", () => {
+			const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+			root.setAttribute("data-theme", next);
+			try {
+				localStorage.setItem("suda-pulse-theme", next);
+			} catch {}
+			syncIcon();
+		});
+	})();
+</script>
+
+<style>
+	.top-bar {
+		border-bottom: var(--rule-hairline);
+	}
+
+	.top-bar__inner {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--spacing-4);
+		padding-block: var(--spacing-2);
+		font-size: var(--font-size-xs);
+		color: var(--color-muted);
+	}
+
+	.top-bar__left,
+	.top-bar__right {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-4);
+	}
+
+	.top-bar__date {
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide);
+	}
+
+	.top-bar__cta {
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide);
+		color: var(--color-brand);
+	}
+
+	.top-bar__theme {
+		background: none;
+		border: var(--rule-hairline);
+		border-radius: 50%;
+		width: 24px;
+		height: 24px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+		font-size: 0.75rem;
+		color: var(--color-text-secondary);
+	}
+
+	@media (max-width: 640px) {
+		.top-bar__date {
+			display: none;
+		}
+	}
+</style>

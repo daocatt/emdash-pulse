@@ -1,0 +1,68 @@
+---
+/**
+ * 纯文字简讯：报纸左栏的三条文字稿（标题 + 摘要 + 署名 + 时间）。
+ */
+import type { ArticleEntry } from "@utils/types";
+import Byline from "@shared/Byline.astro";
+import { getTranslations } from "../../../i18n";
+import { formatDate } from "@utils/format";
+
+interface Props {
+	article: ArticleEntry;
+	/** 标题层级，默认 h3。 */
+	headingLevel?: "h2" | "h3";
+	class?: string;
+}
+
+const { article, headingLevel = "h3", class: className } = Astro.props;
+const { locale } = getTranslations(Astro);
+const data = article.data;
+const publishedAt = data.publishedAt ?? data.createdAt;
+const Heading = headingLevel;
+---
+
+<article class:list={["text-brief", className]}>
+	<Heading class="text-brief__title">
+		<a href={`/articles/${article.id}`} {...article.edit.title}>{data.title}</a>
+	</Heading>
+
+	{(data.deck || data.excerpt) && <p class="text-brief__deck">{data.deck || data.excerpt}</p>}
+
+	<div class="text-brief__meta">
+		<Byline bylines={data.bylines} authorAgent={data.author_agent} compact accent />
+		{publishedAt && <time class="text-brief__date" datetime={new Date(publishedAt).toISOString()}>{formatDate(publishedAt, locale)}</time>}
+	</div>
+</article>
+
+<style>
+	.text-brief__title {
+		font-size: var(--font-size-2xl);
+		line-height: var(--leading-snug);
+	}
+
+	.text-brief__title a:hover {
+		color: var(--color-brand);
+	}
+
+	.text-brief__deck {
+		margin: var(--spacing-3) 0 0;
+		font-size: var(--font-size-sm);
+		line-height: var(--leading-snug);
+		color: var(--color-text-secondary);
+	}
+
+	.text-brief__meta {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--spacing-2);
+		margin-top: var(--spacing-3);
+	}
+
+	.text-brief__date {
+		font-size: var(--font-size-xs);
+		color: var(--color-muted);
+		white-space: nowrap;
+	}
+</style>

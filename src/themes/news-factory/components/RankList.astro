@@ -1,0 +1,140 @@
+---
+/**
+ * 右栏排行榜：两个页签（热门话题 / 最新更新）+ 带大号序号的条目列表。
+ *
+ * 两份列表都在服务端渲染，脚本只负责切换显示 —— 无 JS 时默认展示第一份。
+ */
+import type { ArticleEntry } from "@utils/types";
+import { getTranslations } from "../../../i18n";
+
+interface Props {
+	trending: ArticleEntry[];
+	latest: ArticleEntry[];
+	class?: string;
+}
+
+const { trending, latest, class: className } = Astro.props;
+const { t } = getTranslations(Astro);
+
+const tabs = [
+	{ id: "trending", label: t("nf.trending"), items: trending },
+	{ id: "latest", label: t("nf.latestUpdate"), items: latest },
+].filter((tab) => tab.items.length > 0);
+---
+
+{
+	tabs.length > 0 && (
+		<section class:list={["rank-list", className]} data-rank-list>
+			<div class="rank-list__tabs" role="tablist">
+				{tabs.map((tab, index) => (
+					<button
+						class:list={["rank-list__tab", index === 0 && "is-active"]}
+						type="button"
+						role="tab"
+						data-rank-tab={tab.id}
+						aria-selected={index === 0 ? "true" : "false"}
+					>
+						{tab.label}
+					</button>
+				))}
+			</div>
+
+			{tabs.map((tab, index) => (
+				<ol class="rank-list__items" data-rank-panel={tab.id} hidden={index !== 0}>
+					{tab.items.map((article, position) => (
+						<li class="rank-list__item">
+							<span class="rank-list__num" aria-hidden="true">#{position + 1}</span>
+							<a class="rank-list__title" href={`/articles/${article.id}`} {...article.edit.title}>
+								{article.data.title}
+							</a>
+						</li>
+					))}
+				</ol>
+			))}
+		</section>
+	)
+}
+
+<script>
+	(() => {
+		for (const root of document.querySelectorAll<HTMLElement>("[data-rank-list]")) {
+			const tabs = [...root.querySelectorAll<HTMLButtonElement>("[data-rank-tab]")];
+			const panels = [...root.querySelectorAll<HTMLElement>("[data-rank-panel]")];
+
+			for (const tab of tabs) {
+				tab.addEventListener("click", () => {
+					const target = tab.dataset.rankTab;
+					for (const other of tabs) {
+						const active = other === tab;
+						other.classList.toggle("is-active", active);
+						other.setAttribute("aria-selected", active ? "true" : "false");
+					}
+					for (const panel of panels) {
+						panel.hidden = panel.dataset.rankPanel !== target;
+					}
+				});
+			}
+		}
+	})();
+</script>
+
+<style>
+	.rank-list__tabs {
+		display: flex;
+		gap: var(--spacing-5);
+		border-bottom: var(--rule-hairline);
+		margin-bottom: var(--spacing-4);
+	}
+
+	.rank-list__tab {
+		background: none;
+		border: none;
+		padding: 0 0 var(--spacing-3);
+		font-size: var(--font-size-sm);
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide);
+		color: var(--color-muted);
+		cursor: pointer;
+		border-bottom: 2px solid transparent;
+	}
+
+	.rank-list__tab.is-active {
+		color: var(--color-brand);
+		border-bottom-color: var(--color-brand);
+	}
+
+	.rank-list__items {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.rank-list__item {
+		display: grid;
+		grid-template-columns: 2.4rem minmax(0, 1fr);
+		gap: var(--spacing-3);
+		align-items: baseline;
+		padding-block: var(--spacing-4);
+		border-bottom: var(--rule-hairline);
+	}
+
+	.rank-list__num {
+		font-family: var(--font-heading);
+		font-size: var(--font-size-2xl);
+		font-weight: var(--font-weight-display);
+		color: var(--color-border);
+		line-height: 1;
+	}
+
+	.rank-list__title {
+		font-family: var(--font-heading);
+		font-size: var(--font-size-lg);
+		font-weight: var(--font-weight-heading);
+		line-height: var(--leading-snug);
+	}
+
+	.rank-list__title:hover {
+		color: var(--color-brand);
+	}
+</style>

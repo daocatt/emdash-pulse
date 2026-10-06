@@ -1,209 +1,186 @@
 ---
-import { getEmDashCollection, getSiteSettings, getTaxonomyTermsWithCacheHint } from "emdash";
-import { WidgetArea } from "emdash/ui";
+/**
+ * news-factory 头版：三栏报纸版面。
+ *
+ * 左栏三条纯文字稿 + 订阅通讯卡；中栏主稿（大图）+ 两条图文横排；
+ * 右栏热门/最新排行榜 + 视频卡 + 后台可配的侧栏组件区；底部「更多头条」。
+ *
+ * 数据编排只在这里做：查询 → cacheHint → 去重切片 → 交给纯展示组件。
+ */
+import { getEmDashCollection, getSiteSettings } from "emdash";
 import Base from "../layout/Base.astro";
-import LeadStory from "../components/LeadStory.astro";
-import StoryCard from "../components/StoryCard.astro";
-import SectionBlock from "../components/SectionBlock.astro";
-import PhotoGrid from "../components/PhotoGrid.astro";
+import InlineStory from "../components/InlineStory.astro";
+import MainStory from "../components/MainStory.astro";
+import MoreStories from "../components/MoreStories.astro";
+import RankList from "../components/RankList.astro";
+import TextBrief from "../components/TextBrief.astro";
+import VideoCard from "../components/VideoCard.astro";
 import SubscribeForm from "@shared/SubscribeForm.astro";
+import { getTranslations } from "../../../i18n";
+import { whereClause } from "@utils/query";
 import { resolveSiteIdentity } from "@utils/site-identity";
-import { formatDate } from "@utils/format";
+
+const { t } = getTranslations(Astro);
 
 const settings = await getSiteSettings();
 const { siteTitle, siteTagline } = resolveSiteIdentity(settings);
 
-const SECTION_ORDER = ["top", "world", "business", "tech"];
-
-const [latestResult, leadResult, photoResult, termsResult, ...sectionResults] = await Promise.all([
-	getEmDashCollection("articles", { orderBy: { published_at: "desc" }, limit: 16 }),
-	getEmDashCollection("articles", { where: { priority: "lead" }, orderBy: { published_at: "desc" }, limit: 1 }),
-	getEmDashCollection("articles", { where: { article_type: "photo" }, orderBy: { published_at: "desc" }, limit: 3 }),
-	getTaxonomyTermsWithCacheHint("section", { includeCounts: false }),
-	...SECTION_ORDER.map((slug) =>
-		getEmDashCollection("articles", { where: { section: slug }, orderBy: { published_at: "desc" }, limit: 4 }),
-	),
+const [latestResult, leadResult, featuredResult, videoResult] = await Promise.all([
+	getEmDashCollection("articles", { orderBy: { published_at: "desc" }, limit: 12 }),
+	getEmDashCollection("articles", {
+		where: { priority: "lead" },
+		orderBy: { published_at: "desc" },
+		limit: 1,
+	}),
+	getEmDashCollection("articles", {
+		where: whereClause({ is_featured: true }),
+		orderBy: { published_at: "desc" },
+		limit: 5,
+	}),
+	getEmDashCollection("articles", {
+		where: { article_type: "video" },
+		orderBy: { published_at: "desc" },
+		limit: 1,
+	}),
 ]);
 
 if (Astro.cache?.enabled) {
 	Astro.cache.set(latestResult.cacheHint);
 	Astro.cache.set(leadResult.cacheHint);
-	Astro.cache.set(photoResult.cacheHint);
-	Astro.cache.set(termsResult.cacheHint);
-	for (const result of sectionResults) Astro.cache.set(result.cacheHint);
+	Astro.cache.set(featuredResult.cacheHint);
+	Astro.cache.set(videoResult.cacheHint);
 }
 
 const latest = latestResult.entries;
 const lead = leadResult.entries[0] ?? latest[0] ?? null;
-const secondary = latest.filter((entry) => entry.id !== lead?.id).slice(0, 3);
-const photoArticles = photoResult.entries;
+const video =
+	videoResult.entries[0] ?? latest.find((article) => article.data.article_type === "video") ?? null;
 
-const termLabels = new Map(termsResult.data.map((term) => [term.slug, term.label]));
-const sections = SECTION_ORDER.map((slug, index) => ({
-	slug,
-	label: termLabels.get(slug) ?? slug,
-	articles: sectionResults[index].entries,
-})).filter((section) => section.articles.length > 0);
+// 主稿与视频稿先定位再排除，其余按时间顺序铺开：左栏 3 条 → 中栏 2 条
+const pool = latest.filter((article) => article.id !== lead?.id && article.id !== video?.id);
+const briefs = pool.slice(0, 3);
+const inline = pool.slice(3, 5);
+
+const placed = new Set<string | undefined>([
+	lead?.id,
+	video?.id,
+	...briefs.map((article) => article.id),
+	...inline.map((article) => article.id),
+]);
+
+// 底部「更多头条」：优先未上版面的稿子；内容不足时按设计稿补位
+// （设计稿的 MORE TOP STORIES 本就与左栏有重复），只排除主稿与视频稿以免大图重复。
+const unplaced = pool.filter((article) => !placed.has(article.id));
+const fillers = latest.filter(
+	(article) => article.id !== lead?.id && article.id !== video?.id && placed.has(article.id),
+);
+const more = [...unplaced, ...fillers].slice(0, 4);
+
+// 右栏「热门话题」：优先编辑部标了头条候选的稿子，凑不满 5 条时用最新稿补位
+// （P4 会引入 trending_rank，届时改为按该字段排序）。
+const featured = featuredResult.entries;
+const trending = [
+	...featured,
+	...latest.filter((article) => !featured.some((entry) => entry.id === article.id)),
+].slice(0, 5);
+const latestFive = latest.slice(0, 5);
 ---
 
 <Base title={siteTitle} description={siteTagline} type="website">
 	<div class="container front">
-		{lead && (
-			<section class="front__lead" aria-label="头条">
-				<LeadStory article={lead} />
-			</section>
-		)}
+		<div class="front__grid">
+			<div class="front__col front__col--left">
+				{briefs.map((article) => <TextBrief article={article} />)}
 
-		{secondary.length > 0 && (
-			<section class="front__secondary" aria-label="次头条">
-				{secondary.map((article) => (
-					<StoryCard article={article} showImage size="md" headingLevel="h3" />
-				))}
-			</section>
-		)}
-
-		<div class="front__layout">
-			<div class="front__main">
-				{sections.map((section) => (
-					<SectionBlock title={section.label} href={`/sections/${section.slug}`} articles={section.articles} />
-				))}
-
-				{photoArticles.length > 0 && <PhotoGrid articles={photoArticles} />}
-
-				{latest.length > 0 && (
-					<section class="front__latest">
-						<header class="front__latest-header">
-							<h2>最新报道</h2>
-						</header>
-						<ul class="front__latest-list">
-							{latest.map((article) => (
-								<li>
-									<a class="front__latest-link" href={`/articles/${article.id}`}>{article.data.title}</a>
-									{article.data.publishedAt && (
-										<time class="front__latest-date" datetime={new Date(article.data.publishedAt).toISOString()}>
-											{formatDate(article.data.publishedAt)}
-										</time>
-									)}
-								</li>
-							))}
-						</ul>
-					</section>
-				)}
+				<SubscribeForm
+					variant="card"
+					heading={t("nf.newsletter")}
+					description={t("nf.newsletterHint")}
+					source="front-page"
+				/>
 			</div>
 
-			<aside class="front__aside" aria-label="侧栏">
-				<WidgetArea name="front-sidebar" />
+			<div class="front__col front__col--center">
+				{lead && <MainStory article={lead} />}
+
+				{
+					inline.length > 0 && (
+						<div class="front__inline">
+							{inline.map((article) => (
+								<InlineStory article={article} />
+							))}
+						</div>
+					)
+				}
+			</div>
+
+			<aside class="front__col front__col--right" aria-label={t("nf.aside")}>
+				<RankList trending={trending} latest={latestFive} />
+
+				{video && <VideoCard article={video} />}
 			</aside>
 		</div>
 
-		<section class="front__subscribe" aria-label="订阅">
-			<SubscribeForm
-				heading="订阅 Suda Pulse"
-				description="把最新报道送进邮箱，随时可退订。"
-				source="front-page"
-				compact
-			/>
-		</section>
+		<MoreStories articles={more} />
 	</div>
 </Base>
 
 <style>
 	.front {
-		padding-top: var(--spacing-8);
+		padding-top: var(--spacing-10);
 	}
 
-	.front__lead {
-		padding-bottom: var(--spacing-8);
-		border-bottom: var(--rule-double);
-	}
-
-	.front__secondary {
+	.front__grid {
 		display: grid;
 		grid-template-columns: 1fr;
-		gap: var(--spacing-6);
-		padding-block: var(--spacing-8);
-		border-bottom: var(--rule-double);
+		gap: var(--spacing-8);
 	}
 
-	@media (min-width: 640px) {
-		.front__secondary {
-			grid-template-columns: repeat(2, 1fr);
-		}
-	}
-
-	@media (min-width: 1000px) {
-		.front__secondary {
-			grid-template-columns: repeat(3, 1fr);
-		}
-	}
-
-	.front__layout {
-		display: grid;
-		grid-template-columns: 1fr;
-		gap: var(--spacing-10);
-	}
-
-	@media (min-width: 1000px) {
-		.front__layout {
-			grid-template-columns: minmax(0, 1fr) var(--gutter-width);
-		}
-	}
-
-	.front__latest {
-		padding-block: var(--spacing-8);
-		border-top: var(--rule-double);
-	}
-
-	.front__latest-header h2 {
-		font-size: var(--font-size-2xl);
-		margin-bottom: var(--spacing-5);
-	}
-
-	.front__latest-list {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-	}
-
-	.front__latest-list li {
+	.front__col {
 		display: flex;
-		align-items: baseline;
-		justify-content: space-between;
-		gap: var(--spacing-4);
-		padding: var(--spacing-3) 0;
-		border-bottom: var(--rule-hairline);
+		flex-direction: column;
+		gap: var(--spacing-6);
+		min-width: 0;
 	}
 
-	.front__latest-link {
-		font-family: var(--font-heading);
-		font-size: var(--font-size-lg);
+	.front__col--left > * + * {
+		padding-top: var(--spacing-6);
+		border-top: var(--rule-hairline);
 	}
 
-	.front__latest-link:hover {
-		color: var(--color-brand);
+	.front__inline {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-5);
+		padding-top: var(--spacing-6);
+		border-top: var(--rule-hairline);
 	}
 
-	.front__latest-date {
-		font-size: var(--font-size-xs);
-		color: var(--color-muted);
-		white-space: nowrap;
-	}
-
-	.front__aside {
-		padding-top: var(--spacing-8);
-	}
-
-	@media (min-width: 1000px) {
-		.front__aside {
-			border-left: var(--rule-hairline);
-			padding-left: var(--spacing-8);
+	/* 窄屏单列时把主稿提到最前，别让头条压在简讯和订阅卡下面 */
+	@media (max-width: 899px) {
+		.front__col--center {
+			order: -1;
 		}
 	}
 
-	.front__subscribe {
-		margin-top: var(--spacing-12);
-		padding: var(--spacing-6);
-		background: var(--color-bg-subtle);
-		border-top: var(--rule-thick);
+	@media (min-width: 900px) {
+		.front__grid {
+			grid-template-columns: minmax(0, 3fr) minmax(0, 5fr) minmax(0, 3fr);
+			gap: 0;
+		}
+
+		.front__col {
+			padding-inline: var(--spacing-6);
+		}
+
+		.front__col--left {
+			padding-left: 0;
+			border-right: var(--rule-hairline);
+		}
+
+		.front__col--right {
+			padding-right: 0;
+			border-left: var(--rule-hairline);
+		}
 	}
 </style>

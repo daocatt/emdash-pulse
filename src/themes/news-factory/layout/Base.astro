@@ -5,7 +5,8 @@ import { createPublicPageContext } from "emdash/page";
 import { resolveSiteIdentity } from "@utils/site-identity";
 import { getTranslations } from "../../../i18n";
 import Masthead from "../components/Masthead.astro";
-import NavBar from "../components/NavBar.astro";
+import MainNav from "../components/MainNav.astro";
+import TopBar from "../components/TopBar.astro";
 import Footer from "../components/Footer.astro";
 import Lightbox from "@shared/Lightbox.astro";
 import theme from "../theme.config";
@@ -103,9 +104,11 @@ const pageCtx = createPublicPageContext({
 
 		<a class="skip-link" href="#main">{t("common.skipToContent")}</a>
 
+		<TopBar />
+
 		<div class="container">
 			<Masthead siteTitle={siteTitle} siteTagline={siteTagline} />
-			<NavBar items={menuItems} />
+			<MainNav items={menuItems} />
 		</div>
 
 		<main id="main">

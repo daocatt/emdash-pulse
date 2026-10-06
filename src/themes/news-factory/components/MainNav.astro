@@ -1,0 +1,105 @@
+---
+/**
+ * 主导航：报纸式横排，条目之间用细竖线分隔。
+ */
+import type { MenuItem } from "emdash";
+import { getTranslations } from "../../../i18n";
+
+interface Props {
+	items: MenuItem[];
+	class?: string;
+}
+
+const { items, class: className } = Astro.props;
+const { t } = getTranslations(Astro);
+const current = Astro.url.pathname.replace(/\/$/, "") || "/";
+
+function isActive(url: string): boolean {
+	const path = url.split("?")[0].replace(/\/$/, "") || "/";
+	if (path === "/") return current === "/";
+	return current === path || current.startsWith(`${path}/`);
+}
+---
+
+{
+	items.length > 0 && (
+		<nav class:list={["main-nav", className]} aria-label={t("nav.mainLabel")}>
+			<ul class="main-nav__list">
+				{items.map((item) => (
+					<li class="main-nav__item">
+						<a
+							class:list={["main-nav__link", isActive(item.url) && "is-active"]}
+							href={item.url}
+							target={item.target}
+							title={item.titleAttr}
+							aria-current={isActive(item.url) ? "page" : undefined}
+						>
+							{item.label}
+						</a>
+					</li>
+				))}
+			</ul>
+		</nav>
+	)
+}
+
+<style>
+	.main-nav {
+		border-bottom: var(--rule-hairline);
+		overflow-x: auto;
+	}
+
+	.main-nav__list {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-wrap: wrap;
+		list-style: none;
+		margin: 0 auto;
+		padding: 0;
+	}
+
+	.main-nav__item {
+		flex: 0 0 auto;
+	}
+
+	.main-nav__item + .main-nav__item {
+		border-left: var(--rule-hairline);
+	}
+
+	.main-nav__link {
+		display: inline-block;
+		padding: var(--spacing-4) var(--spacing-6);
+		font-size: var(--font-size-sm);
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide);
+		color: var(--color-text);
+		border-bottom: 3px solid transparent;
+		transition:
+			color var(--transition-fast),
+			border-color var(--transition-fast);
+	}
+
+	.main-nav__link:hover {
+		color: var(--color-brand);
+	}
+
+	.main-nav__link.is-active {
+		color: var(--color-brand);
+		border-bottom-color: var(--color-brand);
+	}
+
+	@media (max-width: 640px) {
+		.main-nav__list {
+			justify-content: flex-start;
+			flex-wrap: nowrap;
+		}
+
+		.main-nav__link {
+			padding-inline: var(--spacing-4);
+			font-size: var(--font-size-xs);
+			white-space: nowrap;
+		}
+	}
+</style>
