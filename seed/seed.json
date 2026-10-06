@@ -225,7 +225,6 @@
       "description": "首页侧边栏",
       "widgets": [
         { "type": "component", "componentId": "core:search", "props": { "placeholder": "搜索新闻…" } },
-        { "type": "component", "componentId": "core:categories", "props": { "showCount": true, "hierarchical": true } },
         { "type": "component", "componentId": "core:tags", "props": { "showCount": true, "limit": 20 } },
         { "type": "component", "componentId": "core:archives", "props": { "type": "monthly", "limit": 12 } },
         { "type": "component", "componentId": "core:recent-posts", "props": { "count": 5, "showDate": true } }
@@ -237,7 +236,7 @@
       "description": "文章详情页侧边栏",
       "widgets": [
         { "type": "component", "componentId": "core:recent-posts", "props": { "count": 5, "showDate": true } },
-        { "type": "component", "componentId": "core:categories", "props": { "showCount": true, "hierarchical": true } }
+        { "type": "component", "componentId": "core:tags", "props": { "showCount": true, "limit": 10 } }
       ]
     }
   ],
