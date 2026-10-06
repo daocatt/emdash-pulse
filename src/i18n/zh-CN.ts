@@ -113,6 +113,93 @@ export const zhCN = {
 	"pn.allPodcasts": "全部播客",
 	"pn.contributor": "撰稿人",
 	"pn.updated": "更新于 {date}",
+
+	// 列表页（版块 / 标签）
+	"list.sectionKicker": "版块",
+	"list.sectionTitle": "{label} · 版块",
+	"list.sectionDescription": "{label}版块的最新报道",
+	"list.emptySection": "该版块暂无内容。",
+	"list.tagKicker": "标签",
+	"list.tagTitle": "标签：{label}",
+	"list.tagDescription": "带有「{label}」标签的报道",
+	"list.emptyTag": "该标签下暂无内容。",
+	"list.count": "共 {count} 篇",
+	"list.other": "其他",
+
+	// 归档
+	"archive.title": "归档",
+	"archive.allReports": "全部报道",
+	"archive.intro": "按时间浏览过往报道，或切换到按月 / 按周视图。",
+	"archive.description": "按月 / 按周浏览 {siteTitle} 的全部报道",
+	"archive.monthKicker": "按月归档",
+	"archive.monthTitle": "{label} · 归档",
+	"archive.monthDescription": "{label}发布的全部报道",
+	"archive.weekKicker": "按周归档",
+	"archive.weekTitle": "{label} · 归档",
+	"archive.weekDescription": "{label}（{start} 至 {end}）发布的全部报道",
+	"archive.recent": "最近发布",
+	"archive.empty": "暂无已发布内容。",
+	"archive.emptyMonth": "本月暂无已发布内容。",
+	"archive.emptyWeek": "本周暂无已发布内容。",
+
+	// 期号
+	"edition.kickerWeek": "周报",
+	"edition.kickerMonth": "月报",
+	"edition.meta": "{year} 年 · 第 {period} 期 · 共 {count} 篇",
+	"edition.empty": "本期暂无收录文章。",
+
+	// 文章页
+	"article.info": "稿件信息",
+	"article.aside": "侧栏",
+	"article.reviewed": "已通过编辑审核",
+	"article.edition": "本期：{label}",
+	"article.gallery": "图集",
+	"article.photoCredit": "摄影：{name}",
+	"article.photoNote": "本篇为图片新闻，图集待补充。",
+	"article.tags": "标签",
+	"article.comments": "评论",
+	"article.related": "相关报道",
+
+	// 搜索
+	"search.title": "搜索",
+	"search.resultsTitle": "搜索：{query}",
+	"search.description": "搜索 {siteTitle} 的报道与页面",
+	"search.placeholder": "输入关键词，如「审核」「图片新闻」…",
+	"search.empty": "未找到与「{query}」相关的内容",
+	"search.found": "找到 {count} 条与「{query}」相关的结果",
+	"search.fuzzy": "（模糊匹配）",
+	"search.collectionPage": "页面",
+	"search.collectionArticle": "报道",
+	"search.untitled": "未命名",
+
+	// 订阅页（区别于 SubscribeForm 的 subscribe.* 表单文案）
+	"subscribePage.title": "订阅",
+	"subscribePage.heading": "订阅 {siteTitle}",
+	"subscribePage.description": "订阅 {siteTitle}，把最新报道送进邮箱",
+	"subscribePage.lede": "我们会把最新报道与重要更新发到你的邮箱。没有广告，随时可退订。",
+	"subscribePage.formHeading": "留下邮箱",
+	"subscribePage.formHint": "提交后请到邮箱点击确认链接，完成双确认订阅。",
+	"subscribePage.flow": "订阅流程",
+	"subscribePage.step1": "提交邮箱后，我们会发送一封确认邮件。",
+	"subscribePage.step2": "点击邮件里的链接完成确认 —— 双确认可避免误订与滥用。",
+	"subscribePage.step3": "每封邮件都带退订链接，任何时候都能一键退订。",
+	"subscribePage.confirmTitle": "确认订阅",
+	"subscribePage.confirmHeading": "订阅已确认",
+	"subscribePage.confirmAlready": "该邮箱此前已完成订阅，无需重复操作。",
+	"subscribePage.confirmThanks": "感谢订阅，我们会把最新报道发到你的邮箱。",
+	"subscribePage.confirmFailed": "确认失败",
+	"subscribePage.confirmInvalid": "确认链接无效或已失效，请重新订阅。",
+	"subscribePage.confirmMissingToken": "确认链接缺少 token。",
+	"subscribePage.resubscribe": "重新订阅",
+	"subscribePage.unsubscribeTitle": "退订",
+	"subscribePage.unsubscribed": "已退订",
+	"subscribePage.unsubscribedText": "我们不会再向该邮箱发送订阅邮件。",
+	"subscribePage.unsubscribeFailed": "退订失败",
+	"subscribePage.unsubscribeInvalid": "退订链接无效或已失效。",
+	"subscribePage.unsubscribeMissingToken": "退订链接缺少 token。",
+
+	// 404
+	"notFound.description": "未找到该页面",
 };
 
 export type MessageKey = keyof typeof zhCN;
