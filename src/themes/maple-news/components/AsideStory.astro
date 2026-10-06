@@ -1,0 +1,60 @@
+---
+/**
+ * 侧栏文章（设计稿 UI-2 右栏底部）：粗斜体标题 + 摘要 + 作者卡（含日期）。
+ */
+import type { ArticleEntry } from "@utils/types";
+import AuthorCard from "@shared/AuthorCard.astro";
+
+interface Props {
+	article: ArticleEntry;
+	class?: string;
+}
+
+const { article, class: className } = Astro.props;
+const data = article.data;
+const credit = data.bylines?.[0];
+const publishedAt = data.publishedAt ?? data.createdAt;
+const excerpt = data.deck || data.excerpt || null;
+---
+
+<article class:list={["aside-story", className]}>
+	<h3 class="aside-story__title">
+		<a href={`/articles/${article.id}`} {...article.edit.title}>{data.title}</a>
+	</h3>
+
+	{excerpt && <p class="aside-story__excerpt">{excerpt}</p>}
+
+	{
+		credit && (
+			<div class="aside-story__author">
+				<AuthorCard byline={credit.byline} roleLabel={credit.roleLabel} date={publishedAt} size="sm" />
+			</div>
+		)
+	}
+</article>
+
+<style>
+	.aside-story__title {
+		margin: 0;
+		font-family: var(--font-heading);
+		font-style: italic;
+		font-weight: var(--font-weight-heading);
+		font-size: var(--font-size-xl);
+		line-height: var(--leading-snug);
+	}
+
+	.aside-story__title a:hover {
+		color: var(--color-brand);
+	}
+
+	.aside-story__excerpt {
+		margin: var(--spacing-4) 0 0;
+		font-size: var(--font-size-sm);
+		line-height: var(--leading-relaxed);
+		color: var(--color-text-secondary);
+	}
+
+	.aside-story__author {
+		margin-top: var(--spacing-5);
+	}
+</style>

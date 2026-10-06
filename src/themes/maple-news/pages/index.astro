@@ -1,99 +1,163 @@
 ---
 /**
- * Maple News 首页（P0 骨架版）。
+ * maple-news 首页：杂志式三栏（设计稿 UI-2）。
  *
- * 只验证「主题路由注入 + 数据加载 + 主题标识」链路；设计稿的
- * SPOTLIGHT / 主视觉 / Podcast 区块在 P3 实现。
+ * 左：SPOTLIGHT 米黄卡（4 条）；中：主视觉（大图 + 超大斜体标题 + 作者卡 + 时间戳 +
+ * 摘要）+ 三栏小图卡；右：播客区块 + 一条侧栏文章。
+ *
+ * 数据编排只在这里做：查询 → cacheHint → 去重取用 → 交给纯展示组件。
  */
 import { getEmDashCollection, getSiteSettings } from "emdash";
+import type { ArticleEntry } from "@utils/types";
 import Base from "../layout/Base.astro";
+import SectionHeading from "../components/SectionHeading.astro";
+import SpotlightCard from "../components/SpotlightCard.astro";
+import MainFeature from "../components/MainFeature.astro";
+import MiniCard from "../components/MiniCard.astro";
+import PodcastBlock from "../components/PodcastBlock.astro";
+import AsideStory from "../components/AsideStory.astro";
+import { getTranslations } from "../../../i18n";
 import { resolveSiteIdentity } from "@utils/site-identity";
-import { formatDate } from "@utils/format";
+
+const { t } = getTranslations(Astro);
 
 const settings = await getSiteSettings();
 const { siteTitle, siteTagline } = resolveSiteIdentity(settings);
 
-const latestResult = await getEmDashCollection("articles", {
-	orderBy: { published_at: "desc" },
-	limit: 8,
-});
-if (Astro.cache?.enabled) Astro.cache.set(latestResult.cacheHint);
+const [latestResult, leadResult, podcastResult] = await Promise.all([
+	getEmDashCollection("articles", { orderBy: { published_at: "desc" }, limit: 12 }),
+	getEmDashCollection("articles", {
+		where: { priority: "lead" },
+		orderBy: { published_at: "desc" },
+		limit: 1,
+	}),
+	getEmDashCollection("articles", {
+		where: { article_type: "podcast" },
+		orderBy: { published_at: "desc" },
+		limit: 1,
+	}),
+]);
+
+if (Astro.cache?.enabled) {
+	Astro.cache.set(latestResult.cacheHint);
+	Astro.cache.set(leadResult.cacheHint);
+	Astro.cache.set(podcastResult.cacheHint);
+}
 
 const latest = latestResult.entries;
+const podcast =
+	podcastResult.entries[0] ??
+	// P4 才会把 "podcast" 加进 article_type 的枚举，在那之前这里需要收窄一次
+	latest.find((article) => (article.data.article_type as string) === "podcast") ??
+	null;
+const feature =
+	leadResult.entries[0] ?? latest.find((article) => article.id !== podcast?.id) ?? null;
+
+// 主视觉与播客先定位再排除，其余稿子按时间顺序供给三个区块
+const pool = latest.filter(
+	(article) => article.id !== feature?.id && article.id !== podcast?.id,
+);
+const used = new Set<string | undefined>();
+
+/**
+ * 取 n 条：优先没上过版面的，不够时按设计稿补位（设计稿的区块之间本就有重复），
+ * 并把这些稿子标记为已用，避免后面区块再取同一批。
+ */
+function take(n: number): ArticleEntry[] {
+	const picked = pool.filter((article) => !used.has(article.id)).slice(0, n);
+	for (const article of pool) {
+		if (picked.length >= n) break;
+		if (!picked.includes(article)) picked.push(article);
+	}
+	for (const article of picked) used.add(article.id);
+	return picked;
+}
+
+const spotlight = take(4);
+const minis = take(3);
+const asideStory = take(1)[0] ?? null;
 ---
 
 <Base title={siteTitle} description={siteTagline} type="website">
-	<section class="front">
-		<h1 class="front__title">{siteTitle}</h1>
-		<p class="front__tagline">{siteTagline}</p>
+	<div class="container front">
+		<SectionHeading as="h1" title={t("mn.latestUpdates")} />
 
-		<h2 class="front__section-heading">最新报道</h2>
-		<ul class="front__list">
-			{latest.map((article) => (
-				<li class="front__item">
-					<a class="front__link" href={`/articles/${article.id}`}>{article.data.title}</a>
-					{article.data.publishedAt && (
-						<time class="front__date" datetime={new Date(article.data.publishedAt).toISOString()}>
-							{formatDate(article.data.publishedAt)}
-						</time>
-					)}
-				</li>
-			))}
-		</ul>
+		<div class="front__grid">
+			<SpotlightCard class="front__spotlight" articles={spotlight} title={t("mn.spotlight")} />
 
-		<p class="front__note">Maple News 主题的首页设计（P3）尚未实现，当前为骨架版。</p>
-	</section>
+			<div class="front__main">
+				{feature && <MainFeature article={feature} />}
+
+				{
+					minis.length > 0 && (
+						<div class="front__minis">
+							{minis.map((article) => (
+								<MiniCard article={article} />
+							))}
+						</div>
+					)
+				}
+			</div>
+
+			<aside class="front__aside">
+				{podcast && <PodcastBlock article={podcast} />}
+
+				{asideStory && <AsideStory article={asideStory} />}
+			</aside>
+		</div>
+	</div>
 </Base>
 
 <style>
 	.front {
-		padding-block: var(--spacing-12);
+		padding-top: var(--spacing-10);
 	}
 
-	.front__title {
-		font-size: var(--font-size-5xl);
-		margin: 0;
+	.front__grid {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--spacing-10);
 	}
 
-	.front__tagline {
-		color: var(--color-muted);
-		margin: var(--spacing-2) 0 var(--spacing-10);
-	}
-
-	.front__section-heading {
-		font-size: var(--font-size-2xl);
-		margin: 0 0 var(--spacing-5);
-	}
-
-	.front__list {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-	}
-
-	.front__item {
+	.front__main {
 		display: flex;
-		align-items: baseline;
-		justify-content: space-between;
-		gap: var(--spacing-4);
-		padding: var(--spacing-3) 0;
-		border-bottom: var(--rule-hairline);
+		flex-direction: column;
+		gap: var(--spacing-10);
+		min-width: 0;
 	}
 
-	.front__link {
-		font-family: var(--font-heading);
-		font-size: var(--font-size-lg);
+	.front__minis {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--spacing-6);
+		padding-top: var(--spacing-8);
+		border-top: 1px solid var(--color-border);
 	}
 
-	.front__date {
-		color: var(--color-muted);
-		font-size: var(--font-size-xs);
-		white-space: nowrap;
+	.front__aside {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-10);
+		min-width: 0;
 	}
 
-	.front__note {
-		margin-top: var(--spacing-8);
-		color: var(--color-muted);
-		font-size: var(--font-size-sm);
+	/* 右栏第二个区块才画分隔线（首块上方不画，避免孤零零一条横线） */
+	.front__aside > * + * {
+		padding-top: var(--spacing-8);
+		border-top: 1px solid var(--color-border-strong);
+	}
+
+	@media (min-width: 640px) {
+		.front__minis {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+	}
+
+	@media (min-width: 1040px) {
+		.front__grid {
+			grid-template-columns: minmax(0, 3fr) minmax(0, 6fr) minmax(0, 3fr);
+			gap: var(--spacing-10);
+			align-items: start;
+		}
 	}
 </style>

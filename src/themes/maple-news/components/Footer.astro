@@ -1,0 +1,90 @@
+---
+/**
+ * 页脚：站名 + 页脚菜单 + 版权行（设计稿未给，沿用杂志式的宽松留白）。
+ */
+import type { MenuItem } from "emdash";
+import { getTranslations, menuLabel } from "../../../i18n";
+
+interface Props {
+	items: MenuItem[];
+	siteTitle: string;
+	class?: string;
+}
+
+const { items, siteTitle, class: className } = Astro.props;
+const { t } = getTranslations(Astro);
+const year = new Date().getFullYear();
+---
+
+<footer class:list={["site-footer", className]}>
+	<div class="container site-footer__inner">
+		<div class="site-footer__brand">
+			<span class="site-footer__title">{siteTitle}</span>
+			<p class="site-footer__copy">{t("footer.credit", { year, siteTitle })}</p>
+		</div>
+
+		{
+			items.length > 0 && (
+				<nav aria-label={t("footer.navLabel")}>
+					<ul class="site-footer__list">
+						{items.map((item) => (
+							<li>
+								<a class="site-footer__link" href={item.url} target={item.target}>
+									{menuLabel(item.url, item.label, t)}
+								</a>
+							</li>
+						))}
+					</ul>
+				</nav>
+			)
+		}
+	</div>
+</footer>
+
+<style>
+	.site-footer {
+		margin-top: var(--spacing-20);
+		padding-block: var(--spacing-10);
+		border-top: 1px solid var(--color-border-strong);
+	}
+
+	.site-footer__inner {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: var(--spacing-6);
+	}
+
+	.site-footer__title {
+		font-family: var(--font-heading);
+		font-style: italic;
+		font-weight: var(--font-weight-heading);
+		font-size: var(--font-size-xl);
+	}
+
+	.site-footer__copy {
+		margin: var(--spacing-2) 0 0;
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+
+	.site-footer__list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--spacing-2) var(--spacing-6);
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.site-footer__link {
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+	}
+
+	.site-footer__link:hover {
+		color: var(--color-brand);
+		text-decoration: underline;
+	}
+</style>

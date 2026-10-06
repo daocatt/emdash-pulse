@@ -1,0 +1,20 @@
+/*
+  maple-news — 主题专属装饰（纸纹）。
+
+  噪点用内联 SVG 的 feTurbulence 生成：零图片资源、零 JS，`stitchTiles` 保证平铺无缝。
+  铺在 body 背景之上、内容之下 —— `position: fixed; z-index: -1` 落在根层叠上下文的
+  负层，既不遮文字也不吃点击；灰阶噪点在同一张图下对深浅色主题都成立（浅色上加暗点、
+  深色上加亮点）。
+
+  本文件不在 @layer 内，随 tokens.css 一起被 Base.astro 引入。
+*/
+
+body::before {
+	content: "";
+	position: fixed;
+	inset: 0;
+	z-index: -1;
+	pointer-events: none;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='paper'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23paper)' opacity='0.16'/%3E%3C/svg%3E");
+	background-size: 160px 160px;
+}

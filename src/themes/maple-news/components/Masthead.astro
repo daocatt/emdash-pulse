@@ -1,0 +1,238 @@
+---
+/**
+ * 报头（设计稿 UI-2）：左侧脉冲波形标 + 竖排粗体站名，右侧「年度订阅」黑底按钮、
+ * 登录、以及一个汉堡菜单（`<details>` 折叠，无 JS 也能展开）。
+ *
+ * 站名用站点设置里的站名（按空格拆行竖排），不硬编码设计稿的 MAPLE NEWS；
+ * 图形标也不照搬设计稿的枫叶，改用呼应站名的脉冲波形（纯线条，随文字色）。
+ */
+import type { MenuItem } from "emdash";
+import LanguageSwitcher from "@shared/LanguageSwitcher.astro";
+import { getTranslations, menuLabel } from "../../../i18n";
+
+interface Props {
+	siteTitle: string;
+	items: MenuItem[];
+	class?: string;
+}
+
+const { siteTitle, items, class: className } = Astro.props;
+const { t } = getTranslations(Astro);
+const words = siteTitle.trim().split(/\s+/).slice(0, 3);
+---
+
+<header class:list={["masthead", className]}>
+	<a class="masthead__brand" href="/">
+		<svg class="masthead__mark" viewBox="0 0 48 48" aria-hidden="true">
+			<polyline
+				points="3,27 13,27 18,11 25,39 31,20 35,27 45,27"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="6"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+			/>
+		</svg>
+		<span class="masthead__words">
+			{words.map((word) => <span class="masthead__word">{word}</span>)}
+		</span>
+	</a>
+
+	<div class="masthead__actions">
+		<a class="masthead__subscribe" href="/subscribe">{t("mn.subscribeCta")}</a>
+		<a class="masthead__login" href="/_emdash/admin">{t("common.login")}</a>
+
+		<details class="masthead__menu" data-menu>
+			<summary class="masthead__menu-toggle">
+				<span>{t("mn.menu")}</span>
+				<span class="masthead__bars" aria-hidden="true"><i></i><i></i></span>
+			</summary>
+
+			<div class="masthead__panel">
+				{
+					items.length > 0 && (
+						<nav aria-label={t("nav.mainLabel")}>
+							<ul class="masthead__nav">
+								{items.map((item) => (
+									<li>
+										<a class="masthead__nav-link" href={item.url} target={item.target}>
+											{menuLabel(item.url, item.label, t)}
+										</a>
+									</li>
+								))}
+							</ul>
+						</nav>
+					)
+				}
+				<LanguageSwitcher class="masthead__lang" />
+			</div>
+		</details>
+	</div>
+</header>
+
+<script>
+	// 点击菜单里的链接 / 面板外部 / Esc 时收起折叠菜单
+	(() => {
+		const closeAll = () => {
+			for (const menu of document.querySelectorAll<HTMLDetailsElement>("[data-menu][open]")) {
+				menu.open = false;
+			}
+		};
+
+		document.addEventListener("click", (event) => {
+			const target = event.target;
+			if (!(target instanceof Element)) return;
+			if (target.closest("[data-menu] a")) {
+				closeAll();
+				return;
+			}
+			if (!target.closest("[data-menu]")) closeAll();
+		});
+
+		document.addEventListener("keydown", (event) => {
+			if (event.key === "Escape") closeAll();
+		});
+	})();
+</script>
+
+<style>
+	.masthead {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--spacing-6);
+		padding-block: var(--spacing-8) var(--spacing-6);
+	}
+
+	.masthead__brand {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-3);
+		color: var(--color-text);
+	}
+
+	.masthead__mark {
+		flex: none;
+		width: clamp(2.5rem, 6vw, 3.75rem);
+		height: clamp(2.5rem, 6vw, 3.75rem);
+	}
+
+	.masthead__words {
+		display: flex;
+		flex-direction: column;
+		font-family: var(--font-heading);
+		font-size: clamp(1.75rem, 4.2vw, 3rem);
+		font-weight: var(--font-weight-heading);
+		letter-spacing: var(--tracking-tight);
+		line-height: 0.95;
+		text-transform: uppercase;
+	}
+
+	.masthead__actions {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--spacing-5);
+	}
+
+	.masthead__subscribe {
+		display: inline-block;
+		padding: var(--spacing-3) var(--spacing-6);
+		background: var(--color-text);
+		color: var(--color-bg);
+		border-radius: var(--radius);
+		font-size: var(--font-size-sm);
+		white-space: nowrap;
+	}
+
+	.masthead__subscribe:hover {
+		background: var(--color-brand);
+		color: var(--color-on-brand);
+	}
+
+	.masthead__login {
+		font-size: var(--font-size-sm);
+	}
+
+	.masthead__login:hover {
+		color: var(--color-brand);
+	}
+
+	.masthead__menu {
+		position: relative;
+	}
+
+	.masthead__menu-toggle {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--spacing-3);
+		font-size: var(--font-size-sm);
+		cursor: pointer;
+		list-style: none;
+	}
+
+	.masthead__menu-toggle::-webkit-details-marker {
+		display: none;
+	}
+
+	.masthead__bars {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		width: 1.5rem;
+	}
+
+	.masthead__bars i {
+		display: block;
+		height: 2px;
+		background: var(--color-text);
+	}
+
+	.masthead__bars i:last-child {
+		width: 70%;
+	}
+
+	.masthead__panel {
+		position: absolute;
+		right: 0;
+		top: calc(100% + var(--spacing-3));
+		z-index: 20;
+		min-width: 14rem;
+		padding: var(--spacing-5);
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-lg);
+		box-shadow: var(--shadow-lg);
+	}
+
+	.masthead__nav {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.masthead__nav-link {
+		display: block;
+		padding: var(--spacing-2) 0;
+		font-family: var(--font-heading);
+		font-size: var(--font-size-lg);
+		font-weight: var(--font-weight-heading);
+	}
+
+	.masthead__nav-link:hover {
+		color: var(--color-brand);
+	}
+
+	.masthead__lang {
+		margin-top: var(--spacing-4);
+		padding-top: var(--spacing-4);
+		border-top: 1px solid var(--color-border);
+	}
+
+	@media (max-width: 640px) {
+		.masthead__subscribe {
+			padding-inline: var(--spacing-4);
+		}
+	}
+</style>

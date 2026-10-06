@@ -1,0 +1,117 @@
+---
+/**
+ * 小图卡：图片 + 分类 + 标题 + 作者 / 日期（设计稿 UI-2 中栏底部的三栏卡）。
+ */
+import { Image } from "emdash/ui";
+import type { ArticleEntry } from "@utils/types";
+import { getTranslations } from "../../../i18n";
+import { formatDate } from "@utils/format";
+import { resolveMediaAlt } from "@utils/media";
+
+interface Props {
+	article: ArticleEntry;
+	class?: string;
+}
+
+const { article, class: className } = Astro.props;
+const { locale, t } = getTranslations(Astro);
+const data = article.data;
+const section = data.terms?.section?.[0] ?? null;
+const author = data.bylines?.[0]?.byline?.displayName ?? t("byline.newsroom");
+const publishedAt = data.publishedAt ?? data.createdAt;
+---
+
+<article class:list={["mini-card", className]}>
+	{
+		data.featured_image ? (
+			<a class="mini-card__media" href={`/articles/${article.id}`} tabindex="-1" aria-hidden="true">
+				<Image
+					image={data.featured_image}
+					alt={resolveMediaAlt(data.featured_image, data.title)}
+					sizes="(min-width: 1000px) 26vw, (min-width: 640px) 45vw, 100vw"
+				/>
+			</a>
+		) : (
+			/* 无图时留一个同尺寸空框，保证同排卡片标题对齐 */
+			<span class="mini-card__media mini-card__media--empty" aria-hidden="true" />
+		)
+	}
+
+	{section && <a class="mini-card__section" href={`/sections/${section.slug}`}>{section.label}</a>}
+
+	<h3 class="mini-card__title">
+		<a href={`/articles/${article.id}`} {...article.edit.title}>{data.title}</a>
+	</h3>
+
+	<div class="mini-card__meta">
+		<span class="mini-card__author">{author}</span>
+		{publishedAt && (
+			<time datetime={new Date(publishedAt).toISOString()}>{formatDate(publishedAt, locale)}</time>
+		)}
+	</div>
+</article>
+
+<style>
+	.mini-card {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-3);
+		/* 撑满栅格行高，好让同排卡片的作者行底对齐 */
+		height: 100%;
+	}
+
+	.mini-card__media {
+		display: block;
+		overflow: hidden;
+		background: var(--color-bg-subtle);
+		border-radius: var(--radius);
+		aspect-ratio: 4 / 3;
+	}
+
+	.mini-card__media--empty {
+		border: 1px solid var(--color-border);
+	}
+
+	.mini-card__media img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		transition: transform var(--transition-base);
+	}
+
+	.mini-card__media:hover img {
+		transform: scale(1.03);
+	}
+
+	.mini-card__section {
+		font-size: var(--font-size-sm);
+		color: var(--color-brand);
+	}
+
+	.mini-card__section:hover {
+		text-decoration: underline;
+	}
+
+	.mini-card__title {
+		margin: 0;
+		font-family: var(--font-heading);
+		font-size: var(--font-size-lg);
+		font-weight: var(--font-weight-heading);
+		line-height: var(--leading-snug);
+	}
+
+	.mini-card__title a:hover {
+		color: var(--color-brand);
+	}
+
+	.mini-card__meta {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--spacing-3);
+		margin-top: auto;
+		font-size: var(--font-size-xs);
+		color: var(--color-muted);
+	}
+</style>

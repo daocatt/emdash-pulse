@@ -1,19 +1,23 @@
 ---
 /**
- * Maple News 主题外壳（P0 骨架版）。
+ * Maple News 主题外壳：杂志式报头（枫叶标 + 竖排站名 + 汉堡菜单）+ 页脚。
  *
- * P0 只保证「路由注入 + 主题标识 + SEO 上下文」这条链路可用，视觉留待 P3 实现。
+ * 菜单取 theme.config 里声明的主题专属菜单；P4 把这两份菜单写进 seed 之前它们
+ * 还不存在，此时退回通用菜单，免得汉堡菜单展开是空的。
  */
-import { getSiteSettingsWithCacheHint } from "emdash";
+import { getMenuWithCacheHint, getSiteSettingsWithCacheHint } from "emdash";
 import { EmDashHead, EmDashBodyStart, EmDashBodyEnd } from "emdash/ui";
 import { createPublicPageContext } from "emdash/page";
 import { resolveSiteIdentity } from "@utils/site-identity";
-import LanguageSwitcher from "@shared/LanguageSwitcher.astro";
 import { getTranslations } from "../../../i18n";
+import Masthead from "../components/Masthead.astro";
+import Footer from "../components/Footer.astro";
+import Lightbox from "@shared/Lightbox.astro";
 import theme from "../theme.config";
 import "../../../styles/tokens.base.css";
 import "../../../styles/base.css";
 import "../styles/tokens.css";
+import "../styles/theme.css";
 
 interface Props {
 	title: string;
@@ -43,8 +47,31 @@ const {
 	content,
 } = Astro.props;
 
-const settingsResult = await getSiteSettingsWithCacheHint();
-if (Astro.cache?.enabled) Astro.cache.set(settingsResult.cacheHint);
+const [settingsResult, menuResult, footerResult] = await Promise.all([
+	getSiteSettingsWithCacheHint(),
+	getMenuWithCacheHint(theme.menuName),
+	getMenuWithCacheHint(theme.footerMenuName),
+]);
+
+if (Astro.cache?.enabled) {
+	Astro.cache.set(settingsResult.cacheHint);
+	Astro.cache.set(menuResult.cacheHint);
+	Astro.cache.set(footerResult.cacheHint);
+}
+
+let menuItems = menuResult.data?.items ?? [];
+if (menuItems.length === 0) {
+	const fallback = await getMenuWithCacheHint("primary");
+	if (Astro.cache?.enabled) Astro.cache.set(fallback.cacheHint);
+	menuItems = fallback.data?.items ?? [];
+}
+
+let footerItems = footerResult.data?.items ?? [];
+if (footerItems.length === 0) {
+	const fallback = await getMenuWithCacheHint("footer");
+	if (Astro.cache?.enabled) Astro.cache.set(fallback.cacheHint);
+	footerItems = fallback.data?.items ?? [];
+}
 
 const { siteTitle, siteTagline } = resolveSiteIdentity(settingsResult.data);
 const { locale, t } = getTranslations(Astro);
@@ -94,27 +121,17 @@ const pageCtx = createPublicPageContext({
 
 		<a class="skip-link" href="#main">{t("common.skipToContent")}</a>
 
-		<header class="site-header">
-			<div class="container site-header__inner">
-				<a class="site-header__brand" href="/">{siteTitle}</a>
-				<div class="site-header__tools">
-					<LanguageSwitcher />
-					<p class="site-header__tagline">{siteTagline}</p>
-				</div>
-			</div>
-		</header>
+		<div class="container">
+			<Masthead siteTitle={siteTitle} items={menuItems} />
+		</div>
 
 		<main id="main">
-			<div class="container">
-				<slot />
-			</div>
+			<slot />
 		</main>
 
-		<footer class="site-footer">
-			<div class="container">
-				<p>{t("footer.credit", { year: new Date().getFullYear(), siteTitle })}</p>
-			</div>
-		</footer>
+		<Footer items={footerItems} siteTitle={siteTitle} />
+
+		<Lightbox />
 
 		<EmDashBodyEnd page={pageCtx} />
 	</body>
@@ -138,45 +155,5 @@ const pageCtx = createPublicPageContext({
 	main {
 		display: block;
 		min-height: 50vh;
-	}
-
-	.site-header {
-		border-bottom: var(--rule-hairline);
-		padding-block: var(--spacing-5);
-	}
-
-	.site-header__inner {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--spacing-6);
-	}
-
-	.site-header__tools {
-		display: flex;
-		align-items: center;
-		gap: var(--spacing-5);
-	}
-
-	.site-header__brand {
-		font-family: var(--font-heading);
-		font-size: var(--font-size-2xl);
-		font-weight: 700;
-		text-decoration: none;
-		color: inherit;
-	}
-
-	.site-header__tagline {
-		margin: var(--spacing-1) 0 0;
-		color: var(--color-muted);
-		font-size: var(--font-size-sm);
-	}
-
-	.site-footer {
-		border-top: var(--rule-hairline);
-		margin-top: var(--spacing-12);
-		padding-block: var(--spacing-6);
-		color: var(--color-muted);
-		font-size: var(--font-size-sm);
 	}
 </style>

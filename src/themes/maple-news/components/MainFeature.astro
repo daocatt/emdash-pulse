@@ -1,0 +1,163 @@
+---
+/**
+ * 主视觉（设计稿 UI-2 中栏顶部）：大图 + 超大粗斜体标题 + 作者卡 + 时间戳 + 摘要。
+ *
+ * 标题与作者卡并排：标题占左侧，作者卡靠右下角贴齐（设计稿里那张米黄卡片）。
+ */
+import { Image } from "emdash/ui";
+import type { ArticleEntry } from "@utils/types";
+import AuthorCard from "@shared/AuthorCard.astro";
+import { getTranslations } from "../../../i18n";
+import { formatDate, formatDateTime } from "@utils/format";
+import { resolveMediaAlt } from "@utils/media";
+
+interface Props {
+	article: ArticleEntry;
+	class?: string;
+}
+
+const { article, class: className } = Astro.props;
+const { locale, t } = getTranslations(Astro);
+const data = article.data;
+const href = `/articles/${article.id}`;
+const credit = data.bylines?.[0];
+const publishedAt = data.publishedAt ?? data.createdAt;
+const excerpt = data.deck || data.excerpt || null;
+
+// 只有「更新日期」与发布日不同才显示「更新于」——种子数据里两者只差几毫秒
+const updatedAt =
+	data.updatedAt &&
+	publishedAt &&
+	formatDate(data.updatedAt, locale) !== formatDate(publishedAt, locale)
+		? data.updatedAt
+		: null;
+---
+
+<article class:list={["feature", className]}>
+	{
+		data.featured_image && (
+			<a class="feature__media" href={href} tabindex="-1" aria-hidden="true">
+				<Image
+					image={data.featured_image}
+					alt={resolveMediaAlt(data.featured_image, data.title)}
+					sizes="(min-width: 1100px) 45vw, 100vw"
+					priority
+				/>
+			</a>
+		)
+	}
+
+	<div class="feature__head">
+		<h2 class="feature__title">
+			<a href={href} {...article.edit.title}>{data.title}</a>
+		</h2>
+
+		{
+			credit && (
+				<div class="feature__author">
+					<AuthorCard byline={credit.byline} roleLabel={credit.roleLabel} />
+				</div>
+			)
+		}
+	</div>
+
+	{
+		publishedAt && (
+			<p class="feature__stamp">
+				<time datetime={new Date(publishedAt).toISOString()}>
+					{formatDateTime(publishedAt, locale)}
+				</time>
+				{updatedAt && (
+					<>
+						<span class="feature__stamp-sep" aria-hidden="true">|</span>
+						<span>{t("mn.updated", { date: formatDate(updatedAt, locale) })}</span>
+					</>
+				)}
+			</p>
+		)
+	}
+
+	{excerpt && <p class="feature__excerpt">{excerpt}</p>}
+</article>
+
+<style>
+	.feature {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.feature__media {
+		display: block;
+		overflow: hidden;
+		background: var(--color-bg-subtle);
+		border-radius: var(--radius-lg);
+		aspect-ratio: 16 / 10;
+		margin-bottom: var(--spacing-6);
+	}
+
+	.feature__media img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		transition: transform var(--transition-base);
+	}
+
+	.feature__media:hover img {
+		transform: scale(1.02);
+	}
+
+	.feature__head {
+		display: grid;
+		grid-template-columns: 1fr;
+		align-items: end;
+		gap: var(--spacing-5);
+	}
+
+	.feature__title {
+		margin: 0;
+		font-family: var(--font-heading);
+		font-style: italic;
+		font-weight: var(--font-weight-heading);
+		font-size: var(--font-size-4xl);
+		letter-spacing: var(--tracking-snug);
+		line-height: var(--leading-tight);
+	}
+
+	.feature__title a:hover {
+		color: var(--color-brand);
+	}
+
+	.feature__author {
+		justify-self: start;
+		padding: var(--spacing-3) var(--spacing-5);
+		background: var(--color-bg-subtle);
+		border-radius: var(--radius);
+	}
+
+	.feature__stamp {
+		margin: var(--spacing-5) 0 0;
+		font-size: var(--font-size-xs);
+		color: var(--color-muted);
+	}
+
+	.feature__stamp-sep {
+		margin-inline: var(--spacing-2);
+	}
+
+	.feature__excerpt {
+		margin: var(--spacing-5) 0 0;
+		font-size: var(--font-size-base);
+		line-height: var(--leading-relaxed);
+		color: var(--color-text-secondary);
+	}
+
+	@media (min-width: 720px) {
+		.feature__head {
+			grid-template-columns: minmax(0, 1fr) auto;
+		}
+
+		.feature__author {
+			justify-self: end;
+		}
+	}
+</style>

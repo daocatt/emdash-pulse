@@ -1,0 +1,141 @@
+---
+/**
+ * SPOTLIGHT 卡片：米黄底 + 标题下划线 + 若干条「分类 / 标题 / 作者 + 日期」。
+ *
+ * 分类取条目的第一个 section 术语；无署名时退回「编辑部」。
+ */
+import type { ArticleEntry } from "@utils/types";
+import { getTranslations } from "../../../i18n";
+import { formatDate } from "@utils/format";
+
+interface Props {
+	articles: ArticleEntry[];
+	title: string;
+	class?: string;
+}
+
+const { articles, title, class: className } = Astro.props;
+const { locale, t } = getTranslations(Astro);
+
+const items = articles.map((article) => {
+	const data = article.data;
+	const byline = data.bylines?.[0]?.byline;
+	return {
+		article,
+		section: data.terms?.section?.[0] ?? null,
+		author: byline?.displayName ?? t("byline.newsroom"),
+		date: data.publishedAt ?? data.createdAt,
+	};
+});
+---
+
+{
+	items.length > 0 && (
+		<section class:list={["spotlight", className]}>
+			<h2 class="spotlight__title">{title}</h2>
+
+			<ul class="spotlight__list">
+				{items.map((item) => (
+					<li class="spotlight__item">
+						{item.section && (
+							<a class="spotlight__section" href={`/sections/${item.section.slug}`}>
+								{item.section.label}
+							</a>
+						)}
+
+						<h3 class="spotlight__headline">
+							<a href={`/articles/${item.article.id}`} {...item.article.edit.title}>
+								{item.article.data.title}
+							</a>
+						</h3>
+
+						<div class="spotlight__meta">
+							<span class="spotlight__author">{item.author}</span>
+							{item.date && (
+								<time datetime={new Date(item.date).toISOString()}>
+									{formatDate(item.date, locale)}
+								</time>
+							)}
+						</div>
+					</li>
+				))}
+			</ul>
+		</section>
+	)
+}
+
+<style>
+	.spotlight {
+		background: var(--color-bg-subtle);
+		padding: var(--spacing-8) var(--spacing-6);
+		border-radius: var(--radius-lg);
+	}
+
+	.spotlight__title {
+		margin: 0 0 var(--spacing-6);
+		padding-bottom: var(--spacing-3);
+		border-bottom: 1px solid var(--color-border-strong);
+		font-family: var(--font-heading);
+		font-size: var(--font-size-xl);
+		font-weight: var(--font-weight-heading);
+		font-style: italic;
+		letter-spacing: var(--tracking-wide);
+		text-transform: uppercase;
+	}
+
+	.spotlight__list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.spotlight__item {
+		padding-block: var(--spacing-5);
+	}
+
+	.spotlight__item + .spotlight__item {
+		border-top: 1px solid var(--color-border);
+	}
+
+	.spotlight__item:first-child {
+		padding-top: 0;
+	}
+
+	.spotlight__item:last-child {
+		padding-bottom: 0;
+	}
+
+	.spotlight__section {
+		display: inline-block;
+		margin-bottom: var(--spacing-2);
+		font-size: var(--font-size-sm);
+		color: var(--color-brand);
+	}
+
+	.spotlight__section:hover {
+		text-decoration: underline;
+	}
+
+	.spotlight__headline {
+		margin: 0;
+		font-family: var(--font-heading);
+		font-size: var(--font-size-lg);
+		font-weight: var(--font-weight-heading);
+		line-height: var(--leading-snug);
+	}
+
+	.spotlight__headline a:hover {
+		color: var(--color-brand);
+	}
+
+	.spotlight__meta {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--spacing-3);
+		margin-top: var(--spacing-3);
+		font-size: var(--font-size-xs);
+		color: var(--color-muted);
+	}
+</style>
