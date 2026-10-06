@@ -2,7 +2,7 @@
 /**
  * 作者卡：头像（或首字色块）+ 姓名 + 角色 / 日期。
  *
- * 两套主题共用，靠令牌换肤；maple-news 的「撰稿人」卡与文章页署名列都用它。
+ * 两套主题共用，靠令牌换肤；pulse-news 的「撰稿人」卡与文章页署名列都用它。
  */
 import type { BylineSummary } from "emdash";
 import { getTranslations } from "../i18n";
@@ -32,7 +32,7 @@ const {
 const { locale, t } = getTranslations(Astro);
 const avatarUrl = bylineAvatarUrl(byline);
 const initials = bylineInitials(byline.displayName);
-const role = roleLabel ?? t("mn.contributor");
+const role = roleLabel ?? t("pn.contributor");
 const dateLabel = date ? formatDate(date, locale) : null;
 ---
 

@@ -57,6 +57,10 @@ export const en: Record<MessageKey, string> = {
 	"menu.section.world": "World",
 	"menu.section.business": "Business",
 	"menu.section.tech": "Tech",
+	"menu.section.sports": "Sports",
+	"menu.section.culture": "Culture",
+	"menu.section.society": "Society",
+	"menu.section.opinion": "Opinion",
 	"menu.section.photo": "Photo",
 	"menu.page.about": "About",
 	"menu.page.ethics": "Editorial standards",
@@ -92,13 +96,13 @@ export const en: Record<MessageKey, string> = {
 	"nf.newsletterHint": "Leave your email and get the latest stories in your inbox.",
 	"nf.aside": "Sidebar",
 
-	// maple-news 首页
-	"mn.menu": "Menu",
-	"mn.subscribeCta": "Annual subscription",
-	"mn.latestUpdates": "Latest Updates",
-	"mn.spotlight": "Spotlight",
-	"mn.podcast": "Podcast",
-	"mn.allPodcasts": "All podcasts",
-	"mn.contributor": "Contributor",
-	"mn.updated": "Updated {date}",
+	// pulse-news 首页
+	"pn.menu": "Menu",
+	"pn.subscribeCta": "Annual subscription",
+	"pn.latestUpdates": "Latest Updates",
+	"pn.spotlight": "Spotlight",
+	"pn.podcast": "Podcast",
+	"pn.allPodcasts": "All podcasts",
+	"pn.contributor": "Contributor",
+	"pn.updated": "Updated {date}",
 };

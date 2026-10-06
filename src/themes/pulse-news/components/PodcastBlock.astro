@@ -2,9 +2,8 @@
 /**
  * 播客区块（设计稿 UI-2 右栏顶部）：耳机图标 + 栏目名 + 单集标题 + 播放条 + 主播卡。
  *
- * `audio_url` / `audio_duration` / `podcast_show` 属于内容模型扩展（P4），当前可能为空，
- * 所以栏目名、时长都按有无数据渲染；播放条是装饰（真正可播的音频端点随 P4 决定），
- * 标题本身是通往单集页的链接。
+ * 栏目名（`podcast_show`）与时长（`audio_duration`）按有无数据渲染；播放条目前是
+ * 装饰（真正可播的音频端点待后续接入），标题本身是通往单集页的链接。
  */
 import type { ArticleEntry } from "@utils/types";
 import AuthorCard from "@shared/AuthorCard.astro";
@@ -18,12 +17,6 @@ interface Props {
 const { article, class: className } = Astro.props;
 const { t } = getTranslations(Astro);
 const data = article.data;
-
-// P4 才落库的字段，先按可选读取
-const podcast = data as {
-	audio_duration?: string | null;
-	podcast_show?: string | null;
-};
 
 const credit = data.bylines?.[0];
 const publishedAt = data.publishedAt ?? data.createdAt;
@@ -41,10 +34,10 @@ const publishedAt = data.publishedAt ?? data.createdAt;
 			/>
 			<path d="M9 9v3M12 7.5v6M15 9v3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
 		</svg>
-		<span class="podcast__label">{t("mn.podcast")}</span>
+		<span class="podcast__label">{t("pn.podcast")}</span>
 	</h2>
 
-	{podcast.podcast_show && <p class="podcast__show">{podcast.podcast_show}</p>}
+	{data.podcast_show && <p class="podcast__show">{data.podcast_show}</p>}
 
 	<h3 class="podcast__title">
 		<a href={`/articles/${article.id}`} {...article.edit.title}>{data.title}</a>
@@ -55,7 +48,7 @@ const publishedAt = data.publishedAt ?? data.createdAt;
 			<svg viewBox="0 0 12 12"><path d="M2 1.2 10.4 6 2 10.8Z" fill="currentColor" /></svg>
 		</span>
 		<span class="podcast__track"><span class="podcast__fill" /></span>
-		{podcast.audio_duration && <span class="podcast__duration">{podcast.audio_duration}</span>}
+		{data.audio_duration && <span class="podcast__duration">{data.audio_duration}</span>}
 	</div>
 
 	{credit && (

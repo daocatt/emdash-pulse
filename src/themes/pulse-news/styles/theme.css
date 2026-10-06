@@ -1,5 +1,5 @@
 /*
-  maple-news — 主题专属装饰（纸纹）。
+  pulse-news — 主题专属装饰（纸纹）。
 
   噪点用内联 SVG 的 feTurbulence 生成：零图片资源、零 JS，`stitchTiles` 保证平铺无缝。
   铺在 body 背景之上、内容之下 —— `position: fixed; z-index: -1` 落在根层叠上下文的

@@ -65,6 +65,10 @@ export const zhCN = {
 	"menu.section.world": "国际",
 	"menu.section.business": "财经",
 	"menu.section.tech": "科技",
+	"menu.section.sports": "体育",
+	"menu.section.culture": "文化",
+	"menu.section.society": "社会",
+	"menu.section.opinion": "评论",
 	"menu.section.photo": "图片",
 	"menu.page.about": "关于",
 	"menu.page.ethics": "采编规范",
@@ -100,15 +104,15 @@ export const zhCN = {
 	"nf.newsletterHint": "留下邮箱，最新报道送到收件箱。",
 	"nf.aside": "侧栏",
 
-	// maple-news 首页
-	"mn.menu": "菜单",
-	"mn.subscribeCta": "年度订阅",
-	"mn.latestUpdates": "最新更新",
-	"mn.spotlight": "焦点",
-	"mn.podcast": "播客",
-	"mn.allPodcasts": "全部播客",
-	"mn.contributor": "撰稿人",
-	"mn.updated": "更新于 {date}",
+	// pulse-news 首页
+	"pn.menu": "菜单",
+	"pn.subscribeCta": "年度订阅",
+	"pn.latestUpdates": "最新更新",
+	"pn.spotlight": "焦点",
+	"pn.podcast": "播客",
+	"pn.allPodcasts": "全部播客",
+	"pn.contributor": "撰稿人",
+	"pn.updated": "更新于 {date}",
 };
 
 export type MessageKey = keyof typeof zhCN;

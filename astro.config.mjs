@@ -15,13 +15,13 @@ import pulseSubscriptions from "pulse-subscriptions";
 // ---------------------------------------------------------------------------
 // 主题选择
 //
-// 两套主题（news-factory / maple-news）都在仓库里，用 SITE_THEME 在构建期选一套，
+// 两套主题（news-factory / pulse-news）都在仓库里，用 SITE_THEME 在构建期选一套，
 // 一次只出一套。主题页面不是 src/pages 下的文件路由，而是通过下面的
 // themeRoutes() integration 注入 —— 这样同一个 URL 在不同主题下可以指向不同实现。
 //
 // 新增人类页面时必须同时：① 在 THEME_ROUTES 注册；② 在两套主题里各放一份文件。
 // ---------------------------------------------------------------------------
-const THEME_NAMES = ["news-factory", "maple-news"];
+const THEME_NAMES = ["news-factory", "pulse-news"];
 const SITE_THEME = process.env.SITE_THEME ?? "news-factory";
 if (!THEME_NAMES.includes(SITE_THEME)) {
 	throw new Error(

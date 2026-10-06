@@ -1,6 +1,6 @@
 ---
 /**
- * maple-news 首页：杂志式三栏（设计稿 UI-2）。
+ * pulse-news 首页：杂志式三栏（设计稿 UI-2）。
  *
  * 左：SPOTLIGHT 米黄卡（4 条）；中：主视觉（大图 + 超大斜体标题 + 作者卡 + 时间戳 +
  * 摘要）+ 三栏小图卡；右：播客区块 + 一条侧栏文章。
@@ -47,8 +47,7 @@ if (Astro.cache?.enabled) {
 const latest = latestResult.entries;
 const podcast =
 	podcastResult.entries[0] ??
-	// P4 才会把 "podcast" 加进 article_type 的枚举，在那之前这里需要收窄一次
-	latest.find((article) => (article.data.article_type as string) === "podcast") ??
+	latest.find((article) => article.data.article_type === "podcast") ??
 	null;
 const feature =
 	leadResult.entries[0] ?? latest.find((article) => article.id !== podcast?.id) ?? null;
@@ -80,10 +79,10 @@ const asideStory = take(1)[0] ?? null;
 
 <Base title={siteTitle} description={siteTagline} type="website">
 	<div class="container front">
-		<SectionHeading as="h1" title={t("mn.latestUpdates")} />
+		<SectionHeading as="h1" title={t("pn.latestUpdates")} />
 
 		<div class="front__grid">
-			<SpotlightCard class="front__spotlight" articles={spotlight} title={t("mn.spotlight")} />
+			<SpotlightCard class="front__spotlight" articles={spotlight} title={t("pn.spotlight")} />
 
 			<div class="front__main">
 				{feature && <MainFeature article={feature} />}

@@ -9,9 +9,9 @@
 
 ```bash
 npm run dev                       # 构建插件 + 启动 Astro dev（SQLite data.db + ./uploads）
-SITE_THEME=maple-news npm run dev # 换主题起 dev（默认 news-factory）
+SITE_THEME=pulse-news npm run dev # 换主题起 dev（默认 news-factory）
 npm run build:news-factory        # 构建 news-factory 主题（= plugin:build + SITE_THEME=... astro build）
-npm run build:maple-news          # 构建 maple-news 主题
+npm run build:pulse-news          # 构建 pulse-news 主题
 npm run typecheck:all             # 两套主题各跑一次 astro check
 npm run plugin:build              # 构建全部沙箱插件（--workspaces：pulse-review/pulse-agent/pulse-editorial）
 npm run plugin:test               # 全部插件单测
@@ -30,7 +30,7 @@ HOME=~/.wrangler-a npm run deploy # 构建并部署到 Cloudflare
 | 主题 | 设计来源 | 目录 |
 | --- | --- | --- |
 | `news-factory` | 报纸头版（深红 + 细横线 + 三栏） | `src/themes/news-factory/` |
-| `maple-news` | 杂志式（米白纸色 + 大留白 + 作者卡） | `src/themes/maple-news/` |
+| `pulse-news` | 杂志式（米白纸色 + 大留白 + 作者卡） | `src/themes/pulse-news/` |
 
 - 主题页面**不是** `src/pages/` 下的文件路由，而是 `astro.config.mjs` 里 `THEME_ROUTES` + `themeRoutes()` 用 `injectRoute()` 注入的。**新增人类页面必须同时**：① 在 `THEME_ROUTES` 注册；② 两套主题各放一份同路径文件（缺文件会在 `astro:config:setup` 直接抛错）。
 - `src/pages/` 只保留主题无关的机器端点（`rss.xml` / `feed.json` / `llms.txt` / `robots.txt` / `sitemap*.xml` / `agent/**` / `spike/**`）。

@@ -20,13 +20,13 @@
     "dev": "npm run plugin:build && astro dev",
     "build": "npm run plugin:build && astro build",
     "build:news-factory": "npm run plugin:build && SITE_THEME=news-factory astro build",
-    "build:maple-news": "npm run plugin:build && SITE_THEME=maple-news astro build",
+    "build:pulse-news": "npm run plugin:build && SITE_THEME=pulse-news astro build",
     "build:cf": "npm run plugin:build && DEPLOY_TARGET=cloudflare astro build",
     "deploy": "npm run plugin:build && DEPLOY_TARGET=cloudflare astro build && wrangler deploy",
     "preview": "astro preview",
     "start": "node ./dist/server/entry.mjs",
     "typecheck": "astro check",
-    "typecheck:all": "SITE_THEME=news-factory astro check && SITE_THEME=maple-news astro check"
+    "typecheck:all": "SITE_THEME=news-factory astro check && SITE_THEME=pulse-news astro check"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.3.3",

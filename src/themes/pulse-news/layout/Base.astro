@@ -1,9 +1,8 @@
 ---
 /**
- * Maple News 主题外壳：杂志式报头（枫叶标 + 竖排站名 + 汉堡菜单）+ 页脚。
+ * Pulse News 主题外壳：杂志式报头（脉冲标 + 竖排站名 + 汉堡菜单）+ 页脚。
  *
- * 菜单取 theme.config 里声明的主题专属菜单；P4 把这两份菜单写进 seed 之前它们
- * 还不存在，此时退回通用菜单，免得汉堡菜单展开是空的。
+ * 菜单取 theme.config 里声明的主题专属菜单（seed 里的 `pulse-news` / `footer`）。
  */
 import { getMenuWithCacheHint, getSiteSettingsWithCacheHint } from "emdash";
 import { EmDashHead, EmDashBodyStart, EmDashBodyEnd } from "emdash/ui";
@@ -59,19 +58,8 @@ if (Astro.cache?.enabled) {
 	Astro.cache.set(footerResult.cacheHint);
 }
 
-let menuItems = menuResult.data?.items ?? [];
-if (menuItems.length === 0) {
-	const fallback = await getMenuWithCacheHint("primary");
-	if (Astro.cache?.enabled) Astro.cache.set(fallback.cacheHint);
-	menuItems = fallback.data?.items ?? [];
-}
-
-let footerItems = footerResult.data?.items ?? [];
-if (footerItems.length === 0) {
-	const fallback = await getMenuWithCacheHint("footer");
-	if (Astro.cache?.enabled) Astro.cache.set(fallback.cacheHint);
-	footerItems = fallback.data?.items ?? [];
-}
+const menuItems = menuResult.data?.items ?? [];
+const footerItems = footerResult.data?.items ?? [];
 
 const { siteTitle, siteTagline } = resolveSiteIdentity(settingsResult.data);
 const { locale, t } = getTranslations(Astro);
