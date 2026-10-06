@@ -101,13 +101,36 @@ async function listArticles(cookie) {
   const res = await fetch(`${BASE}/_emdash/api/content/articles?limit=50`, {
     headers: { cookie },
   });
+  if (!res.ok) {
+    throw new Error(`列出文章失败 ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  }
   const json = await res.json();
   const map = new Map();
   for (const it of json.data?.items ?? []) map.set(it.slug, it.id);
   return map;
 }
 
-async function patchArticle(cookie, id, data) {
+/**
+ * PUT 会**整体替换** draft revision 的 data，所以必须带上当前完整 data 再做
+ * 合并；否则 `review_status` 等字段被清空，`publish` 会被发布门禁拒绝，
+ * 图片只留在 draft、条目行（live）仍是旧值。
+ *
+ * 另外清掉 `gallery` 里 `image` 为 null 的项：内容 API 的校验要求每个图集项
+ * 的 `image` 是对象，`{ image: null }` 会导致整个 PUT 400。
+ */
+async function patchArticle(cookie, id, patch) {
+  const cur = await fetch(`${BASE}/_emdash/api/content/articles/${id}`, {
+    headers: { cookie },
+  });
+  if (!cur.ok) {
+    throw new Error(`读取文章 ${id} 失败 ${cur.status}: ${(await cur.text()).slice(0, 200)}`);
+  }
+  const curJson = await cur.json();
+  const data = { ...(curJson.data?.item?.data ?? {}), ...patch };
+  if (Array.isArray(data.gallery)) {
+    data.gallery = data.gallery.filter((g) => g && g.image);
+  }
+
   const res = await fetch(`${BASE}/_emdash/api/content/articles/${id}`, {
     method: "PUT",
     headers: { cookie, ...REQ_HEADER, "Content-Type": "application/json" },
@@ -185,5 +208,6 @@ async function main() {
 
 main().catch((err) => {
   console.error(`[media] 失败: ${err.message}`);
+  console.error(err.stack);
   process.exit(1);
 });
