@@ -1,8 +1,379 @@
 ---
+/**
+ * pulse-news 文章页：杂志式单栏（大图 hero + 超大斜体标题 + 作者卡 + 正文）。
+ *
+ * 版块 / 期号 / 审核标记收在标题下方的细字元信息里，不占侧栏 ——
+ * 杂志式版面的留白比报纸头版更宽。
+ */
+import {
+	getEmDashEntry,
+	getEmDashCollection,
+	getSiteSettings,
+	getSeoMeta,
+	decodeSlug,
+} from "emdash";
+import { Image, PortableText } from "emdash/ui";
+import { Comments, CommentForm } from "emdash/ui/comments";
 import Base from "../../layout/Base.astro";
-import Placeholder from "../../components/Placeholder.astro";
+import MiniCard from "../../components/MiniCard.astro";
+import SectionHeading from "../../components/SectionHeading.astro";
+import AuthorCard from "@shared/AuthorCard.astro";
+import Gallery from "@shared/Gallery.astro";
+import CorrectionNotice from "@shared/CorrectionNotice.astro";
+import EpisodePlayer from "@shared/EpisodePlayer.astro";
+import { getTranslations } from "../../../../i18n";
+import { resolveSiteIdentity } from "@utils/site-identity";
+import { resolveMediaUrl, resolveMediaAlt, resolveGallery } from "@utils/media";
+import { estimateReadingTime, formatDateTime } from "@utils/format";
+
+const { locale, t } = getTranslations(Astro);
+const slug = decodeSlug(Astro.params.slug);
+if (!slug) return Astro.redirect("/404");
+
+const { entry: article, cacheHint } = await getEmDashEntry("articles", slug);
+if (!article) return Astro.redirect("/404");
+if (Astro.cache?.enabled) Astro.cache.set(cacheHint);
+
+const data = article.data;
+const settings = await getSiteSettings();
+const { siteTitle } = resolveSiteIdentity(settings);
+const seo = getSeoMeta(article, {
+	siteTitle,
+	siteUrl: Astro.url.origin,
+	path: Astro.url.pathname.replace(/\/$/, ""),
+});
+
+const section = data.terms?.section?.[0] ?? null;
+const editionTerm = data.terms?.edition?.[0] ?? null;
+const tags = data.terms?.tag ?? [];
+const isPhoto = data.article_type === "photo";
+const mediaKind =
+	data.article_type === "podcast" ? "podcast" : data.article_type === "video" ? "video" : null;
+const gallery = resolveGallery(data.gallery);
+const image = resolveMediaUrl(data.featured_image);
+const imageAlt = resolveMediaAlt(data.featured_image, data.title);
+const readingTime = estimateReadingTime(data.content);
+const credit = data.bylines?.[0] ?? null;
+const publishedAt = data.publishedAt ?? data.createdAt;
+
+// 社交/结构化数据用的图片：SEO 面板图优先，否则回退到题图（需要绝对 URL）。
+function toAbsolute(href: string | null): string | null {
+	if (!href) return null;
+	try {
+		return new URL(href, Astro.url.origin).href;
+	} catch {
+		return href;
+	}
+}
+const socialImage = seo.ogImage ?? toAbsolute(image);
+
+const relatedResult = section
+	? await getEmDashCollection("articles", {
+			where: { section: section.slug },
+			orderBy: { published_at: "desc" },
+			limit: 4,
+		})
+	: null;
+if (relatedResult && Astro.cache?.enabled) Astro.cache.set(relatedResult.cacheHint);
+const related = (relatedResult?.entries ?? []).filter((entry) => entry.id !== article.id).slice(0, 3);
+
+const authorName = credit?.byline.displayName ?? data.author_agent ?? siteTitle;
 ---
 
-<Base title="文章">
-	<Placeholder heading="文章" />
+<Base
+	title={seo.title}
+	pageTitle={data.title}
+	description={seo.description}
+	image={socialImage}
+	canonical={seo.canonical}
+	robots={seo.robots}
+	type="article"
+	publishedTime={data.publishedAt ? new Date(data.publishedAt).toISOString() : undefined}
+	modifiedTime={data.updatedAt ? new Date(data.updatedAt).toISOString() : undefined}
+	author={authorName}
+	content={{ collection: "articles", id: data.id, slug }}
+>
+	<article class="container article">
+		<header class="article__header">
+			{section && (
+				<a class="article__section" href={`/sections/${section.slug}`}>{section.label}</a>
+			)}
+
+			<h1 class="article__title" {...article.edit.title}>{data.title}</h1>
+
+			{data.deck && <p class="article__deck">{data.deck}</p>}
+
+			{credit && (
+				<div class="article__byline">
+					<AuthorCard byline={credit.byline} roleLabel={credit.roleLabel} />
+				</div>
+			)}
+
+			<p class="article__meta">
+				<time datetime={new Date(publishedAt).toISOString()}>
+					{formatDateTime(publishedAt, locale)}
+				</time>
+				<span class="article__meta-sep" aria-hidden="true">·</span>
+				<span>{t("common.readingTime", { minutes: readingTime })}</span>
+				{editionTerm && (
+					<>
+						<span class="article__meta-sep" aria-hidden="true">·</span>
+						<a href={`/editions/${editionTerm.slug}`}>
+							{t("article.edition", { label: editionTerm.label })}
+						</a>
+					</>
+				)}
+				{data.review_status === "approved" && (
+					<>
+						<span class="article__meta-sep" aria-hidden="true">·</span>
+						<span class="article__reviewed">{t("article.reviewed")}</span>
+					</>
+				)}
+			</p>
+		</header>
+
+		{data.featured_image && (
+			<figure class="article__hero">
+				<Image
+					image={data.featured_image}
+					alt={imageAlt}
+					priority
+					sizes="(min-width: 1100px) 900px, 100vw"
+				/>
+				{(data.image_caption || data.photo_credit) && (
+					<figcaption>
+						{data.image_caption}
+						{data.photo_credit && (
+							<span class="article__credit">{t("article.photoCredit", { name: data.photo_credit })}</span>
+						)}
+					</figcaption>
+				)}
+			</figure>
+		)}
+
+		{mediaKind && (
+			<EpisodePlayer
+				kind={mediaKind}
+				src={mediaKind === "podcast" ? data.audio_url : data.video_url}
+				duration={mediaKind === "podcast" ? data.audio_duration : data.video_duration}
+				showName={data.podcast_show}
+				episodeNo={data.episode_no}
+				title={data.title}
+			/>
+		)}
+
+		<div class="prose article__body" {...article.edit.content}>
+			<PortableText value={data.content} />
+		</div>
+
+		{gallery.length > 0 && (
+			<section class="article__gallery" aria-label={t("article.gallery")}>
+				<SectionHeading title={t("article.gallery")} />
+				<Gallery items={gallery} groupId={`article-${article.id}`} />
+				{data.photo_credit && (
+					<p class="article__gallery-credit">{t("article.photoCredit", { name: data.photo_credit })}</p>
+				)}
+			</section>
+		)}
+
+		{data.correction && <CorrectionNotice text={data.correction} date={data.updatedAt} />}
+
+		{isPhoto && gallery.length === 0 && <p class="article__note">{t("article.photoNote")}</p>}
+
+		{tags.length > 0 && (
+			<footer class="article__tags">
+				<span class="article__tags-label">{t("article.tags")}</span>
+				{tags.map((tag) => (
+					<a class="article__tag" href={`/tags/${tag.slug}`}>{tag.label}</a>
+				))}
+			</footer>
+		)}
+
+		{data.allow_comments !== false && (
+			<section class="article__comments" id="comments">
+				<SectionHeading title={t("article.comments")} />
+				<div class="article__comment-form">
+					<CommentForm collection="articles" contentId={data.id} />
+				</div>
+				<Comments collection="articles" contentId={data.id} threaded />
+			</section>
+		)}
+
+		{related.length > 0 && (
+			<section class="article__related" aria-label={t("article.related")}>
+				<SectionHeading title={t("article.related")} />
+				<div class="article__related-grid">
+					{related.map((entry) => (
+						<MiniCard article={entry} />
+					))}
+				</div>
+			</section>
+		)}
+	</article>
 </Base>
+
+<style>
+	.article {
+		padding-top: var(--spacing-10);
+		max-width: 820px;
+	}
+
+	.article__header {
+		text-align: center;
+	}
+
+	.article__section {
+		display: inline-block;
+		font-size: var(--font-size-sm);
+		letter-spacing: var(--tracking-wide);
+		text-transform: uppercase;
+		color: var(--color-brand);
+	}
+
+	.article__section:hover {
+		text-decoration: underline;
+	}
+
+	.article__title {
+		margin: var(--spacing-3) 0 0;
+		font-family: var(--font-heading);
+		font-style: italic;
+		font-weight: var(--font-weight-heading);
+		font-size: var(--font-size-5xl);
+		letter-spacing: var(--tracking-snug);
+		line-height: var(--leading-tight);
+	}
+
+	.article__deck {
+		margin: var(--spacing-5) auto 0;
+		max-width: 52ch;
+		font-family: var(--font-heading);
+		font-size: var(--font-size-xl);
+		line-height: var(--leading-snug);
+		color: var(--color-text-secondary);
+	}
+
+	.article__byline {
+		display: inline-block;
+		margin-top: var(--spacing-6);
+		padding: var(--spacing-3) var(--spacing-5);
+		background: var(--color-bg-subtle);
+		border-radius: var(--radius);
+	}
+
+	.article__meta {
+		margin: var(--spacing-4) 0 0;
+		font-size: var(--font-size-xs);
+		color: var(--color-muted);
+	}
+
+	.article__meta a {
+		color: inherit;
+	}
+
+	.article__meta a:hover {
+		color: var(--color-brand);
+	}
+
+	.article__meta-sep {
+		margin-inline: var(--spacing-2);
+	}
+
+	.article__reviewed {
+		color: var(--color-brand);
+	}
+
+	.article__hero {
+		margin: var(--spacing-10) 0;
+	}
+
+	.article__hero img {
+		width: 100%;
+		border-radius: var(--radius-lg);
+	}
+
+	.article__hero figcaption {
+		display: flex;
+		justify-content: space-between;
+		gap: var(--spacing-4);
+		margin-top: var(--spacing-3);
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+
+	.article__credit {
+		white-space: nowrap;
+	}
+
+	.article__body {
+		margin-top: var(--spacing-8);
+	}
+
+	.article__gallery {
+		margin-top: var(--spacing-12);
+	}
+
+	.article__gallery-credit {
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+
+	.article__note {
+		margin-top: var(--spacing-6);
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+
+	.article__tags {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--spacing-3);
+		margin-top: var(--spacing-10);
+		padding-top: var(--spacing-5);
+		border-top: 1px solid var(--color-border);
+	}
+
+	.article__tags-label {
+		font-size: var(--font-size-xs);
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide);
+		color: var(--color-muted);
+	}
+
+	.article__tag {
+		font-size: var(--font-size-sm);
+		padding: 2px 12px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-pill);
+		color: var(--color-text-secondary);
+	}
+
+	.article__tag:hover {
+		border-color: var(--color-brand);
+		color: var(--color-brand);
+	}
+
+	.article__comments,
+	.article__related {
+		margin-top: var(--spacing-16);
+		padding-top: var(--spacing-8);
+		border-top: 1px solid var(--color-border-strong);
+	}
+
+	.article__comment-form {
+		margin-bottom: var(--spacing-8);
+	}
+
+	.article__related-grid {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--spacing-8);
+	}
+
+	@media (min-width: 700px) {
+		.article__related-grid {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+	}
+</style>

@@ -64,6 +64,7 @@ const words = siteTitle.trim().split(/\s+/).slice(0, 3);
 						</nav>
 					)
 				}
+				<a class="masthead__search" href="/search">{t("common.search")}</a>
 				<LanguageSwitcher class="masthead__lang" />
 			</div>
 		</details>
@@ -221,6 +222,19 @@ const words = siteTitle.trim().split(/\s+/).slice(0, 3);
 	}
 
 	.masthead__nav-link:hover {
+		color: var(--color-brand);
+	}
+
+	.masthead__search {
+		display: block;
+		margin-top: var(--spacing-4);
+		padding-top: var(--spacing-4);
+		border-top: 1px solid var(--color-border);
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+	}
+
+	.masthead__search:hover {
 		color: var(--color-brand);
 	}
 

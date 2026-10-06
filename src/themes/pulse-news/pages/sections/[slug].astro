@@ -1,8 +1,88 @@
 ---
+/**
+ * pulse-news 版块页：区块标题（手绘下划线）+ 小图卡网格 + 分页。
+ */
+import { getEmDashCollection, getTaxonomyTermsWithCacheHint, decodeSlug } from "emdash";
 import Base from "../../layout/Base.astro";
-import Placeholder from "../../components/Placeholder.astro";
+import SectionHeading from "../../components/SectionHeading.astro";
+import StoryGrid from "../../components/StoryGrid.astro";
+import Pagination from "@shared/Pagination.astro";
+import { getTranslations } from "../../../../i18n";
+
+const PER_PAGE = 12;
+
+const { t } = getTranslations(Astro);
+const slug = decodeSlug(Astro.params.slug);
+const termsResult = await getTaxonomyTermsWithCacheHint("section", { includeCounts: true });
+const term = slug ? termsResult.data.find((item) => item.slug === slug) : null;
+if (!term) return Astro.redirect("/404");
+
+const page = Math.max(1, Number.parseInt(Astro.url.searchParams.get("page") ?? "1", 10) || 1);
+
+const { entries: articles, cacheHint, hasMore } = await getEmDashCollection("articles", {
+	where: { section: term.slug },
+	orderBy: { published_at: "desc" },
+	limit: PER_PAGE,
+	offset: (page - 1) * PER_PAGE,
+});
+
+if (Astro.cache?.enabled) {
+	Astro.cache.set(termsResult.cacheHint);
+	Astro.cache.set(cacheHint);
+}
 ---
 
-<Base title="版块">
-	<Placeholder heading="版块" />
+<Base
+	title={t("list.sectionTitle", { label: term.label })}
+	pageTitle={term.label}
+	description={t("list.sectionDescription", { label: term.label })}
+	canonical={`${Astro.url.origin}/sections/${term.slug}`}
+>
+	<div class="container list-page">
+		<header class="list-page__header">
+			<SectionHeading as="h1" title={term.label} class="list-page__heading" />
+			{term.description && <p class="list-page__desc">{term.description}</p>}
+			<p class="list-page__count">{t("list.count", { count: term.count ?? articles.length })}</p>
+		</header>
+
+		{articles.length === 0 ? (
+			<p class="list-page__empty">{t("list.emptySection")}</p>
+		) : (
+			<StoryGrid articles={articles} />
+		)}
+
+		<Pagination page={page} hasMore={Boolean(hasMore)} basePath={`/sections/${term.slug}`} />
+	</div>
 </Base>
+
+<style>
+	.list-page {
+		padding-top: var(--spacing-10);
+	}
+
+	.list-page__header {
+		margin-bottom: var(--spacing-10);
+	}
+
+	/* 标题自带大下边距；这里的计数行要紧跟在标题下面 */
+	.list-page__header .list-page__heading {
+		margin-bottom: var(--spacing-4);
+	}
+
+	.list-page__desc {
+		margin: 0 0 var(--spacing-3);
+		color: var(--color-text-secondary);
+	}
+
+	.list-page__count {
+		margin: 0;
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+
+	.list-page__empty {
+		padding-block: var(--spacing-16);
+		text-align: center;
+		color: var(--color-muted);
+	}
+</style>

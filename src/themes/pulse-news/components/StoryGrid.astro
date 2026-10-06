@@ -1,0 +1,51 @@
+---
+/**
+ * 列表网格：把一组文章铺成响应式小图卡（版块 / 标签 / 归档 / 搜索结果共用）。
+ */
+import type { ArticleEntry } from "@utils/types";
+import MiniCard from "./MiniCard.astro";
+
+interface Props {
+	articles: ArticleEntry[];
+	/** 卡片尺寸，`lg` 用于每行更少的场景（如相关报道）。 */
+	class?: string;
+}
+
+const { articles, class: className } = Astro.props;
+---
+
+<ul class:list={["story-grid", className]}>
+	{articles.map((article) => (
+		<li class="story-grid__item">
+			<MiniCard article={article} />
+		</li>
+	))}
+</ul>
+
+<style>
+	.story-grid {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--spacing-8) var(--spacing-6);
+	}
+
+	.story-grid__item {
+		display: flex;
+		min-width: 0;
+	}
+
+	@media (min-width: 640px) {
+		.story-grid {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+
+	@media (min-width: 1040px) {
+		.story-grid {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+	}
+</style>

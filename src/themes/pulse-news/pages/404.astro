@@ -1,20 +1,70 @@
 ---
+/**
+ * pulse-news 404：超大斜体数字 + 说明 + 出口链接。
+ */
 import Base from "../layout/Base.astro";
-import Placeholder from "../components/Placeholder.astro";
+import { getTranslations } from "../../../i18n";
+
+const { t } = getTranslations(Astro);
 ---
 
-<Base title="页面未找到" pageTitle="404" description="未找到该页面">
-	<Placeholder heading="页面未找到" note="你要找的报道可能已下架，或链接有误。" />
-	<p class="not-found__actions">
-		<a href="/">返回头版</a>
-		<a href="/archive">浏览归档</a>
-	</p>
+<Base title={t("notFound.title")} pageTitle="404" description={t("notFound.description")}>
+	<div class="container not-found">
+		<p class="not-found__code">404</p>
+		<h1 class="not-found__title">{t("notFound.title")}</h1>
+		<p class="not-found__text">{t("notFound.text")}</p>
+		<div class="not-found__actions">
+			<a class="not-found__link" href="/">{t("common.backHome")}</a>
+			<a class="not-found__link not-found__link--muted" href="/archive">{t("common.browseArchive")}</a>
+		</div>
+	</div>
 </Base>
 
 <style>
+	.not-found {
+		padding-block: var(--spacing-24);
+		text-align: center;
+	}
+
+	.not-found__code {
+		margin: 0;
+		font-family: var(--font-heading);
+		font-style: italic;
+		font-weight: var(--font-weight-heading);
+		font-size: 6rem;
+		line-height: 1;
+		color: var(--color-brand);
+	}
+
+	.not-found__title {
+		margin: var(--spacing-5) 0 0;
+		font-family: var(--font-heading);
+		font-style: italic;
+		font-weight: var(--font-weight-heading);
+		font-size: var(--font-size-3xl);
+	}
+
+	.not-found__text {
+		margin: var(--spacing-4) 0 var(--spacing-10);
+		color: var(--color-text-secondary);
+	}
+
 	.not-found__actions {
 		display: flex;
+		justify-content: center;
 		gap: var(--spacing-6);
-		margin-top: var(--spacing-6);
+	}
+
+	.not-found__link {
+		font-size: var(--font-size-base);
+		color: var(--color-brand);
+	}
+
+	.not-found__link--muted {
+		color: var(--color-text-secondary);
+	}
+
+	.not-found__link:hover {
+		text-decoration: underline;
 	}
 </style>

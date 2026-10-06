@@ -1,8 +1,85 @@
 ---
+/**
+ * pulse-news 订阅确认：SSR 校验 token 后给出结果（成功 / 失败）。
+ */
 import Base from "../../layout/Base.astro";
-import Placeholder from "../../components/Placeholder.astro";
+import { callSubscriptionsRoute } from "@utils/subscriptions";
+import { getTranslations } from "../../../../i18n";
+
+const { t } = getTranslations(Astro);
+
+const token = Astro.url.searchParams.get("token")?.trim() ?? "";
+const result = token ? await callSubscriptionsRoute(Astro.locals, "subscribe/confirm", { token }) : null;
+
+const confirmed = result?.ok === true && result.body.status === "confirmed";
+const already = result?.body.already === true;
+const email = typeof result?.body.email === "string" ? result.body.email : null;
+const failure = token ? t("subscribePage.confirmInvalid") : t("subscribePage.confirmMissingToken");
 ---
 
-<Base title="订阅确认">
-	<Placeholder heading="订阅确认" />
+<Base
+	title={t("subscribePage.confirmTitle")}
+	pageTitle={t("subscribePage.confirmTitle")}
+	robots="noindex, nofollow"
+>
+	<div class="container result">
+		{confirmed ? (
+			<>
+				<h1 class="result__title">{t("subscribePage.confirmHeading")}</h1>
+				<p class="result__text">
+					{already ? t("subscribePage.confirmAlready") : t("subscribePage.confirmThanks")}
+				</p>
+				{email && <p class="result__email">{email}</p>}
+				<p class="result__actions"><a href="/">{t("common.backHome")}</a></p>
+			</>
+		) : (
+			<>
+				<h1 class="result__title">{t("subscribePage.confirmFailed")}</h1>
+				<p class="result__text">{failure}</p>
+				<p class="result__actions"><a href="/subscribe">{t("subscribePage.resubscribe")}</a></p>
+			</>
+		)}
+	</div>
 </Base>
+
+<style>
+	.result {
+		padding-top: var(--spacing-16);
+		max-width: 640px;
+		text-align: center;
+	}
+
+	.result__title {
+		margin: 0 0 var(--spacing-5);
+		font-family: var(--font-heading);
+		font-style: italic;
+		font-weight: var(--font-weight-heading);
+		font-size: var(--font-size-3xl);
+	}
+
+	.result__text {
+		margin: 0;
+		font-size: var(--font-size-lg);
+		line-height: var(--leading-relaxed);
+		color: var(--color-text-secondary);
+	}
+
+	.result__email {
+		margin: var(--spacing-4) 0 0;
+		font-family: var(--font-mono);
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+
+	.result__actions {
+		margin-top: var(--spacing-8);
+	}
+
+	.result__actions a {
+		color: var(--color-brand);
+	}
+
+	.result__actions a:hover {
+		text-decoration: underline;
+	}
+</style>

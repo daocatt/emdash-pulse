@@ -98,6 +98,7 @@
 		/* 圆角 */
 		--radius: 2px;
 		--radius-lg: 4px;
+		--radius-pill: 999px; /* 胶囊形（标签 / 圆点按钮） */
 
 		/* 过渡 */
 		--transition-fast: 120ms ease;

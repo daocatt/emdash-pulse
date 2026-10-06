@@ -1,8 +1,95 @@
 ---
+/**
+ * pulse-news 周度归档：区块标题 + 日期区间 + 归档导航 + 小图卡网格 + 分页。
+ */
+import { getEmDashCollection } from "emdash";
 import Base from "../../../../layout/Base.astro";
-import Placeholder from "../../../../components/Placeholder.astro";
+import SectionHeading from "../../../../components/SectionHeading.astro";
+import StoryGrid from "../../../../components/StoryGrid.astro";
+import ArchiveNav from "@shared/ArchiveNav.astro";
+import Pagination from "@shared/Pagination.astro";
+import { weekRange, isValidWeek } from "@utils/date-range";
+import { getArchiveIndex } from "@utils/archive";
+import { buildWeekNav } from "@utils/archive-nav";
+import { formatWeekLabel, formatDate } from "@utils/format";
+import { getTranslations } from "../../../../../../i18n";
+
+const PER_PAGE = 20;
+
+const { locale, t } = getTranslations(Astro);
+const year = Number.parseInt(Astro.params.year ?? "", 10);
+const week = Number.parseInt(Astro.params.week ?? "", 10);
+if (!Number.isInteger(year) || !isValidWeek(year, week)) return Astro.redirect("/archive");
+
+const page = Math.max(1, Number.parseInt(Astro.url.searchParams.get("page") ?? "1", 10) || 1);
+const range = weekRange(year, week);
+
+const [{ entries: articles, cacheHint, hasMore }, archive] = await Promise.all([
+	getEmDashCollection("articles", {
+		where: { published_at: range },
+		orderBy: { published_at: "desc" },
+		limit: PER_PAGE,
+		offset: (page - 1) * PER_PAGE,
+	}),
+	getArchiveIndex(),
+]);
+
+if (Astro.cache?.enabled) {
+	Astro.cache.set(cacheHint);
+	if (archive.cacheHint) Astro.cache.set(archive.cacheHint);
+}
+
+const nav = buildWeekNav(year, week, archive);
+const weekLabel = formatWeekLabel(year, week, locale);
+const title = t("archive.weekTitle", { label: weekLabel });
+const startLabel = formatDate(range.gte, locale);
+const endLabel = formatDate(new Date(new Date(range.lt).getTime() - 86400000), locale);
 ---
 
-<Base title="周度归档">
-	<Placeholder heading="周度归档" />
+<Base
+	title={title}
+	pageTitle={title}
+	description={t("archive.weekDescription", { label: weekLabel, start: startLabel, end: endLabel })}
+	canonical={`${Astro.url.origin}/archive/${year}/week/${week}`}
+>
+	<div class="container week-archive">
+		<header class="week-archive__header">
+			<SectionHeading as="h1" title={weekLabel} />
+			<p class="week-archive__range">{startLabel} — {endLabel}</p>
+		</header>
+
+		<ArchiveNav
+			modeLinks={nav.modeLinks}
+			prevHref={nav.prevHref}
+			nextHref={nav.nextHref}
+			periodOptions={nav.periodOptions}
+			yearOptions={nav.yearOptions}
+		/>
+
+		{articles.length === 0 ? (
+			<p class="week-archive__empty">{t("archive.emptyWeek")}</p>
+		) : (
+			<StoryGrid articles={articles} />
+		)}
+
+		<Pagination page={page} hasMore={Boolean(hasMore)} basePath={`/archive/${year}/week/${week}`} />
+	</div>
 </Base>
+
+<style>
+	.week-archive {
+		padding-top: var(--spacing-10);
+	}
+
+	.week-archive__range {
+		margin: 0;
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+
+	.week-archive__empty {
+		padding-block: var(--spacing-16);
+		text-align: center;
+		color: var(--color-muted);
+	}
+</style>

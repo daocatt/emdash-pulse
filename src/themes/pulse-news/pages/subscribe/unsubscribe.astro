@@ -1,8 +1,84 @@
 ---
+/**
+ * pulse-news 退订：SSR 校验 token 后给出结果（成功 / 失败）。
+ */
 import Base from "../../layout/Base.astro";
-import Placeholder from "../../components/Placeholder.astro";
+import { callSubscriptionsRoute } from "@utils/subscriptions";
+import { getTranslations } from "../../../../i18n";
+
+const { t } = getTranslations(Astro);
+
+const token = Astro.url.searchParams.get("token")?.trim() ?? "";
+const result = token ? await callSubscriptionsRoute(Astro.locals, "unsubscribe", { token }) : null;
+
+const unsubscribed = result?.ok === true && result.body.status === "unsubscribed";
+const email = typeof result?.body.email === "string" ? result.body.email : null;
+const failure = token
+	? t("subscribePage.unsubscribeInvalid")
+	: t("subscribePage.unsubscribeMissingToken");
 ---
 
-<Base title="退订">
-	<Placeholder heading="退订" />
+<Base
+	title={t("subscribePage.unsubscribeTitle")}
+	pageTitle={t("subscribePage.unsubscribeTitle")}
+	robots="noindex, nofollow"
+>
+	<div class="container result">
+		{unsubscribed ? (
+			<>
+				<h1 class="result__title">{t("subscribePage.unsubscribed")}</h1>
+				<p class="result__text">{t("subscribePage.unsubscribedText")}</p>
+				{email && <p class="result__email">{email}</p>}
+				<p class="result__actions"><a href="/subscribe">{t("subscribePage.resubscribe")}</a></p>
+			</>
+		) : (
+			<>
+				<h1 class="result__title">{t("subscribePage.unsubscribeFailed")}</h1>
+				<p class="result__text">{failure}</p>
+				<p class="result__actions"><a href="/">{t("common.backHome")}</a></p>
+			</>
+		)}
+	</div>
 </Base>
+
+<style>
+	.result {
+		padding-top: var(--spacing-16);
+		max-width: 640px;
+		text-align: center;
+	}
+
+	.result__title {
+		margin: 0 0 var(--spacing-5);
+		font-family: var(--font-heading);
+		font-style: italic;
+		font-weight: var(--font-weight-heading);
+		font-size: var(--font-size-3xl);
+	}
+
+	.result__text {
+		margin: 0;
+		font-size: var(--font-size-lg);
+		line-height: var(--leading-relaxed);
+		color: var(--color-text-secondary);
+	}
+
+	.result__email {
+		margin: var(--spacing-4) 0 0;
+		font-family: var(--font-mono);
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+
+	.result__actions {
+		margin-top: var(--spacing-8);
+	}
+
+	.result__actions a {
+		color: var(--color-brand);
+	}
+
+	.result__actions a:hover {
+		text-decoration: underline;
+	}
+</style>

@@ -1,8 +1,83 @@
 ---
+/**
+ * pulse-news 订阅页：居中刊头 + 订阅卡 + 三步说明。
+ */
+import { getSiteSettings } from "emdash";
 import Base from "../layout/Base.astro";
-import Placeholder from "../components/Placeholder.astro";
+import SubscribeForm from "@shared/SubscribeForm.astro";
+import { getTranslations } from "../../../i18n";
+import { resolveSiteIdentity } from "@utils/site-identity";
+
+const { t } = getTranslations(Astro);
+const { siteTitle } = resolveSiteIdentity(await getSiteSettings());
+const siteUrl = Astro.url.origin;
 ---
 
-<Base title="订阅">
-	<Placeholder heading="订阅" />
+<Base
+	title={t("subscribePage.title")}
+	pageTitle={t("subscribePage.title")}
+	description={t("subscribePage.description", { siteTitle })}
+	canonical={`${siteUrl}/subscribe`}
+>
+	<div class="container subscribe">
+		<header class="subscribe__header">
+			<h1 class="subscribe__title">{t("subscribePage.heading", { siteTitle })}</h1>
+			<p class="subscribe__lede">{t("subscribePage.lede")}</p>
+		</header>
+
+		<div class="subscribe__form">
+			<SubscribeForm
+				variant="card"
+				heading={t("subscribePage.formHeading")}
+				description={t("subscribePage.formHint")}
+				source="subscribe-page"
+			/>
+		</div>
+
+		<div class="subscribe__notes prose">
+			<h2>{t("subscribePage.flow")}</h2>
+			<ol>
+				<li>{t("subscribePage.step1")}</li>
+				<li>{t("subscribePage.step2")}</li>
+				<li>{t("subscribePage.step3")}</li>
+			</ol>
+		</div>
+	</div>
 </Base>
+
+<style>
+	.subscribe {
+		padding-top: var(--spacing-12);
+		max-width: 720px;
+	}
+
+	.subscribe__header {
+		text-align: center;
+	}
+
+	.subscribe__title {
+		margin: 0;
+		font-family: var(--font-heading);
+		font-style: italic;
+		font-weight: var(--font-weight-heading);
+		font-size: var(--font-size-4xl);
+		letter-spacing: var(--tracking-snug);
+		line-height: var(--leading-tight);
+	}
+
+	.subscribe__lede {
+		margin: var(--spacing-5) auto 0;
+		max-width: 46ch;
+		font-size: var(--font-size-lg);
+		line-height: var(--leading-relaxed);
+		color: var(--color-text-secondary);
+	}
+
+	.subscribe__form {
+		margin-top: var(--spacing-10);
+	}
+
+	.subscribe__notes {
+		margin-top: var(--spacing-12);
+	}
+</style>
