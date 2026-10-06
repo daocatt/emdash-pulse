@@ -76,6 +76,7 @@ HOME=~/.wrangler-a npm run deploy # 构建并部署到 Cloudflare
 - 调 REST API 时写请求需 `X-EmDash-Request: 1` 头（CSRF）；更新内容用 `PUT`；**PUT 只写 draft revision**，已发布文章需再 `POST /publish` 才生效。
 - **`select` 字段的选项必须写在 `validation.options`**，不是字段顶层 `options`：EmDash 只从 `validation.options` 读取（zod 写入校验、后台下拉选项、`emdash types` 生成的字面量联合类型都依赖它，见 `zod-generator.ts` 与 admin 序列化）。写错位置 → 后台下拉空白、校验退化为任意字符串、`emdash-env.d.ts` 退化成 `string`。
 - **改 seed 的字段定义不会同步到已建库**：`applySeed` 用 `onConflict: "skip"`，集合已存在时**整段跳过（含字段）**。改字段要么删库重建，要么手动更新 `_emdash_fields`（`validation` 列）。
+- **`where` 里的布尔字段必须传原生布尔值**：EmDash 把布尔字段存成 INTEGER（写入 0/1），loader 的 `bindableFilterValue` 会把 `true`/`false` 归一化成 `1`/`0`，所以运行时支持布尔过滤；但公共类型 `WhereValue` 只有 `string | string[] | WhereRange`，直接写 `where: { is_featured: true }` 会 ts(2322)。用 `@utils/query` 的 `whereClause({ is_featured: true })` 收窄。**别传字符串 `"true"`** —— SQLite 拿字符串去比 INTEGER 列，恒不命中。
 - **`@emdash-cms/plugin-audit-log` 0.2.3 需要打补丁**：它的 `/history` 页手写 `table` block 用了 camelCase（`pageActionId` 等），而 `@emdash-cms/blocks@1.1.0` 要求 snake_case → 后台 Audit History 整页 502 `INVALID_BLOCK_RESPONSE`。根 `postinstall` 会自动跑 `scripts/patch-audit-log.mjs`（幂等；上游修复后自动跳过），`npm install` 后无需手动处理。
 
 ## Git
