@@ -25,7 +25,7 @@
         { "slug": "title", "label": "标题", "type": "string", "required": true, "searchable": true },
         { "slug": "deck", "label": "导语", "type": "text", "searchable": true },
         { "slug": "content", "label": "正文", "type": "portableText", "required": true, "searchable": true },
-        { "slug": "article_type", "label": "稿件类型", "type": "select", "required": true, "validation": { "options": ["standard", "photo", "live", "video"] } },
+        { "slug": "article_type", "label": "稿件类型", "type": "select", "required": true, "validation": { "options": ["standard", "photo", "live", "video", "podcast"] } },
         { "slug": "featured_image", "label": "主图", "type": "image" },
         { "slug": "image_caption", "label": "图片说明", "type": "string" },
         { "slug": "photo_credit", "label": "摄影署名", "type": "string" },
@@ -52,7 +52,14 @@
         { "slug": "assignment", "label": "关联选题", "type": "reference", "validation": { "targetCollection": "assignments" } },
         { "slug": "author_agent", "label": "作者 Agent", "type": "string", "indexed": true },
         { "slug": "allow_comments", "label": "允许评论", "type": "boolean" },
-        { "slug": "correction", "label": "更正说明", "type": "text" }
+        { "slug": "correction", "label": "更正说明", "type": "text" },
+        { "slug": "audio_url", "label": "音频地址", "type": "url" },
+        { "slug": "audio_duration", "label": "音频时长", "type": "string" },
+        { "slug": "episode_no", "label": "集数", "type": "integer" },
+        { "slug": "podcast_show", "label": "播客栏目", "type": "string" },
+        { "slug": "video_url", "label": "视频地址", "type": "url" },
+        { "slug": "video_duration", "label": "视频时长", "type": "string" },
+        { "slug": "trending_rank", "label": "热度排名", "type": "integer", "indexed": true }
       ]
     },
     {
@@ -158,7 +165,7 @@
   "menus": [
     {
       "name": "primary",
-      "label": "主导航",
+      "label": "主导航（通用兜底）",
       "items": [
         { "type": "custom", "label": "首页", "url": "/" },
         { "type": "custom", "label": "要闻", "url": "/sections/top" },
@@ -172,13 +179,42 @@
     },
     {
       "name": "footer",
-      "label": "页脚导航",
+      "label": "页脚导航（两套主题共用）",
       "items": [
         { "type": "custom", "label": "关于", "url": "/pages/about" },
         { "type": "custom", "label": "采编规范", "url": "/pages/ethics" },
         { "type": "custom", "label": "Agent 接入", "url": "/pages/agents" },
         { "type": "custom", "label": "联系", "url": "/pages/contact" },
+        { "type": "custom", "label": "订阅", "url": "/subscribe" },
         { "type": "custom", "label": "RSS", "url": "/rss.xml" }
+      ]
+    },
+    {
+      "name": "news-factory",
+      "label": "主导航 · 报纸头版",
+      "items": [
+        { "type": "custom", "label": "首页", "url": "/" },
+        { "type": "custom", "label": "要闻", "url": "/sections/top" },
+        { "type": "custom", "label": "国际", "url": "/sections/world" },
+        { "type": "custom", "label": "财经", "url": "/sections/business" },
+        { "type": "custom", "label": "科技", "url": "/sections/tech" },
+        { "type": "custom", "label": "体育", "url": "/sections/sports" },
+        { "type": "custom", "label": "评论", "url": "/sections/opinion" },
+        { "type": "custom", "label": "归档", "url": "/archive" }
+      ]
+    },
+    {
+      "name": "pulse-news",
+      "label": "主导航 · 杂志",
+      "items": [
+        { "type": "custom", "label": "首页", "url": "/" },
+        { "type": "custom", "label": "要闻", "url": "/sections/top" },
+        { "type": "custom", "label": "文化", "url": "/sections/culture" },
+        { "type": "custom", "label": "社会", "url": "/sections/society" },
+        { "type": "custom", "label": "体育", "url": "/sections/sports" },
+        { "type": "custom", "label": "评论", "url": "/sections/opinion" },
+        { "type": "custom", "label": "图片", "url": "/sections/photo" },
+        { "type": "custom", "label": "归档", "url": "/archive" }
       ]
     }
   ],
@@ -293,6 +329,7 @@
           "is_featured": true,
           "author_agent": "muse",
           "source": "Suda Pulse",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=1600&h=900&fit=crop", "alt": "新闻编辑室", "filename": "pressroom.jpg" } },
           "content": [
             { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "Suda Pulse 将新闻生产拆分为选题分发、Agent 投稿、编辑审核与发布四个环节，人类编辑与 Agent 在同一个编辑室内协作。" }] },
             { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "所有稿件在发布前都必须经过审核门禁：未标记为 approved 的稿件无法发布，无论来自人类编辑还是 Agent。" }] }
@@ -407,6 +444,218 @@
           ],
           "content": [
             { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "我们沿着主干道步行一小时，记录下这座城市从黄昏到入夜的过渡。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-6",
+        "slug": "cross-border-data-rules",
+        "status": "published",
+        "taxonomies": { "section": ["world"], "tag": ["ai"], "edition": ["2026-w41"] },
+        "bylines": [{ "byline": "byline-wire", "roleLabel": "综合报道" }],
+        "data": {
+          "title": "跨境数据流动的新规则",
+          "deck": "各国监管正在分道扬镳",
+          "article_type": "standard",
+          "excerpt": "同一份用户数据在不同司法辖区要遵守不同规则，跨境内容平台正在重新设计数据流向。",
+          "review_status": "approved",
+          "author_agent": "wire",
+          "trending_rank": 1,
+          "is_featured": true,
+          "featured_image": {
+            "$media": {
+              "url": "https://images.unsplash.com/photo-1495020689067-958852a7765e?w=1600&h=900&fit=crop",
+              "alt": "报纸版面",
+              "filename": "newsroom.jpg"
+            }
+          },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "监管的分歧落在数据出境这一环：同一批日志在本地合规，跨境就成了风险项。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-7",
+        "slug": "ai-content-cost-curve",
+        "status": "published",
+        "taxonomies": { "section": ["business"], "tag": ["ai"], "edition": ["2026-w41"] },
+        "bylines": [{ "byline": "byline-dots", "roleLabel": "记者" }],
+        "data": {
+          "title": "AI 内容生意的成本曲线",
+          "deck": "单价在降，总量在涨",
+          "article_type": "standard",
+          "excerpt": "生成一篇稿件的边际成本正在趋近于零，编辑部真正的成本转向审核与事实核查。",
+          "review_status": "approved",
+          "author_agent": "dots",
+          "trending_rank": 2,
+          "featured_image": {
+            "$media": {
+              "url": "https://images.unsplash.com/photo-1518770660439-4636190af475?w=1600&h=900&fit=crop",
+              "alt": "电路板特写",
+              "filename": "circuit.jpg"
+            }
+          },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "把生成成本压到最低之后，编辑部的时间预算反而更多地花在了审稿环节。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-8",
+        "slug": "marathon-pacing-economics",
+        "status": "published",
+        "taxonomies": { "section": ["sports"], "tag": ["suda"], "edition": ["2026-w41"] },
+        "bylines": [{ "byline": "byline-muse", "roleLabel": "记者" }],
+        "data": {
+          "title": "城市马拉松的配速经济学",
+          "deck": "一场比赛如何改变一条街",
+          "article_type": "standard",
+          "excerpt": "封路六小时换来的是沿线商家的全年客流，城市在算一笔更长周期的账。",
+          "review_status": "approved",
+          "author_agent": "muse",
+          "trending_rank": 3,
+          "featured_image": {
+            "$media": {
+              "url": "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1600&h=900&fit=crop",
+              "alt": "城市夜景天际线",
+              "filename": "city-night.jpg"
+            }
+          },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "组织方把配速员按区间拆开，让整条赛道的拥堵曲线更平滑。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-9",
+        "slug": "opinion-agent-byline",
+        "status": "published",
+        "taxonomies": { "section": ["opinion"], "tag": ["ai", "newsroom"], "edition": ["2026-w40"] },
+        "bylines": [{ "byline": "byline-editorial", "roleLabel": "社论" }],
+        "data": {
+          "title": "评论：Agent 署名意味着什么",
+          "deck": "责任必须落在具体的人身上",
+          "article_type": "standard",
+          "excerpt": "给 Agent 署名不是把责任交给机器，而是把「谁审过这篇稿」写清楚。",
+          "review_status": "approved",
+          "author_agent": "editorial",
+          "trending_rank": 4,
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "署名是一种承诺：读者据此知道该找谁负责。机器无法承担这个承诺。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-10",
+        "slug": "museum-curates-ai-art",
+        "status": "published",
+        "taxonomies": { "section": ["culture"], "tag": ["ai"], "edition": ["2026-w41"] },
+        "bylines": [{ "byline": "byline-dots", "roleLabel": "记者" }],
+        "data": {
+          "title": "博物馆如何策展 AI 作品",
+          "deck": "当作者是一件会变的工具",
+          "article_type": "standard",
+          "excerpt": "展览要同时回答两个问题：作品是谁做的，以及它在展厅里会不会继续变化。",
+          "review_status": "approved",
+          "author_agent": "dots",
+          "trending_rank": 5,
+          "featured_image": {
+            "$media": {
+              "url": "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1600&h=900&fit=crop",
+              "alt": "新闻编辑台",
+              "filename": "desk.jpg"
+            }
+          },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "策展人开始把「模型版本」写进作品说明，就像过去标注版次与材质。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-11",
+        "slug": "night-shift-city",
+        "status": "published",
+        "taxonomies": { "section": ["society"], "tag": ["media"], "edition": ["2026-w41"] },
+        "bylines": [{ "byline": "byline-wire", "roleLabel": "综合报道" }],
+        "data": {
+          "title": "夜班劳动者的城市",
+          "deck": "凌晨三点仍在运转的街区",
+          "article_type": "photo",
+          "photo_credit": "Suda Pulse 视觉组",
+          "image_caption": "凌晨的物流分拣中心。",
+          "excerpt": "一组图片记录夜班劳动者眼中的城市：分拣中心、便利店与末班车。",
+          "review_status": "approved",
+          "author_agent": "wire",
+          "featured_image": {
+            "$media": {
+              "url": "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1600&h=900&fit=crop",
+              "alt": "夜色中的数据流",
+              "filename": "night-flow.jpg"
+            }
+          },
+          "gallery": [
+            {
+              "image": { "$media": { "url": "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1600&h=1067&fit=crop", "alt": "城市夜景天际线", "filename": "city-night.jpg" } },
+              "caption": "凌晨的城市天际线",
+              "credit": "Suda Pulse 视觉组"
+            }
+          ],
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "我们跟拍了一个夜班班次，从交接开始到清晨下班。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-12",
+        "slug": "newsroom-night-talk-ep12",
+        "status": "published",
+        "taxonomies": { "section": ["opinion"], "tag": ["newsroom"], "edition": ["2026-w41"] },
+        "bylines": [{ "byline": "byline-muse", "roleLabel": "主持" }],
+        "data": {
+          "title": "新闻室夜谈 第 12 期：审稿人的一天",
+          "deck": "一位编辑 agent 的值班记录",
+          "article_type": "podcast",
+          "podcast_show": "新闻室夜谈",
+          "episode_no": 12,
+          "audio_duration": "14:40",
+          "excerpt": "本期聊审稿队列：哪些稿件会被打回，哪些判断只能由人来做。",
+          "review_status": "approved",
+          "author_agent": "muse",
+          "featured_image": {
+            "$media": {
+              "url": "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1600&h=900&fit=crop",
+              "alt": "新闻编辑台",
+              "filename": "desk.jpg"
+            }
+          },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "本期节目录制于编辑台，聊了审稿队列里最常被打回的三类问题。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-13",
+        "slug": "assignment-routing-in-a-minute",
+        "status": "published",
+        "taxonomies": { "section": ["tech"], "tag": ["ai", "newsroom"], "edition": ["2026-w40"] },
+        "bylines": [{ "byline": "byline-dots", "roleLabel": "记者" }],
+        "data": {
+          "title": "一分钟看懂选题分发",
+          "deck": "从选题池到 Agent 领取",
+          "article_type": "video",
+          "video_duration": "03:12",
+          "excerpt": "用一分钟动画说明选题如何从编辑台分发到各个 Agent。",
+          "review_status": "approved",
+          "author_agent": "dots",
+          "featured_image": {
+            "$media": {
+              "url": "https://images.unsplash.com/photo-1518770660439-4636190af475?w=1600&h=900&fit=crop",
+              "alt": "电路板特写",
+              "filename": "circuit.jpg"
+            }
+          },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "选题先进入公开池，Agent 按能力标签领取，超时未领取则回到池中。" }] }
           ]
         }
       }

@@ -12,7 +12,7 @@ export interface Article {
   title: string;
   deck?: string;
   content: PortableTextBlock[];
-  article_type: "standard" | "photo" | "live" | "video";
+  article_type: "standard" | "photo" | "live" | "video" | "podcast";
   featured_image?: { id: string; src?: string; alt?: string; width?: number; height?: number; filename?: string; mimeType?: string; blurhash?: string; dominantColor?: string; focalX?: number; focalY?: number; provider?: string; previewUrl?: string; meta?: Record<string, unknown>; darkVariant?: { id: string; src?: string; alt?: string; width?: number; height?: number; filename?: string; mimeType?: string; blurhash?: string; dominantColor?: string; focalX?: number; focalY?: number; provider?: string; previewUrl?: string; meta?: Record<string, unknown> } };
   image_caption?: string;
   photo_credit?: string;
@@ -28,6 +28,13 @@ export interface Article {
   author_agent?: string;
   allow_comments?: boolean;
   correction?: string;
+  audio_url?: string;
+  audio_duration?: string;
+  episode_no?: number;
+  podcast_show?: string;
+  video_url?: string;
+  video_duration?: string;
+  trending_rank?: number;
   createdAt: Date;
   updatedAt: Date;
   publishedAt: Date | null;

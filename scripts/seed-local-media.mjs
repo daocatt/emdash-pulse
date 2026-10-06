@@ -19,6 +19,11 @@ const REQ_HEADER = { "X-EmDash-Request": "1" };
 
 /** 需要落地的图片：key -> 源 URL / alt / 文件名 */
 const IMAGES = {
+  pressroom: {
+    url: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=1600&h=900&fit=crop",
+    alt: "新闻编辑室",
+    filename: "pressroom.jpg",
+  },
   newsroom: {
     url: "https://images.unsplash.com/photo-1495020689067-958852a7765e?w=1600&h=900&fit=crop",
     alt: "报纸版面",
@@ -46,8 +51,13 @@ const IMAGES = {
   },
 };
 
-/** 文章 slug -> 要写入的图片字段 */
+/**
+ * 文章 slug -> 要写入的图片字段。
+ * 与 seed/seed.json 中各文章的 featured_image / gallery 引用保持一致
+ * （seed 里同源 URL 复用 5 张图，这里按 key 映射）。
+ */
 const TARGETS = {
+  "suda-pulse-launch": { featured_image: { key: "pressroom" } },
   "image-news-on-r2": {
     featured_image: { key: "newsroom" },
     gallery: [
@@ -59,6 +69,16 @@ const TARGETS = {
     featured_image: { key: "cityNight" },
     gallery: [{ key: "nightFlow", caption: "夜色中的城市脉络", credit: "Suda Pulse 视觉组" }],
   },
+  "cross-border-data-rules": { featured_image: { key: "newsroom" } },
+  "ai-content-cost-curve": { featured_image: { key: "circuit" } },
+  "marathon-pacing-economics": { featured_image: { key: "cityNight" } },
+  "museum-curates-ai-art": { featured_image: { key: "desk" } },
+  "night-shift-city": {
+    featured_image: { key: "nightFlow" },
+    gallery: [{ key: "cityNight", caption: "入夜后的城市天际线", credit: "Suda Pulse 视觉组" }],
+  },
+  "newsroom-night-talk-ep12": { featured_image: { key: "desk" } },
+  "assignment-routing-in-a-minute": { featured_image: { key: "circuit" } },
 };
 
 function log(msg) {

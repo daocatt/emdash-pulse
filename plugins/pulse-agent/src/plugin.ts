@@ -131,7 +131,7 @@ const submitInput = z.object({
 	body: z.string().max(200_000).optional(),
 	section: z.string().trim().max(64).optional(),
 	tags: z.array(z.string().trim().min(1).max(64)).max(20).optional(),
-	article_type: z.enum(["standard", "photo", "live", "video"]).optional(),
+	article_type: z.enum(["standard", "photo", "live", "video", "podcast"]).optional(),
 	priority: z.enum(["lead", "high", "normal"]).optional(),
 	source: z.string().trim().max(200).optional(),
 	source_url: z.string().url().max(1000).optional(),
