@@ -411,7 +411,7 @@ const { entries: articles } = await getEmDashCollection("articles", {
 | P3 | pulse-news 外壳与杂志头版 | `363606e`、`6fd1c04` |
 | P4 | 内容模型扩展（podcast / video / trending）+ 重建本地库 | `75349b4`、`f26d9a6`、`d5ec0de` |
 | P5 | 两套主题的其余 13 个页面 + news-factory 页面本地化 | `be99ddf`、`822a18c`、`ef73de1`、`f37c9b2`、`d9a73db` |
-| P6 | 本文档（由 `04-frontend-newspaper.md` 改写）+ 其他文档同步 | — |
+| P6 | 本文档（由 `04-frontend-newspaper.md` 改写）+ 其他文档同步 | `6de24ff`、`043b5d2` |
 
 ### 与原设计的偏差
 
