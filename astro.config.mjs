@@ -56,6 +56,15 @@ export default defineConfig({
 	image: {
 		layout: "constrained",
 		responsiveStyles: true,
+		// EmDash 的 `<Image>` 把同源媒体路径（`/_emdash/api/media/file/...`）
+		// 解析成绝对 URL 后交给 Astro 的 image service 生成 srcset。Astro 只对
+		// 绝对 http(s) URL 做变换，且要求 origin 在 remotePatterns 白名单内，
+		// 否则生产环境会静默退回原图（srcset 各档位指向同一张全尺寸图）。
+		remotePatterns: [
+			{ protocol: "http", hostname: "localhost" },
+			{ protocol: "http", hostname: "127.0.0.1" },
+			{ protocol: "https", hostname: "ai.suda.im" },
+		],
 	},
 	integrations: [react(), emdash(emdashConfig)],
 	devToolbar: { enabled: false },

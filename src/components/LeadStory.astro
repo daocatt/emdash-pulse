@@ -1,6 +1,7 @@
 ---
+import { Image } from "emdash/ui";
 import type { ArticleEntry } from "../utils/types";
-import { resolveMediaUrl, resolveMediaAlt } from "../utils/media";
+import { resolveMediaAlt } from "../utils/media";
 import { formatDate } from "../utils/format";
 import Byline from "./Byline.astro";
 
@@ -12,16 +13,20 @@ interface Props {
 const { article, class: className } = Astro.props;
 const data = article.data;
 const href = `/articles/${article.id}`;
-const image = resolveMediaUrl(data.featured_image);
 const alt = resolveMediaAlt(data.featured_image, data.title);
 const section = data.terms?.section?.[0];
 const isPhoto = data.article_type === "photo";
 ---
 
 <article class:list={["lead-story", className]}>
-	{image && (
+	{data.featured_image && (
 		<a class="lead-story__media" href={href} tabindex="-1" aria-hidden="true">
-			<img src={image} alt={alt} loading="eager" decoding="async" fetchpriority="high" />
+			<Image
+				image={data.featured_image}
+				alt={alt}
+				priority
+				sizes="(min-width: 900px) 58vw, 100vw"
+			/>
 			{data.image_caption && <span class="lead-story__caption">{data.image_caption}</span>}
 		</a>
 	)}

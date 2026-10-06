@@ -1,6 +1,7 @@
 ---
+import { Image } from "emdash/ui";
 import type { ArticleEntry } from "../utils/types";
-import { resolveMediaUrl, resolveMediaAlt, resolveGallery } from "../utils/media";
+import { resolveMediaAlt, resolveGallery } from "../utils/media";
 
 interface Props {
 	articles: ArticleEntry[];
@@ -17,7 +18,7 @@ const cards = articles.map((article) => {
 	return {
 		article,
 		href: `/articles/${article.id}`,
-		image: resolveMediaUrl(data.featured_image) ?? gallery[0]?.url ?? null,
+		image: data.featured_image ?? data.gallery?.[0]?.image ?? null,
 		alt: resolveMediaAlt(data.featured_image, data.title),
 		title: data.title,
 		caption: data.image_caption ?? data.deck ?? null,
@@ -38,7 +39,14 @@ const cards = articles.map((article) => {
 				<a class:list={["photo-grid__card", index === 0 && "photo-grid__card--feature"]} href={card.href}>
 					<div class="photo-grid__media">
 						{card.image ? (
-							<img src={card.image} alt={card.alt} loading={index === 0 ? "eager" : "lazy"} decoding="async" />
+							<Image
+								image={card.image}
+								alt={card.alt}
+								priority={index === 0}
+								sizes={index === 0
+									? "(min-width: 1000px) 66vw, (min-width: 700px) 50vw, 100vw"
+									: "(min-width: 1000px) 33vw, (min-width: 700px) 50vw, 100vw"}
+							/>
 						) : (
 							<div class="photo-grid__placeholder" aria-hidden="true"></div>
 						)}

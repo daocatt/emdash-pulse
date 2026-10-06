@@ -7,6 +7,8 @@
  *   - repeater 子字段 `{ image, caption, credit }`
  */
 
+import type { ImageValue } from "emdash";
+
 export interface MediaLike {
 	id?: string;
 	src?: string;
@@ -46,7 +48,10 @@ export function resolveMediaAlt(input: unknown, fallback = ""): string {
 
 /** 图集项：兼容 `{ image, caption, credit }` 与裸图片对象。 */
 export interface GalleryItem {
+	/** 解析后的 URL，用于灯箱大图。 */
 	url: string;
+	/** 原始媒体值，交给 `emdash/ui` 的 `<Image>` 生成响应式 srcset。 */
+	image: ImageValue | string | null;
 	alt: string;
 	caption?: string;
 	credit?: string;
@@ -59,9 +64,10 @@ export function resolveGallery(gallery: unknown): GalleryItem[] {
 		const url = resolveMediaUrl(raw);
 		if (!url) continue;
 		const record = (raw ?? {}) as Record<string, unknown>;
-		const image = record.image ?? raw;
+		const image = (record.image ?? raw) as ImageValue | string | null;
 		items.push({
 			url,
+			image,
 			alt: resolveMediaAlt(image, (record.caption as string) ?? ""),
 			caption: typeof record.caption === "string" ? record.caption : undefined,
 			credit: typeof record.credit === "string" ? record.credit : undefined,

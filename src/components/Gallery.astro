@@ -1,4 +1,5 @@
 ---
+import { Image } from "emdash/ui";
 import type { GalleryItem } from "../utils/media";
 
 interface Props {
@@ -25,7 +26,11 @@ const { items, groupId, class: className } = Astro.props;
 					data-lightbox-group={groupId}
 					aria-label={`查看第 ${index + 1} 张图片`}
 				>
-					<img src={item.url} alt={item.alt} loading="lazy" decoding="async" />
+					<Image
+						image={item.image}
+						alt={item.alt}
+						sizes="(min-width: 1000px) 33vw, (min-width: 640px) 50vw, 100vw"
+					/>
 				</button>
 				{(item.caption || item.credit) && (
 					<figcaption class="gallery__caption">

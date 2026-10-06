@@ -1,6 +1,7 @@
 ---
+import { Image } from "emdash/ui";
 import type { ArticleEntry } from "../utils/types";
-import { resolveMediaUrl, resolveMediaAlt } from "../utils/media";
+import { resolveMediaAlt } from "../utils/media";
 import { formatDate } from "../utils/format";
 import Byline from "./Byline.astro";
 
@@ -17,16 +18,19 @@ const { article, showImage = false, headingLevel = "h3", size = "md", class: cla
 const data = article.data;
 const section = data.terms?.section?.[0];
 const href = `/articles/${article.id}`;
-const image = resolveMediaUrl(data.featured_image);
 const alt = resolveMediaAlt(data.featured_image, data.title);
 const publishedAt = data.publishedAt ?? data.createdAt;
 const Heading = headingLevel;
 ---
 
 <article class:list={["story-card", `story-card--${size}`, className]}>
-	{showImage && image && (
+	{showImage && data.featured_image && (
 		<a class="story-card__media" href={href} tabindex="-1" aria-hidden="true">
-			<img src={image} alt={alt} loading="lazy" decoding="async" />
+			<Image
+				image={data.featured_image}
+				alt={alt}
+				sizes="(min-width: 1000px) 33vw, (min-width: 640px) 50vw, 100vw"
+			/>
 		</a>
 	)}
 

@@ -6,7 +6,7 @@ import {
 	getSeoMeta,
 	decodeSlug,
 } from "emdash";
-import { PortableText, WidgetArea } from "emdash/ui";
+import { Image, PortableText, WidgetArea } from "emdash/ui";
 import { Comments, CommentForm } from "emdash/ui/comments";
 import Base from "../../layouts/Base.astro";
 import Byline from "../../components/Byline.astro";
@@ -102,9 +102,14 @@ const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ??
 					{data.deck && <p class="article__deck">{data.deck}</p>}
 				</header>
 
-				{image && (
+				{data.featured_image && (
 					<figure class="article__hero">
-						<img src={image} alt={imageAlt} loading="eager" decoding="async" fetchpriority="high" />
+						<Image
+							image={data.featured_image}
+							alt={imageAlt}
+							priority
+							sizes="(min-width: 900px) 680px, 100vw"
+						/>
 						{(data.image_caption || data.photo_credit) && (
 							<figcaption>
 								{data.image_caption}
