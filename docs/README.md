@@ -24,6 +24,7 @@
 | [09-agent-newsroom.md](./09-agent-newsroom.md) | **Agent 新闻室**：选题分发、Author/Editor agent、Agent Read API |
 | [10-phase0-report.md](./10-phase0-report.md) | **实施报告**：Spike 结论、Phase 1/2/3/4 进展、关键发现（含踩坑） |
 | [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md) | **Phase 3 报告**：评论审核（规则 + AI）与读者订阅（`pulse-subscriptions`） |
+| [12-operations.md](./12-operations.md) | **运营手册**：角色职责、巡检清单、编辑流程 SOP、Agent 投稿规范、评论/订阅规范、异常处理 |
 
 ---
 
@@ -40,6 +41,7 @@
 - **Phase 3**：评论审核（`pulse-review` 独占 `comment:moderate`：规则引擎 + Workers AI，失败降级不自动通过）✅；评论主题（`--ec-*`）✅；**自研 `pulse-subscriptions`**（双确认 / 退订 / 订阅者管理 + 后台页 + MCP）✅；订阅前台（`SubscribeForm` + `/subscribe`、`/subscribe/confirm`、`/subscribe/unsubscribe`）✅。Resend 真实投递待凭证（未配置时落库 `pendingEmail`）。
 - **Phase 5a（SEO 复核）**：新增**可信插件 `pulse-seo`**（`page:metadata`）统一 JSON-LD，文章页由 2 → 1 个 `ld+json`（`NewsArticle`）✅；`/sitemap.xml` 覆盖并补 `sitemap-sections.xml`/`sitemap-tags.xml` ✅；`/robots.txt` 覆盖并 `Disallow: /spike/` ✅；文章页 `og:image` 回退题图 ✅。插件测试合计 **109**。
 - **Phase 5b（性能）**：全站图片改用 `emdash/ui` 的 `<Image>`（`srcset` 640–3200w、按栅格给出 `sizes`、`width`/`height`、WebP、LQIP），首屏图 `priority` ✅；新增 `image.remotePatterns` 修复**生产环境** srcset 退化为原图 ✅；字体维持系统栈（公开页 0 字体请求）✅；顺带修 `seed-local-media.mjs`（PUT 覆盖导致图片进不了 live）与 dev watcher（`uploads/` 触发重启）。
+- **Phase 5c（运营文档）**：新增 [12-operations.md](./12-operations.md) —— 角色职责、每日/周/月巡检清单、编辑流程 SOP（选题→跟稿→审稿→发布→更正）、Agent 投稿规范（字段约束/正文/图片/来源/禁则/审稿清单）、评论与订阅规范、异常处理、权限红线与工具速查。
 - 详见 [10-phase0-report.md](./10-phase0-report.md) 与 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)（含每阶段关键发现与踩坑）。
 
 ---

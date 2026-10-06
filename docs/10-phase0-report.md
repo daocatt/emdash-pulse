@@ -24,6 +24,7 @@
 | **Phase 3** | 评论审核（规则 + AI）+ 读者订阅（`pulse-subscriptions`） | ✅ **完成**（见下，详见 `11-phase3-comments-subscriptions.md`） |
 | **Phase 5a** | SEO 复核（JSON-LD 去重 + sitemap 补分类 + robots 覆盖） | ✅ **完成**（见下） |
 | **Phase 5b** | 性能（全站响应式图片 + LCP/CLS；字体维持系统栈） | ✅ **完成**（见下） |
+| **Phase 5c** | 运营文档（[12-operations.md](./12-operations.md)：编辑流程 / 投稿规范 / 评论与订阅规范） | ✅ **完成** |
 
 ## Phase 1 结果（内容模型与后台）
 

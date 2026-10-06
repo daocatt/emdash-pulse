@@ -125,7 +125,7 @@
 - [ ] 关闭 dev-bypass；配置 `EMDASH_SITE_URL=https://ai.suda.im`；备份 `EMDASH_ENCRYPTION_KEY`。
 - [ ] 备份策略：`npx emdash site export` 定期导出。
 - [ ] 监控告警（observability）。
-- [ ] 运营文档：编辑流程、agent 投稿规范、评论规范。
+- [x] **运营文档**：新增 [12-operations.md](./12-operations.md) —— 角色职责与红线、每日/周/月巡检清单、编辑流程 SOP（选题分发→跟稿→审稿→发布→更正）、Agent 投稿规范（字段约束、正文格式、图片、来源、禁则、审稿通过清单）、评论审核规范、订阅规范、异常处理速查、入口与 MCP 工具速查。
 
 **验收**：生产站点上线；定时发布、摘要邮件、agent 投稿正常；备份与监控就绪。
 
