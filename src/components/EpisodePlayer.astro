@@ -1,0 +1,131 @@
+---
+/**
+ * 播客 / 视频播放块（两套主题共用，靠令牌换肤）。
+ *
+ * 有真实 `src` 时渲染原生 `<audio>` / `<video>`；否则退化为装饰播放条 + 时长，
+ * 与设计稿的观感保持一致（seed 目前没有音频 / 视频文件，字段可能为空）。
+ */
+import { getTranslations } from "../i18n";
+
+interface Props {
+	kind: "podcast" | "video";
+	/** 音频 / 视频地址；为空时走装饰态。 */
+	src?: string | null;
+	/** 时长文案，如 `"14:40"`。 */
+	duration?: string | null;
+	/** 播客栏目名。 */
+	showName?: string | null;
+	/** 播客期号。 */
+	episodeNo?: number | null;
+	/** 用于无障碍标签的标题。 */
+	title: string;
+	class?: string;
+}
+
+const { kind, src, duration, showName, episodeNo, title, class: className } = Astro.props;
+const { t } = getTranslations(Astro);
+
+const label = kind === "podcast" ? t("pn.podcast") : t("nf.playVideo");
+const hasSource = typeof src === "string" && src.trim().length > 0;
+---
+
+<figure class:list={["player", `player--${kind}`, className]} aria-label={`${label}：${title}`}>
+	{hasSource ? (
+		kind === "podcast" ? (
+			<audio class="player__native" controls preload="none" src={src}></audio>
+		) : (
+			<video class="player__native player__native--video" controls preload="metadata" src={src}></video>
+		)
+	) : (
+		<span class="player__decor" aria-hidden="true">
+			<span class="player__play">
+				<svg viewBox="0 0 12 12"><path d="M2 1.2 10.4 6 2 10.8Z" fill="currentColor" /></svg>
+			</span>
+			<span class="player__track"><span class="player__fill" /></span>
+		</span>
+	)}
+
+	<figcaption class="player__meta">
+		{showName && <span class="player__show">{showName}</span>}
+		{typeof episodeNo === "number" && <span class="player__episode">{t("pn.podcast")} #{episodeNo}</span>}
+		{duration && <span class="player__duration">{duration}</span>}
+	</figcaption>
+</figure>
+
+<style>
+	.player {
+		margin: var(--spacing-8) 0;
+		padding: var(--spacing-5) var(--spacing-6);
+		background: var(--color-bg-subtle);
+		border-radius: var(--radius);
+	}
+
+	.player__native {
+		display: block;
+		width: 100%;
+	}
+
+	.player__native--video {
+		aspect-ratio: 16 / 9;
+		background: #000;
+		border-radius: var(--radius);
+	}
+
+	.player__decor {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-4);
+	}
+
+	.player__play {
+		flex: none;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 2.75rem;
+		height: 2rem;
+		background: var(--color-text);
+		color: var(--color-bg);
+		border-radius: var(--radius);
+	}
+
+	.player__play svg {
+		width: 0.75rem;
+		height: 0.75rem;
+	}
+
+	.player__track {
+		flex: 1;
+		height: 4px;
+		background: var(--color-border);
+		border-radius: 2px;
+		overflow: hidden;
+	}
+
+	.player__fill {
+		display: block;
+		width: 32%;
+		height: 100%;
+		background: var(--color-brand);
+	}
+
+	.player__meta {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: var(--spacing-4);
+		margin-top: var(--spacing-4);
+		font-size: var(--font-size-xs);
+		color: var(--color-muted);
+	}
+
+	.player__show {
+		font-weight: var(--font-weight-heading);
+		color: var(--color-text);
+	}
+
+	.player__duration {
+		margin-left: auto;
+		font-variant-numeric: tabular-nums;
+	}
+</style>
