@@ -48,11 +48,16 @@
 | `correction` | 更正说明 | text | | | 已发布勘误 |
 
 ### select 选项
+
+选项**必须**放在 `validation.options`（不是字段顶层 `options`）：
+
 ```json
-"article_type":  { "options": ["standard", "photo", "live", "video"] }
-"review_status": { "options": ["draft", "pending_review", "approved", "rejected"] }
-"priority":      { "options": ["lead", "high", "normal"] }
+"article_type":  { "validation": { "options": ["standard", "photo", "live", "video"] } }
+"review_status": { "validation": { "options": ["draft", "pending_review", "approved", "rejected"] } }
+"priority":      { "validation": { "options": ["lead", "high", "normal"] } }
 ```
+
+> EmDash 只从 `validation.options` 读取 select 选项（zod 写入校验、后台下拉选项、`emdash types` 生成的字面量联合类型）。写在顶层 `options` 会被 `applySeed` 存进 `_emdash_fields.options` 列，而**没有任何代码读那一列** → 后台下拉空白、校验退化为任意字符串、生成的类型退化为 `string`。
 
 ### 集合定义（seed 片段）
 ```json
@@ -67,7 +72,7 @@
     { "slug": "title", "label": "标题", "type": "string", "required": true, "searchable": true },
     { "slug": "deck", "label": "导语", "type": "text", "searchable": true },
     { "slug": "content", "label": "正文", "type": "portableText", "required": true, "searchable": true },
-    { "slug": "article_type", "label": "稿件类型", "type": "select", "required": true, "options": ["standard","photo","live","video"] },
+    { "slug": "article_type", "label": "稿件类型", "type": "select", "required": true, "validation": { "options": ["standard","photo","live","video"] } },
     { "slug": "featured_image", "label": "主图", "type": "image" },
     { "slug": "image_caption", "label": "图片说明", "type": "string" },
     { "slug": "photo_credit", "label": "摄影署名", "type": "string" },
@@ -80,13 +85,13 @@
       ] }
     },
     { "slug": "excerpt", "label": "摘要", "type": "text", "searchable": true },
-    { "slug": "review_status", "label": "审核状态", "type": "select", "required": true, "options": ["draft","pending_review","approved","rejected"] },
+    { "slug": "review_status", "label": "审核状态", "type": "select", "required": true, "validation": { "options": ["draft","pending_review","approved","rejected"] } },
     { "slug": "review_note", "label": "审核意见", "type": "text" },
     { "slug": "source", "label": "来源", "type": "string", "searchable": true },
     { "slug": "source_url", "label": "原文链接", "type": "url" },
     { "slug": "is_breaking", "label": "突发", "type": "boolean" },
     { "slug": "is_featured", "label": "头条候选", "type": "boolean" },
-    { "slug": "priority", "label": "版面权重", "type": "select", "options": ["lead","high","normal"] },
+    { "slug": "priority", "label": "版面权重", "type": "select", "validation": { "options": ["lead","high","normal"] } },
     { "slug": "author_agent", "label": "作者 Agent", "type": "string" },
     { "slug": "allow_comments", "label": "允许评论", "type": "boolean" },
     { "slug": "correction", "label": "更正说明", "type": "text" }
@@ -94,7 +99,7 @@
 }
 ```
 
-> `select` 选项键名（`options` / `choices`）与 `repeater.validation.subFields` 以实际 schema 为准，实施时用 `npx emdash schema get articles` 校验。
+> `select` 选项固定在 `validation.options`，`repeater` 子字段固定在 `validation.subFields`（见上文）。改动字段定义后需删库重建或手动更新 `_emdash_fields`（`applySeed` 对已存在的集合整段跳过，含字段）。
 
 ---
 
@@ -117,7 +122,7 @@
   "supports": ["drafts", "revisions", "seo"],
   "fields": [
     { "slug": "title", "label": "期号标题", "type": "string", "required": true, "searchable": true },
-    { "slug": "period_type", "label": "周期", "type": "select", "required": true, "options": ["month","week"] },
+    { "slug": "period_type", "label": "周期", "type": "select", "required": true, "validation": { "options": ["month","week"] } },
     { "slug": "year", "label": "年", "type": "integer", "required": true },
     { "slug": "period_no", "label": "期序", "type": "integer", "required": true },
     { "slug": "cover_image", "label": "封面", "type": "image" },

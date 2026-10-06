@@ -43,6 +43,7 @@
 - **Phase 5a（SEO 复核）**：新增**可信插件 `pulse-seo`**（`page:metadata`）统一 JSON-LD，文章页由 2 → 1 个 `ld+json`（`NewsArticle`）✅；`/sitemap.xml` 覆盖并补 `sitemap-sections.xml`/`sitemap-tags.xml` ✅；`/robots.txt` 覆盖并 `Disallow: /spike/` ✅；文章页 `og:image` 回退题图 ✅。插件测试合计 **116**。
 - **Phase 5b（性能）**：全站图片改用 `emdash/ui` 的 `<Image>`（`srcset` 640–3200w、按栅格给出 `sizes`、`width`/`height`、WebP、LQIP），首屏图 `priority` ✅；新增 `image.remotePatterns` 修复**生产环境** srcset 退化为原图 ✅；字体维持系统栈（公开页 0 字体请求）✅；顺带修 `seed-local-media.mjs`（PUT 覆盖导致图片进不了 live）与 dev watcher（`uploads/` 触发重启）。
 - **Phase 5c（运营文档）**：新增 [12-operations.md](./12-operations.md) —— 角色职责、每日/周/月巡检清单、编辑流程 SOP（选题→跟稿→审稿→发布→更正）、Agent 投稿规范（字段约束/正文/图片/来源/禁则/审稿清单）、评论与订阅规范、异常处理、权限红线与工具速查。
+- **Phase 5d（后台缺陷修复）**：① `select` 选项改到 `validation.options` —— 原先写在字段顶层，导致后台「稿件类型」下拉空白、写入校验退化为任意字符串、生成类型退化为 `string`（影响 6 个字段）✅；② `@emdash-cms/plugin-audit-log@0.2.3` 的 `/history` 页 Block Kit 字段名打补丁（camelCase → snake_case），修掉整页 502 `INVALID_BLOCK_RESPONSE`，由根 `postinstall` 固化 ✅。
 - 详见 [10-phase0-report.md](./10-phase0-report.md) 与 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)（含每阶段关键发现与踩坑）。
 
 ---

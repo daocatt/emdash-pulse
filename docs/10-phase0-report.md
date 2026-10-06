@@ -26,6 +26,7 @@
 | **Phase 5a** | SEO 复核（JSON-LD 去重 + sitemap 补分类 + robots 覆盖） | ✅ **完成**（见下） |
 | **Phase 5b** | 性能（全站响应式图片 + LCP/CLS；字体维持系统栈） | ✅ **完成**（见下） |
 | **Phase 5c** | 运营文档（[12-operations.md](./12-operations.md)：编辑流程 / 投稿规范 / 评论与订阅规范） | ✅ **完成** |
+| **Phase 5d** | 后台缺陷修复（select 选项位置 → 下拉空白；audit-log Block Kit → 502） | ✅ **完成**（见下） |
 
 ## Phase 1 结果（内容模型与后台）
 
@@ -237,6 +238,53 @@ node scripts/agent-e2e.mjs   # 需 dev server 运行中；BASE_URL 可覆盖
 
 - `scripts/seed-local-media.mjs`：PUT 改为「先 GET 完整 data → 合并图片字段 → PUT」，并在 `gallery` 里剔除 `image: null` 项。原先只 PUT 图片字段会**整体替换** draft revision、清掉 `review_status` → 被发布门禁拒绝 → 图片只留在 draft、条目行仍无图。
 - `astro.config.mjs`：`vite.server.watch.ignored: ["**/uploads/**"]`。
+
+## Phase 5d 结果（后台缺陷修复）
+
+两个都是**只在后台暴露**的缺陷，根因都不在本项目代码里。
+
+### 1. select 字段的选项写在错误位置 → 后台下拉空白
+
+| 项 | 状态 | 证据 |
+| --- | :-: | --- |
+| 现象 | — | 后台文章编辑页「稿件类型」下拉**一个选项都没有** |
+| 根因 | — | seed 把选项写在字段顶层 `options`；EmDash **只读 `validation.options`** |
+| 修复 | ✅ | 6 个 select 字段（`article_type`/`review_status`/`priority`/`period_type`/`task_status`/`priority`）移入 `validation.options`；本地库同步 `_emdash_fields` |
+| 验证 | ✅ | `GET /_emdash/api/schema/collections/articles/fields` 返回 `"validation":{"options":["standard","photo","live","video"]}`；`emdash-env.d.ts` 由 `string` 变为字面量联合类型 |
+
+**影响面远大于"下拉空白"**——`options` 的位置同时决定三件事：
+
+1. **后台下拉选项**：admin 序列化只读 `field.validation.options`（`api-CltsXhiX.mjs:2353`），顶层 `options` 列**无人读取**。
+2. **写入校验**：`zod-generator.ts:121` 在 `validation.options` 为空时 fallback 到 `z.string()` → 任何字符串都能通过，`article_type: "随便写"` 也能存进库。
+3. **生成的 TS 类型**：`zod-generator.ts:599` 同样 fallback → `emdash-env.d.ts` 退化为 `string`，字面量联合类型丢失（`astro check` 也就查不出非法值）。
+
+**改 seed 不会同步到已建库**：`applySeed` 用 `onConflict: "skip"`，集合已存在时**整段跳过（含字段）**。本次直接 `UPDATE _emdash_fields SET validation = ..., options = NULL`；删库重建亦可（生产库尚未部署，从修好的 seed 重建即可）。
+
+### 2. Audit History 整页 502 `INVALID_BLOCK_RESPONSE`
+
+| 项 | 状态 | 证据 |
+| --- | :-: | --- |
+| 现象 | — | 后台 Audit History 显示「插件响应：502 … `INVALID_BLOCK_RESPONSE`」 |
+| 根因 | — | `@emdash-cms/plugin-audit-log@0.2.3` 的 `/history` 页**手写** `table` block 用了 camelCase 字段名，而 `@emdash-cms/blocks@1.1.0` 的校验器要求 snake_case；缺必填的 `page_action_id` → `validateBlockResponse` 失败 → 宿主包成 502 |
+| 修复 | ✅ | `scripts/patch-audit-log.mjs`（幂等；根 `postinstall` 自动执行；上游修复后自动跳过） |
+| 验证 | ✅ | `validateBlockResponse` 对三种交互（`page_load` / 翻页 `block_action` / dashboard widget）全绿；dev 重启后 `POST /_emdash/api/plugins/audit-log/admin` → **200** 且返回合法 blocks |
+
+字段名对照：
+
+| 插件实际写出（camelCase） | 协议要求（snake_case） | 后果 |
+| --- | --- | --- |
+| `pageActionId` | `page_action_id` | **必填缺失 → 整页 502** |
+| `blockId` | `block_id` | 静默失效（block 无 id） |
+| `nextCursor` | `next_cursor` | 静默失效（**翻页坏掉**） |
+| `emptyText` | `empty_text` | 静默失效（空态无文案） |
+
+### Phase 5d 新增关键发现
+
+1. **Block Kit 的协议字段名是 snake_case**，而 builder 函数（`blocks.table({ blockId, pageActionId, ... })`）接受 camelCase 并**替你转换**。插件绕过 builder 直接写字面量就会踩到。
+2. **校验器不拒绝未知属性，只检查已知字段**：写错名字不报错、只是静默失效；只有必填字段缺失才让整页 502。所以「页面没报错但功能不对」也是同一类问题。
+3. **上游最新版（0.2.3）未修**，且 npm 包只发布构建产物、不含源码 → 只能在 `node_modules` 就地改，用 `postinstall` 固化（`patch-package` 之外的轻量做法）。
+4. **沙箱插件源码在 dev 启动时读入并被 Vite 缓存**（Vite 不监听 `node_modules`）→ 改完插件**必须重启 dev** 才生效；`emdash-env.d.ts` 同理，只在 dev 启动时重新生成。
+5. **schema 改动可以热生效**：改 `_emdash_fields` 后 `/_emdash/api/schema/...` 立即返回新值，无需重启。
 
 ## Phase 3 结果（评论与邮件订阅）
 

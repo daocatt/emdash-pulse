@@ -52,6 +52,9 @@ HOME=~/.wrangler-a npm run deploy # 构建并部署到 Cloudflare
 - **`ctx.content.update` 是 draft-aware**：集合支持 `revisions` 时改的是**草稿修订**，`ctx.content.get`/`list` 读的是**条目行**（要 `publish` 才更新）。审核类流程若只 `update`，队列会读到旧值 → 需用 `content:revisions:read` + `listRevisions` 读最新修订。
 - 本地沙箱 runner 用 `@emdash-cms/sandbox-workerd`（需 `workerd`），生产用 `@emdash-cms/cloudflare` 的 `sandbox()`。
 - 调 REST API 时写请求需 `X-EmDash-Request: 1` 头（CSRF）；更新内容用 `PUT`；**PUT 只写 draft revision**，已发布文章需再 `POST /publish` 才生效。
+- **`select` 字段的选项必须写在 `validation.options`**，不是字段顶层 `options`：EmDash 只从 `validation.options` 读取（zod 写入校验、后台下拉选项、`emdash types` 生成的字面量联合类型都依赖它，见 `zod-generator.ts` 与 admin 序列化）。写错位置 → 后台下拉空白、校验退化为任意字符串、`emdash-env.d.ts` 退化成 `string`。
+- **改 seed 的字段定义不会同步到已建库**：`applySeed` 用 `onConflict: "skip"`，集合已存在时**整段跳过（含字段）**。改字段要么删库重建，要么手动更新 `_emdash_fields`（`validation` 列）。
+- **`@emdash-cms/plugin-audit-log` 0.2.3 需要打补丁**：它的 `/history` 页手写 `table` block 用了 camelCase（`pageActionId` 等），而 `@emdash-cms/blocks@1.1.0` 要求 snake_case → 后台 Audit History 整页 502 `INVALID_BLOCK_RESPONSE`。根 `postinstall` 会自动跑 `scripts/patch-audit-log.mjs`（幂等；上游修复后自动跳过），`npm install` 后无需手动处理。
 
 ## Git
 
