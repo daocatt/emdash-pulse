@@ -25,7 +25,7 @@ const { t } = getTranslations(Astro);
 const settings = await getSiteSettings();
 const { siteTitle, siteTagline } = resolveSiteIdentity(settings);
 
-const [latestResult, leadResult, featuredResult, videoResult] = await Promise.all([
+const [latestResult, leadResult, featuredResult, videoResult, trendingResult] = await Promise.all([
 	getEmDashCollection("articles", { orderBy: { published_at: "desc" }, limit: 12 }),
 	getEmDashCollection("articles", {
 		where: { priority: "lead" },
@@ -42,6 +42,12 @@ const [latestResult, leadResult, featuredResult, videoResult] = await Promise.al
 		orderBy: { published_at: "desc" },
 		limit: 1,
 	}),
+	// 编辑部标的当日热度榜（trending_rank 为 indexed 字段）；`gte` 顺带排除未标记的 NULL
+	getEmDashCollection("articles", {
+		where: { trending_rank: { gte: "1" } },
+		orderBy: { trending_rank: "asc" },
+		limit: 5,
+	}),
 ]);
 
 if (Astro.cache?.enabled) {
@@ -49,6 +55,7 @@ if (Astro.cache?.enabled) {
 	Astro.cache.set(leadResult.cacheHint);
 	Astro.cache.set(featuredResult.cacheHint);
 	Astro.cache.set(videoResult.cacheHint);
+	Astro.cache.set(trendingResult.cacheHint);
 }
 
 const latest = latestResult.entries;
@@ -76,12 +83,18 @@ const fillers = latest.filter(
 );
 const more = [...unplaced, ...fillers].slice(0, 4);
 
-// 右栏「热门话题」：优先编辑部标了头条候选的稿子，凑不满 5 条时用最新稿补位
-// （P4 会引入 trending_rank，届时改为按该字段排序）。
+// 右栏「热门话题」：优先按编辑部标记的 trending_rank 升序，其次编辑推荐（is_featured），
+// 仍不足 5 条时用最新稿补位。
+const ranked = trendingResult.entries;
 const featured = featuredResult.entries;
 const trending = [
-	...featured,
-	...latest.filter((article) => !featured.some((entry) => entry.id === article.id)),
+	...ranked,
+	...featured.filter((entry) => !ranked.some((item) => item.id === entry.id)),
+	...latest.filter(
+		(article) =>
+			!ranked.some((item) => item.id === article.id) &&
+			!featured.some((entry) => entry.id === article.id),
+	),
 ].slice(0, 5);
 const latestFive = latest.slice(0, 5);
 ---
