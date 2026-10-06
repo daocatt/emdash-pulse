@@ -14,10 +14,13 @@ import ArticleMeta from "@shared/ArticleMeta.astro";
 import StoryCard from "../../components/StoryCard.astro";
 import Gallery from "@shared/Gallery.astro";
 import CorrectionNotice from "@shared/CorrectionNotice.astro";
+import EpisodePlayer from "@shared/EpisodePlayer.astro";
 import { resolveSiteIdentity } from "@utils/site-identity";
 import { resolveMediaUrl, resolveMediaAlt, resolveGallery } from "@utils/media";
 import { estimateReadingTime } from "@utils/format";
+import { getTranslations } from "../../../../i18n";
 
+const { t } = getTranslations(Astro);
 const slug = decodeSlug(Astro.params.slug);
 if (!slug) return Astro.redirect("/404");
 
@@ -38,6 +41,8 @@ const section = data.terms?.section?.[0] ?? null;
 const editionTerm = data.terms?.edition?.[0] ?? null;
 const tags = data.terms?.tag ?? [];
 const isPhoto = data.article_type === "photo";
+const mediaKind =
+	data.article_type === "podcast" ? "podcast" : data.article_type === "video" ? "video" : null;
 const gallery = resolveGallery(data.gallery);
 const image = resolveMediaUrl(data.featured_image);
 const imageAlt = resolveMediaAlt(data.featured_image, data.title);
@@ -84,14 +89,16 @@ const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ??
 >
 	<article class="container article">
 		<div class="article__grid">
-			<aside class="article__meta-col" aria-label="稿件信息">
+			<aside class="article__meta-col" aria-label={t("article.info")}>
 				<Byline bylines={data.bylines} authorAgent={data.author_agent} />
 				<ArticleMeta publishedAt={data.publishedAt} readingTime={readingTime} source={data.source} sourceUrl={data.source_url} />
 				{editionTerm && (
-					<a class="article__edition" href={`/editions/${editionTerm.slug}`}>本期：{editionTerm.label}</a>
+					<a class="article__edition" href={`/editions/${editionTerm.slug}`}>
+						{t("article.edition", { label: editionTerm.label })}
+					</a>
 				)}
 				{data.review_status === "approved" && (
-					<p class="article__review"><span class="article__review-dot"></span>已通过编辑审核</p>
+					<p class="article__review"><span class="article__review-dot"></span>{t("article.reviewed")}</p>
 				)}
 			</aside>
 
@@ -119,15 +126,28 @@ const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ??
 					</figure>
 				)}
 
+				{mediaKind && (
+					<EpisodePlayer
+						kind={mediaKind}
+						src={mediaKind === "podcast" ? data.audio_url : data.video_url}
+						duration={mediaKind === "podcast" ? data.audio_duration : data.video_duration}
+						showName={data.podcast_show}
+						episodeNo={data.episode_no}
+						title={data.title}
+					/>
+				)}
+
 				<div class="prose prose--lede" {...article.edit.content}>
 					<PortableText value={data.content} />
 				</div>
 
 				{gallery.length > 0 && (
-					<section class="article__gallery" aria-label="图集">
-						<h2 class="article__gallery-title">图集</h2>
+					<section class="article__gallery" aria-label={t("article.gallery")}>
+						<h2 class="article__gallery-title">{t("article.gallery")}</h2>
 						<Gallery items={gallery} groupId={`article-${article.id}`} />
-						{data.photo_credit && <p class="article__gallery-credit">摄影：{data.photo_credit}</p>}
+						{data.photo_credit && (
+							<p class="article__gallery-credit">{t("article.photoCredit", { name: data.photo_credit })}</p>
+						)}
 					</section>
 				)}
 
@@ -135,7 +155,7 @@ const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ??
 
 				{tags.length > 0 && (
 					<footer class="article__tags">
-						<span class="article__tags-label">标签</span>
+						<span class="article__tags-label">{t("article.tags")}</span>
 						{tags.map((tag) => (
 							<a class="article__tag" href={`/tags/${tag.slug}`}>{tag.label}</a>
 						))}
@@ -143,18 +163,18 @@ const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ??
 				)}
 			</div>
 
-			<aside class="article__aside" aria-label="侧栏">
+			<aside class="article__aside" aria-label={t("article.aside")}>
 				<WidgetArea name="article-aside" />
 			</aside>
 		</div>
 
 		{isPhoto && gallery.length === 0 && (
-			<p class="article__note">本篇为图片新闻，图集待补充。</p>
+			<p class="article__note">{t("article.photoNote")}</p>
 		)}
 
 		{data.allow_comments !== false && (
 			<section class="article__comments" id="comments">
-				<h2 class="article__comments-title">评论</h2>
+				<h2 class="article__comments-title">{t("article.comments")}</h2>
 				<div class="article__comment-form">
 					<CommentForm collection="articles" contentId={data.id} />
 				</div>
@@ -163,8 +183,8 @@ const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ??
 		)}
 
 		{related.length > 0 && (
-			<section class="article__related" aria-label="相关报道">
-				<h2 class="article__related-title">相关报道</h2>
+			<section class="article__related" aria-label={t("article.related")}>
+				<h2 class="article__related-title">{t("article.related")}</h2>
 				<div class="article__related-grid">
 					{related.map((entry) => (
 						<StoryCard article={entry} showImage size="sm" headingLevel="h3" />

@@ -8,9 +8,11 @@ import { monthRange, isValidMonth } from "@utils/date-range";
 import { getArchiveIndex } from "@utils/archive";
 import { buildMonthNav } from "@utils/archive-nav";
 import { formatMonthLabel } from "@utils/format";
+import { getTranslations } from "../../../../../i18n";
 
 const PER_PAGE = 20;
 
+const { locale, t } = getTranslations(Astro);
 const year = Number.parseInt(Astro.params.year ?? "", 10);
 const month = Number.parseInt(Astro.params.month ?? "", 10);
 if (!Number.isInteger(year) || !isValidMonth(month)) return Astro.redirect("/archive");
@@ -34,14 +36,15 @@ if (Astro.cache?.enabled) {
 }
 
 const nav = buildMonthNav(year, month, archive);
-const title = `${formatMonthLabel(year, month)} · 归档`;
+const monthLabel = formatMonthLabel(year, month, locale);
+const title = t("archive.monthTitle", { label: monthLabel });
 ---
 
-<Base title={title} pageTitle={title} description={`${formatMonthLabel(year, month)}发布的全部报道`} canonical={`${Astro.url.origin}/archive/${year}/${month}`}>
+<Base title={title} pageTitle={title} description={t("archive.monthDescription", { label: monthLabel })} canonical={`${Astro.url.origin}/archive/${year}/${month}`}>
 	<div class="container month-archive">
 		<header class="month-archive__header">
-			<span class="kicker">按月归档</span>
-			<h1 class="month-archive__title">{formatMonthLabel(year, month)}</h1>
+			<span class="kicker">{t("archive.monthKicker")}</span>
+			<h1 class="month-archive__title">{monthLabel}</h1>
 		</header>
 
 		<ArchiveNav
@@ -53,7 +56,7 @@ const title = `${formatMonthLabel(year, month)} · 归档`;
 		/>
 
 		{articles.length === 0 ? (
-			<p class="month-archive__empty">本月暂无已发布内容。</p>
+			<p class="month-archive__empty">{t("archive.emptyMonth")}</p>
 		) : (
 			<ul class="month-archive__list">
 				{articles.map((article) => (

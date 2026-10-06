@@ -1,8 +1,13 @@
 ---
-import { getEmDashCollection } from "emdash";
+import { getEmDashCollection, getSiteSettings } from "emdash";
 import Base from "../../layout/Base.astro";
 import { getArchiveIndex } from "@utils/archive";
 import { formatMonthLabel, formatWeekLabel, formatDate } from "@utils/format";
+import { getTranslations } from "../../../../i18n";
+import { resolveSiteIdentity } from "@utils/site-identity";
+
+const { locale, t } = getTranslations(Astro);
+const { siteTitle } = resolveSiteIdentity(await getSiteSettings());
 
 const archive = await getArchiveIndex();
 const { years, byYear, cacheHint } = archive;
@@ -22,25 +27,25 @@ const latestWeek = latestPeriod?.weeks.at(-1) ?? 1;
 ---
 
 <Base
-	title="归档"
-	pageTitle="归档"
-	description="按月 / 按周浏览 Suda Pulse 的全部报道"
+	title={t("archive.title")}
+	pageTitle={t("archive.title")}
+	description={t("archive.description", { siteTitle })}
 	canonical={`${Astro.url.origin}/archive`}
 >
 	<div class="container archive">
 		<header class="archive__header">
-			<span class="kicker">全部报道</span>
-			<h1 class="archive__title">归档</h1>
-			<p class="archive__intro">按时间浏览过往报道，或切换到按月 / 按周视图。</p>
+			<span class="kicker">{t("archive.allReports")}</span>
+			<h1 class="archive__title">{t("archive.title")}</h1>
+			<p class="archive__intro">{t("archive.intro")}</p>
 			<div class="archive__modes">
-				<a class="archive__mode" href={`/archive/${latestYear}/${latestMonth}`}>按月</a>
-				<a class="archive__mode" href={`/archive/${latestYear}/week/${latestWeek}`}>按周</a>
+				<a class="archive__mode" href={`/archive/${latestYear}/${latestMonth}`}>{t("archive.modeMonth")}</a>
+				<a class="archive__mode" href={`/archive/${latestYear}/week/${latestWeek}`}>{t("archive.modeWeek")}</a>
 			</div>
 		</header>
 
 		<div class="archive__layout">
 			<div class="archive__years">
-				{years.length === 0 && <p class="archive__empty">暂无已发布内容。</p>}
+				{years.length === 0 && <p class="archive__empty">{t("archive.empty")}</p>}
 				{years.map((year) => {
 					const period = byYear.get(year)!;
 					return (
@@ -48,13 +53,13 @@ const latestWeek = latestPeriod?.weeks.at(-1) ?? 1;
 							<h2 class="archive__year-title">{year}</h2>
 							<div class="archive__months">
 								{period.months.map((month) => (
-									<a class="archive__chip" href={`/archive/${year}/${month}`}>{formatMonthLabel(year, month)}</a>
+									<a class="archive__chip" href={`/archive/${year}/${month}`}>{formatMonthLabel(year, month, locale)}</a>
 								))}
 							</div>
 							<div class="archive__weeks">
 								{period.weeks.map((week) => (
 									<a class="archive__chip archive__chip--week" href={`/archive/${year}/week/${week}`}>
-										{formatWeekLabel(year, week)}
+										{formatWeekLabel(year, week, locale)}
 									</a>
 								))}
 							</div>
@@ -64,12 +69,12 @@ const latestWeek = latestPeriod?.weeks.at(-1) ?? 1;
 			</div>
 
 			<aside class="archive__recent">
-				<h2 class="archive__recent-title">最近发布</h2>
+				<h2 class="archive__recent-title">{t("archive.recent")}</h2>
 				<ul class="archive__recent-list">
 					{recent.map((article) => (
 						<li class="archive__recent-item">
 							<a href={`/articles/${article.id}`}>{article.data.title}</a>
-							{article.data.publishedAt && <span>{formatDate(article.data.publishedAt)}</span>}
+							{article.data.publishedAt && <span>{formatDate(article.data.publishedAt, locale)}</span>}
 						</li>
 					))}
 				</ul>

@@ -3,10 +3,12 @@ import { getEmDashCollection, getTaxonomyTermsWithCacheHint, decodeSlug } from "
 import Base from "../../layout/Base.astro";
 import StoryCard from "../../components/StoryCard.astro";
 import Pagination from "@shared/Pagination.astro";
+import { getTranslations } from "../../../../i18n";
 import { formatDate } from "@utils/format";
 
 const PER_PAGE = 12;
 
+const { locale, t } = getTranslations(Astro);
 const slug = decodeSlug(Astro.params.slug);
 const termsResult = await getTaxonomyTermsWithCacheHint("section", { includeCounts: true });
 const term = slug ? termsResult.data.find((item) => item.slug === slug) : null;
@@ -28,21 +30,21 @@ if (Astro.cache?.enabled) {
 ---
 
 <Base
-	title={`${term.label} · 版块`}
+	title={t("list.sectionTitle", { label: term.label })}
 	pageTitle={term.label}
-	description={`Suda Pulse ${term.label}版块的最新报道`}
+	description={t("list.sectionDescription", { label: term.label })}
 	canonical={`${Astro.url.origin}/sections/${term.slug}`}
 >
 	<div class="container archive-page">
 		<header class="archive-page__header">
-			<span class="kicker">版块</span>
+			<span class="kicker">{t("list.sectionKicker")}</span>
 			<h1 class="archive-page__title">{term.label}</h1>
 			{term.description && <p class="archive-page__desc">{term.description}</p>}
-			<p class="archive-page__count">共 {term.count ?? articles.length} 篇</p>
+			<p class="archive-page__count">{t("list.count", { count: term.count ?? articles.length })}</p>
 		</header>
 
 		{articles.length === 0 ? (
-			<p class="archive-page__empty">该版块暂无内容。</p>
+			<p class="archive-page__empty">{t("list.emptySection")}</p>
 		) : (
 			<ul class="archive-page__list">
 				{articles.map((article) => (
@@ -50,7 +52,7 @@ if (Astro.cache?.enabled) {
 						<StoryCard article={article} showImage size="md" headingLevel="h2" />
 						{article.data.publishedAt && (
 							<time class="archive-page__date" datetime={new Date(article.data.publishedAt).toISOString()}>
-								{formatDate(article.data.publishedAt)}
+								{formatDate(article.data.publishedAt, locale)}
 							</time>
 						)}
 					</li>

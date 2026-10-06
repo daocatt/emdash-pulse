@@ -1,39 +1,42 @@
 ---
+import { getSiteSettings } from "emdash";
 import Base from "../layout/Base.astro";
 import SubscribeForm from "@shared/SubscribeForm.astro";
+import { getTranslations } from "../../../i18n";
+import { resolveSiteIdentity } from "@utils/site-identity";
 
+const { t } = getTranslations(Astro);
+const { siteTitle } = resolveSiteIdentity(await getSiteSettings());
 const siteUrl = Astro.url.origin;
 ---
 
 <Base
-	title="订阅"
-	pageTitle="订阅"
-	description="订阅 Suda Pulse，把最新报道送进邮箱"
+	title={t("subscribePage.title")}
+	pageTitle={t("subscribePage.title")}
+	description={t("subscribePage.description", { siteTitle })}
 	canonical={`${siteUrl}/subscribe`}
 >
 	<div class="container subscribe">
 		<header class="subscribe__header">
 			<p class="kicker">Newsletter</p>
-			<h1 class="subscribe__title">订阅 Suda Pulse</h1>
-			<p class="subscribe__lede">
-				我们会把最新报道与重要更新发到你的邮箱。没有广告，随时可退订。
-			</p>
+			<h1 class="subscribe__title">{t("subscribePage.heading", { siteTitle })}</h1>
+			<p class="subscribe__lede">{t("subscribePage.lede")}</p>
 		</header>
 
 		<div class="subscribe__form">
 			<SubscribeForm
-				heading="留下邮箱"
-				description="提交后请到邮箱点击确认链接，完成双确认订阅。"
+				heading={t("subscribePage.formHeading")}
+				description={t("subscribePage.formHint")}
 				source="subscribe-page"
 			/>
 		</div>
 
 		<div class="subscribe__notes prose">
-			<h2>订阅流程</h2>
+			<h2>{t("subscribePage.flow")}</h2>
 			<ol>
-				<li>提交邮箱后，我们会发送一封确认邮件。</li>
-				<li>点击邮件里的链接完成确认 —— 双确认可避免误订与滥用。</li>
-				<li>每封邮件都带退订链接，任何时候都能一键退订。</li>
+				<li>{t("subscribePage.step1")}</li>
+				<li>{t("subscribePage.step2")}</li>
+				<li>{t("subscribePage.step3")}</li>
 			</ol>
 		</div>
 	</div>

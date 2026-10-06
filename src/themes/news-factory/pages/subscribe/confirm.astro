@@ -1,6 +1,9 @@
 ---
 import Base from "../../layout/Base.astro";
 import { callSubscriptionsRoute } from "@utils/subscriptions";
+import { getTranslations } from "../../../../i18n";
+
+const { t } = getTranslations(Astro);
 
 // 确认走 SSR：token 即凭证，无需前端 JS。
 const token = Astro.url.searchParams.get("token")?.trim() ?? "";
@@ -9,26 +12,26 @@ const result = token ? await callSubscriptionsRoute(Astro.locals, "subscribe/con
 const confirmed = result?.ok === true && result.body.status === "confirmed";
 const already = result?.body.already === true;
 const email = typeof result?.body.email === "string" ? result.body.email : null;
-const failure = token ? "确认链接无效或已失效，请重新订阅。" : "确认链接缺少 token。";
+const failure = token ? t("subscribePage.confirmInvalid") : t("subscribePage.confirmMissingToken");
 ---
 
-<Base title="确认订阅" pageTitle="确认订阅" robots="noindex, nofollow">
+<Base title={t("subscribePage.confirmTitle")} pageTitle={t("subscribePage.confirmTitle")} robots="noindex, nofollow">
 	<div class="container result">
-		<p class="kicker">订阅</p>
+		<p class="kicker">{t("common.subscribe")}</p>
 		{confirmed ? (
 			<>
-				<h1 class="result__title">订阅已确认</h1>
+				<h1 class="result__title">{t("subscribePage.confirmHeading")}</h1>
 				<p class="result__text">
-					{already ? "该邮箱此前已完成订阅，无需重复操作。" : "感谢订阅，我们会把最新报道发到你的邮箱。"}
+					{already ? t("subscribePage.confirmAlready") : t("subscribePage.confirmThanks")}
 				</p>
 				{email && <p class="result__email">{email}</p>}
-				<p class="result__actions"><a href="/">返回头版</a></p>
+				<p class="result__actions"><a href="/">{t("common.backHome")}</a></p>
 			</>
 		) : (
 			<>
-				<h1 class="result__title">确认失败</h1>
+				<h1 class="result__title">{t("subscribePage.confirmFailed")}</h1>
 				<p class="result__text">{failure}</p>
-				<p class="result__actions"><a href="/subscribe">重新订阅</a></p>
+				<p class="result__actions"><a href="/subscribe">{t("subscribePage.resubscribe")}</a></p>
 			</>
 		)}
 	</div>

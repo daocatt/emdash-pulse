@@ -1,8 +1,12 @@
 ---
-import { search } from "emdash";
+import { search, getSiteSettings } from "emdash";
 import Base from "../layout/Base.astro";
 import { fallbackSearch } from "@utils/search";
+import { getTranslations } from "../../../i18n";
+import { resolveSiteIdentity } from "@utils/site-identity";
 
+const { t } = getTranslations(Astro);
+const { siteTitle } = resolveSiteIdentity(await getSiteSettings());
 const query = Astro.url.searchParams.get("q")?.trim() ?? "";
 
 interface Hit {
@@ -22,7 +26,7 @@ if (query) {
 		collection: item.collection,
 		id: item.id,
 		slug: item.slug,
-		title: item.title ?? "未命名",
+		title: item.title ?? t("search.untitled"),
 		snippet: item.snippet,
 	}));
 
@@ -43,35 +47,35 @@ function resultHref(collection: string, slug: string | null, id: string): string
 ---
 
 <Base
-	title={query ? `搜索：${query}` : "搜索"}
-	pageTitle="搜索"
-	description="搜索 Suda Pulse 的报道与页面"
+	title={query ? t("search.resultsTitle", { query }) : t("search.title")}
+	pageTitle={t("search.title")}
+	description={t("search.description", { siteTitle })}
 	canonical={`${Astro.url.origin}/search`}
 >
 	<div class="container search">
 		<header class="search__header">
-			<h1 class="search__title">搜索</h1>
+			<h1 class="search__title">{t("search.title")}</h1>
 		</header>
 
 		<form class="search__form" method="get" action="/search" role="search">
-			<label class="sr-only" for="search-input">搜索关键词</label>
+			<label class="sr-only" for="search-input">{t("common.searchLabel")}</label>
 			<input
 				id="search-input"
 				class="search__input"
 				type="search"
 				name="q"
 				value={query}
-				placeholder="输入关键词，如「审核」「图片新闻」…"
+				placeholder={t("search.placeholder")}
 				autofocus
 			/>
-			<button class="search__submit" type="submit">搜索</button>
+			<button class="search__submit" type="submit">{t("common.searchSubmit")}</button>
 		</form>
 
 		{query && (
 			<p class="search__status">
 				{results.length === 0
-					? `未找到与「${query}」相关的内容`
-					: `找到 ${results.length} 条与「${query}」相关的结果${usedFallback ? "（模糊匹配）" : ""}`}
+					? t("search.empty", { query })
+					: `${t("search.found", { count: results.length, query })}${usedFallback ? t("search.fuzzy") : ""}`}
 			</p>
 		)}
 
@@ -80,8 +84,10 @@ function resultHref(collection: string, slug: string | null, id: string): string
 				{results.map((result) => (
 					<li class="search__result">
 						<a class="search__result-link" href={resultHref(result.collection, result.slug, result.id)}>
-							<span class="search__result-collection">{result.collection === "pages" ? "页面" : "报道"}</span>
-							<h2 class="search__result-title">{result.title ?? "未命名"}</h2>
+							<span class="search__result-collection">
+								{t(result.collection === "pages" ? "search.collectionPage" : "search.collectionArticle")}
+							</span>
+							<h2 class="search__result-title">{result.title ?? t("search.untitled")}</h2>
 							{result.snippet && <p class="search__result-snippet" set:html={result.snippet} />}
 						</a>
 					</li>

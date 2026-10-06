@@ -5,7 +5,9 @@ import Base from "../../layout/Base.astro";
 import { resolveSiteIdentity } from "@utils/site-identity";
 import { resolveMediaUrl, resolveMediaAlt } from "@utils/media";
 import { formatDate } from "@utils/format";
+import { getTranslations } from "../../../../i18n";
 
+const { locale, t } = getTranslations(Astro);
 const slug = decodeSlug(Astro.params.slug);
 if (!slug) return Astro.redirect("/404");
 
@@ -37,7 +39,7 @@ for (const article of articles) {
 	const section = article.data.terms?.section?.[0];
 	const key = section?.slug ?? "other";
 	if (!groups.has(key)) {
-		groups.set(key, { label: section?.label ?? "其他", slug: key, entries: [] });
+		groups.set(key, { label: section?.label ?? t("list.other"), slug: key, entries: [] });
 	}
 	groups.get(key)!.entries.push(article);
 }
@@ -54,11 +56,15 @@ const sections = [...groups.values()];
 >
 	<div class="container edition-page">
 		<header class="edition-page__header">
-			<span class="kicker">{edition.data.period_type === "week" ? "周报" : "月报"}</span>
+			<span class="kicker">{t(edition.data.period_type === "week" ? "edition.kickerWeek" : "edition.kickerMonth")}</span>
 			<h1 class="edition-page__title">{edition.data.title}</h1>
 			{edition.data.summary && <p class="edition-page__summary">{edition.data.summary}</p>}
 			<p class="edition-page__meta">
-				{edition.data.year} 年 · 第 {edition.data.period_no} 期 · 共 {articles.length} 篇
+				{t("edition.meta", {
+					year: edition.data.year ?? "",
+					period: edition.data.period_no ?? "",
+					count: articles.length,
+				})}
 			</p>
 		</header>
 
@@ -74,7 +80,7 @@ const sections = [...groups.values()];
 		)}
 
 		{articles.length === 0 ? (
-			<p class="edition-page__empty">本期暂无收录文章。</p>
+			<p class="edition-page__empty">{t("edition.empty")}</p>
 		) : (
 			sections.map((section) => (
 				<section class="edition-page__section">
@@ -88,7 +94,7 @@ const sections = [...groups.values()];
 									<span class="edition-page__item-title">{article.data.title}</span>
 									{article.data.publishedAt && (
 										<time class="edition-page__item-date" datetime={new Date(article.data.publishedAt).toISOString()}>
-											{formatDate(article.data.publishedAt)}
+											{formatDate(article.data.publishedAt, locale)}
 										</time>
 									)}
 								</a>

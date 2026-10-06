@@ -3,9 +3,11 @@ import { getEmDashCollection, getTaxonomyTermsWithCacheHint, decodeSlug } from "
 import Base from "../../layout/Base.astro";
 import StoryCard from "../../components/StoryCard.astro";
 import Pagination from "@shared/Pagination.astro";
+import { getTranslations } from "../../../../i18n";
 
 const PER_PAGE = 12;
 
+const { t } = getTranslations(Astro);
 const slug = decodeSlug(Astro.params.slug);
 const termsResult = await getTaxonomyTermsWithCacheHint("tag", { includeCounts: true });
 const term = slug ? termsResult.data.find((item) => item.slug === slug) : null;
@@ -27,20 +29,20 @@ if (Astro.cache?.enabled) {
 ---
 
 <Base
-	title={`标签：${term.label}`}
-	pageTitle={`标签：${term.label}`}
-	description={`带有「${term.label}」标签的报道`}
+	title={t("list.tagTitle", { label: term.label })}
+	pageTitle={t("list.tagTitle", { label: term.label })}
+	description={t("list.tagDescription", { label: term.label })}
 	canonical={`${Astro.url.origin}/tags/${term.slug}`}
 >
 	<div class="container tag-page">
 		<header class="tag-page__header">
-			<span class="kicker">标签</span>
+			<span class="kicker">{t("list.tagKicker")}</span>
 			<h1 class="tag-page__title">#{term.label}</h1>
-			<p class="tag-page__count">共 {term.count ?? articles.length} 篇</p>
+			<p class="tag-page__count">{t("list.count", { count: term.count ?? articles.length })}</p>
 		</header>
 
 		{articles.length === 0 ? (
-			<p class="tag-page__empty">该标签下暂无内容。</p>
+			<p class="tag-page__empty">{t("list.emptyTag")}</p>
 		) : (
 			<ul class="tag-page__list">
 				{articles.map((article) => (
