@@ -460,11 +460,12 @@ src/components/MotionRuntime.astro   # 只含一个 <script>，挂在两套 Base
 
 `--motion-ease` 存成 `cubic-bezier(...)` 是为了 CSS transition 也能直接用；JS 侧解析成四元组喂给 `animate()`。
 
-### 15.3 三条硬约束
+### 15.3 四条硬约束
 
 1. **滚动进场的隐藏态只能由 JS 加**。SSR HTML / CSS 里绝不出现初始隐藏样式 —— `Astro.cache` 会缓存 HTML，且无 JS / 爬虫必须看到全部内容。做法：SSR 只有静态 `data-reveal` 属性 → 运行时**跳过首屏**（`top < innerHeight * 0.9`，保护 LCP）→ 其余元素设 `opacity: 0` 并在同一 tick 注册 `IntersectionObserver` → 进场结束清除内联样式。任何一步抛错都兜底还原（含一个超时兜底）。
 2. **`prefers-reduced-motion` 要管两遍**。`src/styles/base.css` 的全局兜底只覆盖 CSS transition / animation；`animate()` 是 JS/WAAPI 驱动，管不到。每个 init 开头用 `matchMedia` 早退 —— reduced-motion 下**完全不设隐藏态**；CSS 侧的 `data-hover-lift` / `data-press` 位移也在同一个媒体查询里显式关掉。
-3. **一条属性只能有一个驱动源**。滚动进场由 `motion` 写内联 `transform`，所以卡片 hover 抬升用独立的 **`translate`**、按压反馈用独立的 **`scale`** —— 都是与 `transform` 叠加而非覆盖的独立属性；进场结束还会清除内联 `transform` 归还给 CSS。
+3. **一条属性只能有一个驱动源**。滚动进场由 `motion` 写内联 `transform`，所以卡片 hover 抬升用独立的 **`translate`**、按压反馈用独立的 **`scale`** —— 都是与 `transform` 叠加而非覆盖的独立属性；进场结束还会清除内联 `transform` 归还给 CSS。反过来，被 CSS 占了 `translate` 的元素（如 `.main-nav__panel` 的横向居中）只能把动效放到 `transform` 上。
+4. **keyframe 名必须是真实 CSS 属性**。`motion/mini` 的 `animate()` 不做 shorthand 映射：它把 keyframe 的属性名直接交给 WAAPI，`y` / `x` 不是合法 CSS 属性，会被**静默忽略**（只在内联 `style` 上留一条无效的 `y: 0px`）——位移全丢、只剩淡入。所以位移一律写 `transform: ["translateY(6px)", "translateY(0px)"]`（或真实属性 `translate`），`opacity` / `height` / `scale` 可直接用。**排查手法**：动画进行中读 `getComputedStyle(el).transform`；只看 `element.style` 会被 WAAPI 骗（WAAPI 不写内联样式）。
 
 ### 15.4 CSS 与 motion 的分工
 
@@ -504,6 +505,7 @@ src/components/MotionRuntime.astro   # 只含一个 <script>，挂在两套 Base
 | P7 后续 | seed 补 8 篇科技版块文章（含 6 个新标签与 `2026-w42` 期号） | `2e9f4ff` |
 | P8 | 前台动效层：`motion/mini` 单例运行时（滚动进场 / `<details>` 开合 / 灯箱）+ 主题动效令牌 + 卡片 hover 抬升与按钮按压（CSS） | 见下 |
 | P8 后续 | 灯箱接入文章 hero 与期号封面、`lightbox.*` 字典键、折叠菜单外部点击收合 | 见下 |
+| P8 复核 | 无头浏览器（CDP）逐主题实测：进场 / 下拉 / 灯箱动画与减动效早退；修复 `y` shorthand 失效与子菜单挂错菜单 | 见下 |
 
 ### 与原设计的偏差
 
@@ -518,6 +520,8 @@ src/components/MotionRuntime.astro   # 只含一个 <script>，挂在两套 Base
 9. **列表卡无主图时不留占位框**：`MiniCard` 原为对齐同排标题渲染一个同尺寸空边框，视觉上像「图挂了」。改为无图就不渲染媒体区；同排的**作者 / 日期行**仍靠 `margin-top: auto` 对齐。
 10. **动效只用 `motion/mini` 而非完整版**：方案原本按完整版 `motion`（`inView` / `stagger` / `press`）设计，实测每个页面公共 chunk 要多付 **21.4KB gzip**。降级为 mini 后，滚动进场改用原生 `IntersectionObserver`、错峰改用 `delay: (i) => i * step`，按压与卡片 hover 抬升改由 CSS 表达（`data-press` / `data-hover-lift`，用独立的 `scale` / `translate` 属性避免与 `transform` 打架），共享 chunk 降到 **3.2KB gzip**。
 11. **灯箱不接卡片图**：卡片图外层是 `<a href="/articles/…">`，接灯箱会与跳转冲突。只接图集、文章 hero、期号封面这三类「独立的图」。
+12. **动效的位移改用完整 `transform` 写法**：`motion/mini` 不把 `y` / `x` 映射成 `transform`，而是把 keyframe 名直接交给 WAAPI —— 实测 `y` 无任何效果（`getComputedStyle().transform` 恒为 `none`），只在内联 `style` 上留一条无效的 `y: 0px`。改为 `transform: ["translateY(…)","translateY(0px)"]` 后滚动进场与下拉菜单才真正有位移（见 15.3 第 4 条）。
+13. **导航子菜单挂在主题自己的菜单上**：`primary` 是通用兜底，两套主题分别读 `theme.config.ts` 里的 `menuName`（`news-factory` / `pulse-news`），所以子菜单 `children` 必须写在对应主题的菜单里，否则前台永远不渲染（见 `AGENTS.md`）。
 
 ### 待办
 
