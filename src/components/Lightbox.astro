@@ -8,15 +8,39 @@
  *   data-lightbox-caption="<说明，可选>"
  *   data-lightbox-credit="<署名，可选>"
  *   data-lightbox-group="<分组名，可选；同组可左右切换>"
+ *
+ * 本组件只管状态与导航；开合动效在 `src/scripts/motion/lightbox.ts`，通过
+ * `lightbox:open` / `lightbox:close-request` 两个事件解耦（后者可取消）。
  */
+import { getTranslations } from "../i18n";
+
+const { t } = getTranslations(Astro);
 ---
 
-<dialog id="suda-lightbox" class="lightbox" aria-label="图片查看器">
-	<button class="lightbox__close" type="button" data-lightbox-close aria-label="关闭">×</button>
-	<button class="lightbox__nav lightbox__nav--prev" type="button" data-lightbox-prev aria-label="上一张">‹</button>
-	<button class="lightbox__nav lightbox__nav--next" type="button" data-lightbox-next aria-label="下一张">›</button>
+<dialog id="suda-lightbox" class="lightbox" aria-label={t("lightbox.label")} data-motion-lightbox>
+	<button class="lightbox__close" type="button" data-lightbox-close data-press aria-label={t("lightbox.close")}>
+		×
+	</button>
+	<button
+		class="lightbox__nav lightbox__nav--prev"
+		type="button"
+		data-lightbox-prev
+		data-press
+		aria-label={t("lightbox.prev")}
+	>
+		‹
+	</button>
+	<button
+		class="lightbox__nav lightbox__nav--next"
+		type="button"
+		data-lightbox-next
+		data-press
+		aria-label={t("lightbox.next")}
+	>
+		›
+	</button>
 
-	<figure class="lightbox__figure">
+	<figure class="lightbox__figure" data-lightbox-figure>
 		<img class="lightbox__image" data-lightbox-image alt="" />
 		<figcaption class="lightbox__caption" data-lightbox-caption hidden></figcaption>
 	</figure>
@@ -36,6 +60,14 @@
 
 	.lightbox::backdrop {
 		background: rgba(0, 0, 0, 0.88);
+		transition: opacity var(--motion-duration-base) var(--motion-ease);
+	}
+
+	/* 支持的浏览器里让背景从透明淡入（渐进增强，不支持则直接显示） */
+	@starting-style {
+		.lightbox[open]::backdrop {
+			opacity: 0;
+		}
 	}
 
 	.lightbox__figure {
@@ -111,6 +143,9 @@
 </style>
 
 <script>
+	import { animate } from "motion/mini";
+	import { durationSeconds, easing } from "../scripts/motion/tokens";
+
 	(() => {
 		const dialog = document.getElementById("suda-lightbox") as HTMLDialogElement | null;
 		if (!dialog || dialog.dataset.bound === "1") return;
@@ -129,7 +164,8 @@
 			);
 		};
 
-		const render = () => {
+		/** `direction` 有值时（上一张 / 下一张）做一次淡入；打开时由运行时统一进场。 */
+		const render = (direction?: number) => {
 			const el = group[index];
 			if (!el || !imageEl) return;
 			imageEl.src = el.dataset.lightboxSrc ?? "";
@@ -142,12 +178,34 @@
 			const multiple = group.length > 1;
 			dialog.querySelector("[data-lightbox-prev]")?.toggleAttribute("hidden", !multiple);
 			dialog.querySelector("[data-lightbox-next]")?.toggleAttribute("hidden", !multiple);
+
+			if (direction && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+				animate(imageEl, { opacity: [0, 1] }, {
+					duration: durationSeconds(dialog, "--motion-duration-fast", 140),
+					ease: easing(dialog),
+				});
+			}
 		};
 
 		const step = (delta: number) => {
 			if (group.length === 0) return;
 			index = (index + delta + group.length) % group.length;
-			render();
+			render(delta);
+		};
+
+		const open = () => {
+			if (!dialog.open) dialog.showModal();
+			dialog.dispatchEvent(new Event("lightbox:open"));
+		};
+
+		/**
+		 * 关闭请求交给运行时；`dispatchEvent` 返回 `false` 说明被 `preventDefault()`
+		 * 接管（运行时播完退场会自己 `close()`）。没有接管者（无 JS / 减动效）时
+		 * 这里直接关，行为不退化。
+		 */
+		const close = () => {
+			const handled = !dialog.dispatchEvent(new Event("lightbox:close-request", { cancelable: true }));
+			if (!handled) dialog.close();
 		};
 
 		document.addEventListener("click", (event) => {
@@ -158,17 +216,23 @@
 				group = itemsInGroup(trigger);
 				index = Math.max(0, group.indexOf(trigger));
 				render();
-				if (!dialog.open) dialog.showModal();
+				open();
 				return;
 			}
-			if (target.closest("[data-lightbox-close]")) dialog.close();
+			if (target.closest("[data-lightbox-close]")) close();
 			if (target.closest("[data-lightbox-prev]")) step(-1);
 			if (target.closest("[data-lightbox-next]")) step(1);
 		});
 
 		// 点击背景关闭
 		dialog.addEventListener("click", (event) => {
-			if (event.target === dialog) dialog.close();
+			if (event.target === dialog) close();
+		});
+
+		// Esc：同样走关闭请求（运行时接管则播退场动画）
+		dialog.addEventListener("cancel", (event) => {
+			event.preventDefault();
+			close();
 		});
 
 		dialog.addEventListener("keydown", (event) => {

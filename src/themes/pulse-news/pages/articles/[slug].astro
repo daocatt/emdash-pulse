@@ -135,12 +135,24 @@ const authorName = credit?.byline.displayName ?? data.author_agent ?? siteTitle;
 
 		{data.featured_image && (
 			<figure class="article__hero">
-				<Image
-					image={data.featured_image}
-					alt={imageAlt}
-					priority
-					sizes="(min-width: 1100px) 900px, 100vw"
-				/>
+				<button
+					type="button"
+					class="article__hero-zoom"
+					data-lightbox
+					data-lightbox-src={image}
+					data-lightbox-caption={data.image_caption}
+					data-lightbox-credit={data.photo_credit
+						? t("article.photoCredit", { name: data.photo_credit })
+						: undefined}
+					aria-label={t("lightbox.zoom")}
+				>
+					<Image
+						image={data.featured_image}
+						alt={imageAlt}
+						priority
+						sizes="(min-width: 1100px) 900px, 100vw"
+					/>
+				</button>
 				{(data.image_caption || data.photo_credit) && (
 					<figcaption>
 						{data.image_caption}
@@ -191,7 +203,7 @@ const authorName = credit?.byline.displayName ?? data.author_agent ?? siteTitle;
 		)}
 
 		{data.allow_comments !== false && (
-			<section class="article__comments" id="comments">
+			<section class="article__comments" id="comments" data-reveal>
 				<SectionHeading title={t("article.comments")} />
 				<div class="article__comment-form">
 					<CommentForm collection="articles" contentId={data.id} />
@@ -203,7 +215,7 @@ const authorName = credit?.byline.displayName ?? data.author_agent ?? siteTitle;
 		{related.length > 0 && (
 			<section class="article__related" aria-label={t("article.related")}>
 				<SectionHeading title={t("article.related")} />
-				<div class="article__related-grid">
+				<div class="article__related-grid" data-reveal data-reveal-stagger>
 					{related.map((entry) => (
 						<MiniCard article={entry} />
 					))}
@@ -282,6 +294,16 @@ const authorName = credit?.byline.displayName ?? data.author_agent ?? siteTitle;
 
 	.article__hero {
 		margin: var(--spacing-10) 0;
+	}
+
+	/* 题图本身是灯箱触发器：去掉按钮默认样式，只留「可放大」的光标提示 */
+	.article__hero-zoom {
+		display: block;
+		width: 100%;
+		padding: 0;
+		border: none;
+		background: none;
+		cursor: zoom-in;
 	}
 
 	.article__hero img {

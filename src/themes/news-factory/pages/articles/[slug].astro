@@ -122,12 +122,22 @@ const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ??
 
 				{data.featured_image && (
 					<figure class="article__hero">
-						<Image
-							image={data.featured_image}
-							alt={imageAlt}
-							priority
-							sizes="(min-width: 900px) 680px, 100vw"
-						/>
+						<button
+							type="button"
+							class="article__hero-zoom"
+							data-lightbox
+							data-lightbox-src={image}
+							data-lightbox-caption={data.image_caption}
+							data-lightbox-credit={data.photo_credit}
+							aria-label={t("lightbox.zoom")}
+						>
+							<Image
+								image={data.featured_image}
+								alt={imageAlt}
+								priority
+								sizes="(min-width: 900px) 680px, 100vw"
+							/>
+						</button>
 						{(data.image_caption || data.photo_credit) && (
 							<figcaption>
 								{data.image_caption}
@@ -174,7 +184,7 @@ const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ??
 				)}
 
 				{data.allow_comments !== false && (
-					<section class="article__comments" id="comments">
+					<section class="article__comments" id="comments" data-reveal>
 						<h2 class="article__comments-title">{t("article.comments")}</h2>
 						<div class="article__comment-form">
 							<CommentForm collection="articles" contentId={data.id} />
@@ -186,7 +196,7 @@ const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ??
 				{related.length > 0 && (
 					<section class="article__related" aria-label={t("article.related")}>
 						<h2 class="article__related-title">{t("article.related")}</h2>
-						<div class="article__related-grid">
+						<div class="article__related-grid" data-reveal data-reveal-stagger>
 							{related.map((entry) => (
 								<StoryCard article={entry} showImage size="sm" headingLevel="h3" />
 							))}
@@ -301,6 +311,16 @@ const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ??
 
 	.article__hero {
 		margin: var(--spacing-8) 0;
+	}
+
+	/* 题图本身是灯箱触发器：去掉按钮默认样式，只留「可放大」的光标提示 */
+	.article__hero-zoom {
+		display: block;
+		width: 100%;
+		padding: 0;
+		border: none;
+		background: none;
+		cursor: zoom-in;
 	}
 
 	.article__hero img {

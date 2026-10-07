@@ -70,12 +70,21 @@ const sections = [...groups.values()];
 
 		{edition.data.cover_image && (
 			<figure class="edition-page__cover">
-				<Image
-					image={edition.data.cover_image}
-					alt={coverAlt}
-					priority
-					sizes="(min-width: 1240px) 1240px, 100vw"
-				/>
+				<button
+					type="button"
+					class="edition-page__cover-zoom"
+					data-lightbox
+					data-lightbox-src={cover}
+					data-lightbox-caption={edition.data.title}
+					aria-label={t("lightbox.zoom")}
+				>
+					<Image
+						image={edition.data.cover_image}
+						alt={coverAlt}
+						priority
+						sizes="(min-width: 1240px) 1240px, 100vw"
+					/>
+				</button>
 			</figure>
 		)}
 
@@ -87,7 +96,7 @@ const sections = [...groups.values()];
 					<h2 class="edition-page__section-title">
 						<a href={`/sections/${section.slug}`}>{section.label}</a>
 					</h2>
-					<ul class="edition-page__list">
+					<ul class="edition-page__list" data-reveal data-reveal-stagger>
 						{section.entries.map((article) => (
 							<li>
 								<a class="edition-page__item" href={`/articles/${article.id}`}>
@@ -141,6 +150,16 @@ const sections = [...groups.values()];
 
 	.edition-page__cover {
 		margin: var(--spacing-8) 0;
+	}
+
+	/* 封面本身是灯箱触发器：去掉按钮默认样式，只留「可放大」的光标提示 */
+	.edition-page__cover-zoom {
+		display: block;
+		width: 100%;
+		padding: 0;
+		border: none;
+		background: none;
+		cursor: zoom-in;
 	}
 
 	.edition-page__cover img {
