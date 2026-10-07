@@ -205,6 +205,14 @@ export const en: Record<MessageKey, string> = {
 	"subscribePage.unsubscribeInvalid": "This unsubscribe link is invalid or has expired.",
 	"subscribePage.unsubscribeMissingToken": "The unsubscribe link is missing its token.",
 
+	// Image viewer (Lightbox singleton + gallery / hero / edition cover triggers)
+	"lightbox.label": "Image viewer",
+	"lightbox.close": "Close",
+	"lightbox.prev": "Previous image",
+	"lightbox.next": "Next image",
+	"lightbox.viewImage": "View image {index}",
+	"lightbox.zoom": "View larger",
+
 	// 404
 	"notFound.description": "Page not found",
 };

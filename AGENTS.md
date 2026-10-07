@@ -64,6 +64,11 @@ HOME=~/.wrangler-a npm run deploy # 构建并部署到 Cloudflare
 - **Cloudflare 部署与远端操作必须使用 `wrangler-a` 账号环境**：`HOME=~/.wrangler-a npx wrangler ...` 或 `HOME=~/.wrangler-a npm run deploy`。
 - 所有内容页面服务端渲染（`output: "server"`）。CMS 内容**不要**用 `getStaticPaths()`。
 - **主题是运行期值**：默认主题注册在干净路径上，另一套在 `/_t/<theme>/…`，由 `src/middleware.ts` 用 `next(payload)` rewrite（**不能**用 `context.rewrite()`，它会重跑整条中间件链）。因此主题页面里取路径**一律用 `Astro.originPathname`**，不要用 `Astro.url.pathname`（会带上 `/_t/<theme>` 前缀，污染 canonical / JSON-LD / `isHome` / 导航高亮 / 语言切换链接）；`Astro.url.origin` 与 `Astro.url.searchParams` 不受影响。rewrite **不保留查询串**，中间件已显式拼上。
+- **前台客户端动效运行时放 `src/scripts/`**（唯一导入者是 `src/components/MotionRuntime.astro`，用相对导入，不设别名）。`src/utils/` 只放主题无关数据层、`src/components/` 只放 Astro 共享组件，都不放浏览器 DOM 运行时。动效一律 **data 属性驱动 + document 级委托的单例运行时**（仿 `Lightbox.astro`）：组件里只加 `data-*`（`data-reveal` / `data-motion-disclosure` / `data-motion-panel` / `data-press`），命令式动画只写在 `src/scripts/motion/` 里。运行时入口挂在两套 `layout/Base.astro`（`<Lightbox />` 旁）。
+- **动效强度是主题令牌**：`--motion-duration-*` / `--motion-ease` / `--motion-shift-*` / `--motion-stagger` / `--motion-hover-lift` 在 `src/styles/tokens.base.css` 给默认值，两套主题在各自 `styles/tokens.css` 覆盖（news-factory 克制 / pulse-news 明显）。**JS 不判断主题名**，一律 `getComputedStyle` 读令牌。
+- **滚动进场的隐藏态只能由 JS 加**：SSR HTML / CSS 里**不能**出现初始隐藏样式（`Astro.cache` 会缓存 HTML，且无 JS 时内容必须可见）。`data-reveal` 元素里，首屏（`top < innerHeight * 0.9`）一律跳过不进场，保护 LCP。
+- **`prefers-reduced-motion` 要管两遍**：`src/styles/base.css` 的全局兜底只管 CSS transition/animation；`motion` 的 `animate()` 是 JS/WAAPI 驱动，必须在运行时入口设 `MotionGlobalConfig.skipAnimations` 并在每个 init 开头早退。
+- **一条属性只能有一个驱动源**：被 `motion` 用内联 `transform` 驱动的元素，不得同时有 CSS `:hover { transform }` / `transition: transform`。卡片 hover 抬升走 CSS，滚动进场在 `onComplete` 清除内联 transform 归还给 CSS。
 - 图片字段是对象（`{ id, src, alt, width, height, blurhash, ... }`），用 `emdash/ui` 的 `<Image image={...} />`（自动 `srcset`/`sizes`/宽高/WebP/LQIP；首屏图传 `priority`）。**`astro.config.mjs` 的 `image.remotePatterns` 必须包含站点自身 origin**（本地 `localhost`/`127.0.0.1` + 生产域名）：EmDash 会把同源媒体路径解析成绝对 URL 交给 Astro 的 image service，未授权时**生产构建会静默退回原图**（`srcset` 各档位指向同一张全尺寸图）。
 - `entry.id` 是 slug（URL 用）；`entry.data.id` 是数据库 ULID（`getEntryTerms`、评论 `contentId` 用）。
 - taxonomy 名称必须与 seed 的 `"name"` 完全一致（`section` / `tag` / `edition`）。

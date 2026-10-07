@@ -213,6 +213,14 @@ export const zhCN = {
 	"subscribePage.unsubscribeInvalid": "退订链接无效或已失效。",
 	"subscribePage.unsubscribeMissingToken": "退订链接缺少 token。",
 
+	// 图片查看器（Lightbox 单例 + 图集 / 文章主图 / 期号封面的触发器）
+	"lightbox.label": "图片查看器",
+	"lightbox.close": "关闭",
+	"lightbox.prev": "上一张",
+	"lightbox.next": "下一张",
+	"lightbox.viewImage": "查看第 {index} 张图片",
+	"lightbox.zoom": "放大查看",
+
 	// 404
 	"notFound.description": "未找到该页面",
 };

@@ -32,4 +32,14 @@
 	--rule-hairline: 1px solid var(--color-border);
 	--rule-thick: 3px solid var(--color-rule);
 	--rule-double: 3px double var(--color-rule);
+
+	/* 动效：报纸的克制感 —— 更快、位移更小、缓动更「直」 */
+	--motion-duration-fast: 90ms;
+	--motion-duration-base: 140ms;
+	--motion-duration-slow: 220ms;
+	--motion-ease: cubic-bezier(0.2, 0, 0, 1);
+	--motion-shift-sm: 2px;
+	--motion-shift-md: 6px;
+	--motion-stagger: 24ms;
+	--motion-hover-lift: 2px;
 }

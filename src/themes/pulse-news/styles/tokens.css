@@ -35,4 +35,14 @@
 	--rule-hairline: 1px solid var(--color-border);
 	--rule-thick: 2px solid var(--color-rule);
 	--rule-double: 1px solid var(--color-rule);
+
+	/* 动效：杂志的从容感 —— 更缓、位移更大、错峰更明显 */
+	--motion-duration-fast: 160ms;
+	--motion-duration-base: 260ms;
+	--motion-duration-slow: 460ms;
+	--motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+	--motion-shift-sm: 6px;
+	--motion-shift-md: 16px;
+	--motion-stagger: 70ms;
+	--motion-hover-lift: 4px;
 }
