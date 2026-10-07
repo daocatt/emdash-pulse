@@ -84,6 +84,7 @@ HOME=~/.wrangler-a npm run deploy # 构建并部署到 Cloudflare
 - **改 seed 的字段定义不会同步到已建库**：`applySeed` 用 `onConflict: "skip"`，集合已存在时**整段跳过（含字段）**。改字段要么删库重建，要么手动更新 `_emdash_fields`（`validation` 列）。
 - **`where` 里的布尔字段必须传原生布尔值**：EmDash 把布尔字段存成 INTEGER（写入 0/1），loader 的 `bindableFilterValue` 会把 `true`/`false` 归一化成 `1`/`0`，所以运行时支持布尔过滤；但公共类型 `WhereValue` 只有 `string | string[] | WhereRange`，直接写 `where: { is_featured: true }` 会 ts(2322)。用 `@utils/query` 的 `whereClause({ is_featured: true })` 收窄。**别传字符串 `"true"`** —— SQLite 拿字符串去比 INTEGER 列，恒不命中。
 - **`@emdash-cms/plugin-audit-log` 0.2.3 需要打补丁**：它的 `/history` 页手写 `table` block 用了 camelCase（`pageActionId` 等），而 `@emdash-cms/blocks@1.1.0` 要求 snake_case → 后台 Audit History 整页 502 `INVALID_BLOCK_RESPONSE`。根 `postinstall` 会自动跑 `scripts/patch-audit-log.mjs`（幂等；上游修复后自动跳过），`npm install` 后无需手动处理。
+- **Block Kit 的「块」与「元素」是两层**：顶层 `blocks[]` 只接受块类型（`header` / `section` / `divider` / `table` / `actions` / `form` / …），`radio` / `select` / `toggle` / `button` / `text_input` 等是**元素**，必须嵌在 `actions.elements`（或 `form.fields` / `section.accessory`）里。把元素直接放进 `blocks[]` → 宿主校验拒绝 → 后台整页 502 `INVALID_BLOCK_RESPONSE`（`validateBlocks` 报 `Unknown block type 'radio'`）。字段名一律 snake_case（`action_id` / `initial_value` / `page_action_id`），用 `@emdash-cms/blocks` 的 builder（`blocks.*` / `elements.*`）则传 camelCase 由 builder 转换。新增后台页务必在测试里跑一遍 `validateBlocks`，或用 `createPluginRuntimeTestHost().admin.loadPage()` 走宿主校验。
 
 ## Git
 

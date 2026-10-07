@@ -12,4 +12,8 @@ Keep `emdash-plugin.jsonc` aligned with the runtime implementation, declare ever
 - `src/plugin.ts` 的 `THEMES` 必须与 `astro.config.mjs` 的 `THEME_NAMES` 同名 —— 后者注入
   `/_t/<theme>/…` 路由前缀，名称不一致会 rewrite 到不存在的路由（404）。
 - `admin` 路由是 Block Kit 页；交互回传 `{ type: "block_action", action_id, value }`。
+- **`radio` 是元素不是块**：必须包在 `{ type: "actions", elements: [...] }` 里再放进 `blocks[]`。
+  直接写成顶层 block 会被宿主校验拒绝 → 后台整页 502 `INVALID_BLOCK_RESPONSE`
+  （`Unknown block type 'radio'`）。`tests/plugin.test.ts` 里既跑 `validateBlocks`，
+  也用 `createPluginRuntimeTestHost().admin.loadPage("/theme")` 走一遍宿主校验，别退化成只测纯函数。
 - 改动后必须 `npm run plugin:build`（根目录），沙箱 entry 内嵌的是已构建的 `dist/*.mjs`。
