@@ -23,7 +23,7 @@ const publishedAt = data.publishedAt ?? data.createdAt;
 
 <article class:list={["mini-card", className]}>
 	{
-		data.featured_image ? (
+		data.featured_image && (
 			<a class="mini-card__media" href={`/articles/${article.id}`} tabindex="-1" aria-hidden="true">
 				<Image
 					image={data.featured_image}
@@ -31,9 +31,6 @@ const publishedAt = data.publishedAt ?? data.createdAt;
 					sizes="(min-width: 1000px) 26vw, (min-width: 640px) 45vw, 100vw"
 				/>
 			</a>
-		) : (
-			/* 无图时留一个同尺寸空框，保证同排卡片标题对齐 */
-			<span class="mini-card__media mini-card__media--empty" aria-hidden="true" />
 		)
 	}
 
@@ -66,10 +63,6 @@ const publishedAt = data.publishedAt ?? data.createdAt;
 		background: var(--color-bg-subtle);
 		border-radius: var(--radius);
 		aspect-ratio: 4 / 3;
-	}
-
-	.mini-card__media--empty {
-		border: 1px solid var(--color-border);
 	}
 
 	.mini-card__media img {
