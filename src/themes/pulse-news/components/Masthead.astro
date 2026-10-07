@@ -42,13 +42,13 @@ const words = siteTitle.trim().split(/\s+/).slice(0, 3);
 		<a class="masthead__subscribe" href="/subscribe">{t("pn.subscribeCta")}</a>
 		<a class="masthead__login" href="/_emdash/admin">{t("common.login")}</a>
 
-		<details class="masthead__menu" data-menu>
+		<details class="masthead__menu" data-menu data-motion-disclosure>
 			<summary class="masthead__menu-toggle">
 				<span>{t("pn.menu")}</span>
 				<span class="masthead__bars" aria-hidden="true"><i></i><i></i></span>
 			</summary>
 
-			<div class="masthead__panel">
+			<div class="masthead__panel" data-motion-panel>
 				{
 					items.length > 0 && (
 						<nav aria-label={t("nav.mainLabel")}>
@@ -58,6 +58,17 @@ const words = siteTitle.trim().split(/\s+/).slice(0, 3);
 										<a class="masthead__nav-link" href={item.url} target={item.target}>
 											{menuLabel(item.url, item.label, t)}
 										</a>
+										{item.children.length > 0 && (
+											<ul class="masthead__subnav">
+												{item.children.map((child) => (
+													<li>
+														<a class="masthead__subnav-link" href={child.url} target={child.target}>
+															{menuLabel(child.url, child.label, t)}
+														</a>
+													</li>
+												))}
+											</ul>
+										)}
 									</li>
 								))}
 							</ul>
@@ -76,7 +87,10 @@ const words = siteTitle.trim().split(/\s+/).slice(0, 3);
 	(() => {
 		const closeAll = () => {
 			for (const menu of document.querySelectorAll<HTMLDetailsElement>("[data-menu][open]")) {
-				menu.open = false;
+				// 走 summary 的 click：交给 motion 运行时播收合动画；无运行时则原生开合
+				const summary = menu.querySelector("summary");
+				if (summary) summary.click();
+				else menu.open = false;
 			}
 		};
 
@@ -222,6 +236,25 @@ const words = siteTitle.trim().split(/\s+/).slice(0, 3);
 	}
 
 	.masthead__nav-link:hover {
+		color: var(--color-brand);
+	}
+
+	/* 二级菜单：缩进 + 细线，避免和一级项抢视觉重量 */
+	.masthead__subnav {
+		list-style: none;
+		margin: 0 0 var(--spacing-2);
+		padding: 0 0 0 var(--spacing-4);
+		border-left: 1px solid var(--color-border);
+	}
+
+	.masthead__subnav-link {
+		display: block;
+		padding: var(--spacing-1) 0;
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+	}
+
+	.masthead__subnav-link:hover {
 		color: var(--color-brand);
 	}
 

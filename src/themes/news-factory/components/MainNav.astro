@@ -1,6 +1,9 @@
 ---
 /**
  * 主导航：报纸式横排，条目之间用细竖线分隔。
+ *
+ * 带 `children` 的条目渲染成 `<details>` 下拉（`data-motion-disclosure` 交给
+ * `src/scripts/motion` 做开合动效）；无 children 就是普通链接。
  */
 import type { MenuItem } from "emdash";
 import { getTranslations, menuLabel } from "../../../i18n";
@@ -26,28 +29,92 @@ function isActive(url: string): boolean {
 	items.length > 0 && (
 		<nav class:list={["main-nav", className]} aria-label={t("nav.mainLabel")}>
 			<ul class="main-nav__list">
-				{items.map((item) => (
-					<li class="main-nav__item">
-						<a
-							class:list={["main-nav__link", isActive(item.url) && "is-active"]}
-							href={item.url}
-							target={item.target}
-							title={item.titleAttr}
-							aria-current={isActive(item.url) ? "page" : undefined}
-						>
-							{menuLabel(item.url, item.label, t)}
-						</a>
-					</li>
-				))}
+				{items.map((item) =>
+					item.children.length > 0 ? (
+						<li class="main-nav__item">
+							<details class="main-nav__group" data-motion-disclosure>
+								<summary
+									class:list={[
+										"main-nav__link",
+										"main-nav__summary",
+										isActive(item.url) && "is-active",
+									]}
+								>
+									{menuLabel(item.url, item.label, t)}
+									<span class="main-nav__caret" aria-hidden="true">
+										▾
+									</span>
+								</summary>
+
+								<div class="main-nav__panel" data-motion-panel>
+									{/* 父项自己的页面作为「版块首页」排在最前，否则 summary 不是链接就进不去了 */}
+									<a
+										class:list={["main-nav__child", "main-nav__child--index"]}
+										href={item.url}
+										target={item.target}
+									>
+										{menuLabel(item.url, item.label, t)}
+									</a>
+									{item.children.map((child) => (
+										<a class="main-nav__child" href={child.url} target={child.target} title={child.titleAttr}>
+											{menuLabel(child.url, child.label, t)}
+										</a>
+									))}
+								</div>
+							</details>
+						</li>
+					) : (
+						<li class="main-nav__item">
+							<a
+								class:list={["main-nav__link", isActive(item.url) && "is-active"]}
+								href={item.url}
+								target={item.target}
+								title={item.titleAttr}
+								aria-current={isActive(item.url) ? "page" : undefined}
+							>
+								{menuLabel(item.url, item.label, t)}
+							</a>
+						</li>
+					),
+				)}
 			</ul>
 		</nav>
 	)
 }
 
+<script>
+	// 下拉子菜单：点击面板外部 / 面板内的链接 / Esc 时收起。
+	// 统一走 summary 的 click，好让 motion 运行时播收合动画（无运行时则原生开合）。
+	(() => {
+		const closeAll = () => {
+			for (const group of document.querySelectorAll<HTMLDetailsElement>(
+				"details.main-nav__group[open]",
+			)) {
+				group.querySelector("summary")?.click();
+			}
+		};
+
+		document.addEventListener("click", (event) => {
+			const target = event.target;
+			if (!(target instanceof Element)) return;
+			if (target.closest("details.main-nav__group a")) {
+				closeAll();
+				return;
+			}
+			if (!target.closest("details.main-nav__group")) closeAll();
+		});
+
+		document.addEventListener("keydown", (event) => {
+			if (event.key === "Escape") closeAll();
+		});
+	})();
+</script>
+
 <style>
 	.main-nav {
 		border-bottom: var(--rule-hairline);
-		overflow-x: auto;
+		/* 子菜单面板是绝对定位的：overflow 不能是 auto/hidden，否则会被裁剪 */
+		overflow: visible;
 	}
 
 	.main-nav__list {
@@ -91,16 +158,73 @@ function isActive(url: string): boolean {
 		border-bottom-color: var(--color-brand);
 	}
 
+	/* ===== 子菜单 ===== */
+
+	.main-nav__group {
+		position: relative;
+	}
+
+	.main-nav__summary {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--spacing-2);
+		cursor: pointer;
+		list-style: none;
+	}
+
+	.main-nav__summary::-webkit-details-marker {
+		display: none;
+	}
+
+	.main-nav__caret {
+		font-size: 0.6em;
+		transition: transform var(--transition-fast);
+	}
+
+	.main-nav__group[open] .main-nav__caret {
+		transform: rotate(180deg);
+	}
+
+	.main-nav__panel {
+		position: absolute;
+		top: 100%;
+		left: 50%;
+		/* 用 translate 而不是 transform 居中：transform 留给 motion 做开合动效 */
+		translate: -50% 0;
+		z-index: 20;
+		min-width: 12rem;
+		padding: var(--spacing-3);
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		box-shadow: var(--shadow-lg);
+	}
+
+	.main-nav__child {
+		display: block;
+		padding: var(--spacing-2) var(--spacing-3);
+		font-size: var(--font-size-sm);
+		white-space: nowrap;
+	}
+
+	.main-nav__child:hover {
+		color: var(--color-brand);
+	}
+
+	.main-nav__child--index {
+		margin-bottom: var(--spacing-2);
+		padding-bottom: var(--spacing-3);
+		border-bottom: var(--rule-hairline);
+		font-weight: 700;
+	}
+
 	@media (max-width: 640px) {
 		.main-nav__list {
 			justify-content: flex-start;
-			flex-wrap: nowrap;
 		}
 
 		.main-nav__link {
 			padding-inline: var(--spacing-4);
 			font-size: var(--font-size-xs);
-			white-space: nowrap;
 		}
 	}
 </style>
