@@ -1,0 +1,95 @@
+---
+/**
+ * 评论列表（本地化版，替换 EmDash 内置的 `Comments`）。
+ *
+ * 内置组件的标题（"N Comments" / "No comments yet"）与日期（硬编码 `en-US`）
+ * 无法通过 props 本地化，这里自建一份：沿用同样的 `ec-comment*` 类名与 `--ec-comment-*`
+ * 令牌（样式统一放在 `src/styles/base.css` 的评论区），文案走 i18n 字典、
+ * 日期走 `formatDateTime`。
+ *
+ * 数据直接经公共 `getDb()` 读 `_emdash_comments`（仅 `status='approved'`），
+ * 线程结构与 EmDash 一致：**1 层嵌套**（顶层 + 直接回复）。
+ *
+ * @example
+ * ```astro
+ * <Comments collection="articles" contentId={article.data.id} threaded />
+ * ```
+ */
+
+import { getDb } from "emdash/runtime";
+import { getTranslations } from "../i18n";
+import CommentItem, { type CommentRow } from "./CommentItem.astro";
+
+interface Props {
+	collection: string;
+	contentId: string;
+	/** 是否展示楼中楼回复（与内置组件同名同义）。 */
+	threaded?: boolean;
+	class?: string;
+}
+
+const { collection, contentId, threaded = false, class: className } = Astro.props;
+const { t } = getTranslations(Astro);
+
+// `_emdash_comments` 不在生成的集合类型里，这里用最小结构断言，避免引入内部类型。
+const db = (await getDb()) as { selectFrom: (table: string) => any };
+const rows = (await db
+	.selectFrom("_emdash_comments")
+	.select(["id", "parent_id", "author_name", "author_user_id", "body", "created_at"])
+	.where("collection", "=", collection)
+	.where("content_id", "=", contentId)
+	.where("status", "=", "approved")
+	.orderBy("created_at", "asc")
+	.orderBy("id", "asc")
+	.execute()) as CommentRow[];
+
+const total = rows.length;
+const roots = rows.filter((row) => !row.parent_id);
+const repliesByParent = new Map<string, CommentRow[]>();
+for (const row of rows) {
+	if (!row.parent_id) continue;
+	const list = repliesByParent.get(row.parent_id) ?? [];
+	list.push(row);
+	repliesByParent.set(row.parent_id, list);
+}
+
+const heading =
+	total === 0
+		? t("comments.empty")
+		: total === 1
+			? t("comments.countOne")
+			: t("comments.count", { count: total });
+---
+
+<section
+	class:list={["ec-comments", className]}
+	data-ec-comments
+	data-collection={collection}
+	data-content-id={contentId}
+>
+	<h3 class="ec-comments-heading">{heading}</h3>
+
+	{
+		roots.length > 0 && (
+			<ol class="ec-comments-list">
+				{roots.map((root) => {
+					const replies = threaded ? (repliesByParent.get(root.id) ?? []) : [];
+					return (
+						<li>
+							<CommentItem comment={root} />
+							{replies.length > 0 && (
+								<ol class="ec-comment-replies">
+									{replies.map((reply) => (
+										<li>
+											<CommentItem comment={reply} reply />
+										</li>
+									))}
+								</ol>
+							)}
+						</li>
+					);
+				})}
+			</ol>
+		)
+	}
+</section>

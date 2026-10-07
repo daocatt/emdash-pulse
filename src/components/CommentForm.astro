@@ -1,0 +1,299 @@
+---
+/// <reference types="emdash/locals" />
+
+/**
+ * 评论提交表单（本地化版，替换 EmDash 内置的 `CommentForm`）。
+ *
+ * EmDash 内置组件的文案（Name / Email / Comment / Post Comment …）硬编码英文且
+ * 无可配 props，这里按同样的接口自建一份：同样的 `ec-comment-form*` 类名
+ * （沿用 `--ec-form-*` 令牌换肤）、同样的提交端点与请求头、蜜罐字段与 Turnstile，
+ * 只是所有文案走 i18n 字典。
+ *
+ * @example
+ * ```astro
+ * <CommentForm collection="articles" contentId={article.data.id} />
+ * ```
+ */
+
+import { getTranslations } from "../i18n";
+
+interface Props {
+	collection: string;
+	contentId: string;
+	parentId?: string | null;
+	class?: string;
+	/** Turnstile site key；提供时渲染组件并提交 token（服务端需配 EMDASH_TURNSTILE_SECRET_KEY）。 */
+	turnstileSiteKey?: string;
+}
+
+const {
+	collection,
+	contentId,
+	parentId = null,
+	class: className,
+	turnstileSiteKey,
+} = Astro.props;
+
+const { t } = getTranslations(Astro);
+const { user } = Astro.locals;
+const formId = `ec-comment-form-${parentId ?? "root"}`;
+const endpoint = `/_emdash/api/comments/${encodeURIComponent(collection)}/${encodeURIComponent(contentId)}`;
+---
+
+<form
+	id={formId}
+	class:list={["ec-comment-form", className]}
+	data-ec-comment-form
+	data-endpoint={endpoint}
+	data-user-name={user?.name ?? ""}
+	data-user-email={user?.email ?? ""}
+	data-msg-submit={t("comments.submit")}
+	data-msg-submitting={t("comments.submitting")}
+	data-msg-submitted={t("comments.submitted")}
+	data-msg-error={t("comments.error")}
+	data-msg-network={t("comments.networkError")}
+>
+	{
+		user ? (
+			<div class="ec-comment-user-info">
+				<span class="ec-comment-user-name">{user.name}</span>
+				<span class="ec-comment-user-email">{user.email}</span>
+			</div>
+		) : (
+			<div class="ec-comment-form-fields">
+				<label class="ec-comment-form-field">
+					<span>{t("comments.name")}</span>
+					<input type="text" name="authorName" required maxlength="100" autocomplete="name" />
+				</label>
+
+				<label class="ec-comment-form-field">
+					<span>{t("comments.email")}</span>
+					<input type="email" name="authorEmail" required autocomplete="email" />
+				</label>
+			</div>
+		)
+	}
+
+	{/* 蜜罐：对人隐藏，机器人会填 */}
+	<div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;">
+		<label>
+			{t("comments.honeypot")}
+			<input type="text" name="website_url" tabindex="-1" autocomplete="off" />
+		</label>
+	</div>
+
+	<label class="ec-comment-form-field">
+		<span>{t("comments.body")}</span>
+		<textarea name="body" required maxlength="5000" rows="4" />
+	</label>
+
+	{parentId && <input type="hidden" name="parentId" value={parentId} />}
+
+	{
+		turnstileSiteKey && (
+			<div class="cf-turnstile" data-sitekey={turnstileSiteKey} data-theme="auto" />
+		)
+	}
+
+	<button type="submit" class="ec-comment-form-submit">
+		{t("comments.submit")}
+	</button>
+
+	<div class="ec-comment-form-status" role="status" aria-live="polite" />
+</form>
+
+{
+	turnstileSiteKey && (
+		<script
+			is:inline
+			src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+			async
+			defer
+		/>
+	)
+}
+
+<script>
+	document.addEventListener("submit", async (e) => {
+		const form = e.target;
+		if (!(form instanceof HTMLFormElement) || !form.hasAttribute("data-ec-comment-form")) return;
+		e.preventDefault();
+
+		const endpoint = form.dataset.endpoint;
+		if (!endpoint) return;
+
+		const submitBtn = form.querySelector<HTMLButtonElement>(".ec-comment-form-submit");
+		const statusEl = form.querySelector<HTMLElement>(".ec-comment-form-status");
+		if (!submitBtn || !statusEl) return;
+
+		const msg = {
+			submit: form.dataset.msgSubmit ?? "Post comment",
+			submitting: form.dataset.msgSubmitting ?? "Submitting…",
+			submitted: form.dataset.msgSubmitted ?? "Comment submitted.",
+			error: form.dataset.msgError ?? "Failed to submit.",
+			network: form.dataset.msgNetwork ?? "Network error. Please try again.",
+		};
+
+		submitBtn.disabled = true;
+		submitBtn.textContent = msg.submitting;
+		statusEl.textContent = "";
+		statusEl.className = "ec-comment-form-status";
+
+		const data = new FormData(form);
+		const body: Record<string, string> = {};
+
+		// 已登录用户从 data 属性补上姓名 / 邮箱
+		const userName = form.dataset.userName;
+		const userEmail = form.dataset.userEmail;
+		if (userName) body.authorName = userName;
+		if (userEmail) body.authorEmail = userEmail;
+
+		for (const [key, value] of data.entries()) {
+			if (typeof value === "string") body[key] = value;
+		}
+
+		const turnstileInput = form.querySelector<HTMLInputElement>("[name='cf-turnstile-response']");
+		if (turnstileInput?.value) body.turnstileToken = turnstileInput.value;
+
+		try {
+			const res = await fetch(endpoint, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"X-EmDash-Request": "1",
+				},
+				body: JSON.stringify(body),
+			});
+
+			if (res.ok) {
+				statusEl.textContent = msg.submitted;
+				statusEl.classList.add("ec-comment-form-success");
+				const textarea = form.querySelector<HTMLTextAreaElement>("textarea[name='body']");
+				if (textarea) textarea.value = "";
+			} else {
+				statusEl.textContent = msg.error;
+				statusEl.classList.add("ec-comment-form-error");
+			}
+		} catch {
+			statusEl.textContent = msg.network;
+			statusEl.classList.add("ec-comment-form-error");
+		} finally {
+			// Turnstile token 一次性，成功失败都要重置
+			const turnstile = (window as unknown as { turnstile?: { reset: () => void } }).turnstile;
+			if (turnstile) turnstile.reset();
+			submitBtn.disabled = false;
+			submitBtn.textContent = msg.submit;
+		}
+	});
+</script>
+
+<style>
+	.ec-comment-form {
+		--ec-form-gap: 0.75rem;
+	}
+
+	.ec-comment-form-fields {
+		display: grid;
+		gap: var(--ec-form-gap);
+	}
+
+	@media (min-width: 640px) {
+		.ec-comment-form-fields {
+			grid-template-columns: 1fr 1fr;
+		}
+	}
+
+	.ec-comment-form-field {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		margin-top: var(--ec-form-gap);
+	}
+
+	.ec-comment-form-field:first-child {
+		margin-top: 0;
+	}
+
+	.ec-comment-form-fields .ec-comment-form-field {
+		margin-top: 0;
+	}
+
+	.ec-comment-form-field input,
+	.ec-comment-form-field textarea {
+		padding: 0.5rem;
+		border: 1px solid var(--ec-form-border, #d1d5db);
+		border-radius: 0.25rem;
+		font: inherit;
+		background: var(--ec-form-bg, #fff);
+		color: var(--ec-form-color, inherit);
+	}
+
+	:global(.dark) .ec-comment-form-field input,
+	:global(.dark) .ec-comment-form-field textarea {
+		--ec-form-bg: #1f2937;
+		--ec-form-border: #4b5563;
+		--ec-form-color: #f9fafb;
+	}
+
+	.ec-comment-user-info {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.75rem;
+		background: var(--ec-form-user-bg, #f3f4f6);
+		border: 1px solid var(--ec-form-user-border, #d1d5db);
+		border-radius: 0.375rem;
+		font-size: 0.875rem;
+	}
+
+	:global(.dark) .ec-comment-user-info {
+		background: var(--ec-form-user-bg-dark, #374151);
+	}
+
+	.ec-comment-user-name {
+		font-weight: 600;
+	}
+
+	.ec-comment-user-email {
+		opacity: 0.7;
+	}
+
+	.ec-comment-user-email::before {
+		content: "·";
+		margin-right: 0.5rem;
+	}
+
+	.ec-comment-form-submit {
+		margin-top: var(--ec-form-gap);
+		padding: 0.5rem 1.5rem;
+		border: none;
+		border-radius: 0.25rem;
+		font: inherit;
+		font-weight: 600;
+		cursor: pointer;
+		background: var(--ec-form-submit-bg, #1f2937);
+		color: var(--ec-form-submit-color, #fff);
+	}
+
+	.ec-comment-form-submit:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.ec-comment-form-status {
+		margin-top: var(--ec-form-gap);
+		font-size: 0.875em;
+	}
+
+	.ec-comment-form-status:empty {
+		display: none;
+	}
+
+	.ec-comment-form-success {
+		color: var(--ec-form-success-color, #059669);
+	}
+
+	.ec-comment-form-error {
+		color: var(--ec-form-error-color, #dc2626);
+	}
+</style>

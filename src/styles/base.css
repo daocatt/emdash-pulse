@@ -239,6 +239,76 @@ hr {
 	--ec-comment-border: var(--rule-hairline);
 }
 
+/* 评论列表 / 条目（自建 @shared/Comments + CommentItem 替代 EmDash 内置组件，
+   故内置组件的 <style> 不再生效，布局规则统一放这里，保持主题无关） */
+
+.ec-comments-heading {
+	font-family: var(--font-body);
+	font-size: var(--font-size-sm);
+	font-weight: 500;
+	letter-spacing: var(--tracking-wide);
+	color: var(--color-muted);
+	margin-bottom: var(--spacing-5);
+}
+
+.ec-comments-list,
+.ec-comment-replies {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+}
+
+.ec-comments-list > li + li {
+	margin-top: var(--ec-comment-gap);
+}
+
+.ec-comment {
+	padding-bottom: var(--ec-comment-gap);
+	border-bottom: var(--ec-comment-border);
+}
+
+.ec-comment-replies {
+	margin-top: var(--ec-comment-gap);
+	padding-left: var(--ec-comment-indent);
+}
+
+.ec-comment-replies > li + li {
+	margin-top: var(--ec-comment-gap);
+}
+
+.ec-comment-header {
+	display: flex;
+	align-items: baseline;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+}
+
+.ec-comment-author {
+	font-weight: 600;
+}
+
+.ec-comment-badge {
+	font-size: 0.75em;
+	vertical-align: super;
+}
+
+.ec-comment-date {
+	font-size: 0.875em;
+	opacity: 0.6;
+}
+
+.ec-comment-body {
+	margin-top: 0.5rem;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.ec-comment-body a {
+	color: var(--color-brand);
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+
 /* 尊重减少动效偏好 */
 @media (prefers-reduced-motion: reduce) {
 	*,

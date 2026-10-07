@@ -160,6 +160,21 @@ export const zhCN = {
 	"article.comments": "评论",
 	"article.related": "相关报道",
 
+	// 评论区（替换 EmDash 内置 Comments / CommentForm 的英文文案）
+	"comments.count": "{count} 条评论",
+	"comments.countOne": "1 条评论",
+	"comments.empty": "暂无评论，来写第一条。",
+	"comments.name": "姓名",
+	"comments.email": "邮箱",
+	"comments.body": "评论内容",
+	"comments.submit": "发表评论",
+	"comments.submitting": "提交中…",
+	"comments.submitted": "评论已提交，审核通过后显示。",
+	"comments.error": "提交失败，请稍后重试。",
+	"comments.networkError": "网络错误，请重试。",
+	"comments.member": "本站成员",
+	"comments.honeypot": "请勿填写此栏",
+
 	// 搜索
 	"search.title": "搜索",
 	"search.resultsTitle": "搜索：{query}",

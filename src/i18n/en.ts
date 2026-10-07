@@ -152,6 +152,21 @@ export const en: Record<MessageKey, string> = {
 	"article.comments": "Comments",
 	"article.related": "Related coverage",
 
+	// Comment area (replaces EmDash's built-in Comments / CommentForm copy)
+	"comments.count": "{count} comments",
+	"comments.countOne": "1 comment",
+	"comments.empty": "No comments yet. Be the first to write one.",
+	"comments.name": "Name",
+	"comments.email": "Email",
+	"comments.body": "Comment",
+	"comments.submit": "Post comment",
+	"comments.submitting": "Submitting…",
+	"comments.submitted": "Comment submitted. It will appear once approved.",
+	"comments.error": "Failed to submit. Please try again later.",
+	"comments.networkError": "Network error. Please try again.",
+	"comments.member": "Site member",
+	"comments.honeypot": "Do not fill this in",
+
 	// Search
 	"search.title": "Search",
 	"search.resultsTitle": "Search: {query}",

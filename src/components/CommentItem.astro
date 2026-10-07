@@ -1,0 +1,65 @@
+---
+/**
+ * 单条评论（评论列表的条目，含楼中楼回复）。
+ *
+ * 与 EmDash 内置列表同结构 / 同类名（`ec-comment*`），文案与日期本地化。
+ */
+
+import { getTranslations } from "../i18n";
+import { formatDateTime } from "../utils/format";
+
+export interface CommentRow {
+	id: string;
+	parent_id: string | null;
+	author_name: string;
+	author_user_id: string | null;
+	body: string;
+	created_at: string;
+}
+
+interface Props {
+	comment: CommentRow;
+	/** 是否为楼中楼回复（附加 `ec-comment-reply` 类）。 */
+	reply?: boolean;
+}
+
+const { comment, reply = false } = Astro.props;
+const { locale, t } = getTranslations(Astro);
+
+const URL_RE = /https?:\/\/[^\s<>"')\]]+/g;
+
+function escapeHtml(text: string): string {
+	return text
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;");
+}
+
+/** 先转义再自动链接 URL（与内置组件同序，避免 XSS）。 */
+const body = escapeHtml(comment.body).replace(
+	URL_RE,
+	(url) => `<a href="${url}" rel="nofollow ugc noopener" target="_blank">${url}</a>`,
+);
+---
+
+<article
+	class:list={["ec-comment", reply && "ec-comment-reply"]}
+	id={`comment-${comment.id}`}
+	data-comment-id={comment.id}
+>
+	<header class="ec-comment-header">
+		<span class="ec-comment-author">
+			{comment.author_name}
+			{comment.author_user_id && (
+				<span class="ec-comment-badge" aria-label={t("comments.member")}>
+					&#x2713;
+				</span>
+			)}
+		</span>
+		<time class="ec-comment-date" datetime={comment.created_at}>
+			{formatDateTime(comment.created_at, locale)}
+		</time>
+	</header>
+	<div class="ec-comment-body" set:html={body} />
+</article>
