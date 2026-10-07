@@ -79,6 +79,19 @@ const TARGETS = {
   },
   "newsroom-night-talk-ep12": { featured_image: { key: "desk" } },
   "assignment-routing-in-a-minute": { featured_image: { key: "circuit" } },
+  "edge-inference-chips-ship": { featured_image: { key: "circuit" } },
+  "open-model-license-debate": { featured_image: { key: "newsroom" } },
+  "datacenter-water-ledger": { featured_image: { key: "cityNight" } },
+  "robot-in-the-newsroom": {
+    featured_image: { key: "desk" },
+    gallery: [
+      { key: "circuit", caption: "巡场机器人的主控板", credit: "Suda Pulse 视觉组" },
+      { key: "nightFlow", caption: "夜间值守的路线数据", credit: "Suda Pulse 视觉组" },
+    ],
+  },
+  "dependency-supply-chain-audit": { featured_image: { key: "nightFlow" } },
+  "cost-per-token-on-cloud": { featured_image: { key: "circuit" } },
+  "vector-database-in-a-minute": { featured_image: { key: "nightFlow" } },
 };
 
 function log(msg) {

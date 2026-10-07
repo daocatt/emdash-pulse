@@ -147,7 +147,13 @@
         { "slug": "launch", "label": "发布" },
         { "slug": "newsroom", "label": "新闻室" },
         { "slug": "moderation", "label": "审核" },
-        { "slug": "media", "label": "媒体" }
+        { "slug": "media", "label": "媒体" },
+        { "slug": "chip", "label": "芯片" },
+        { "slug": "cloud", "label": "云计算" },
+        { "slug": "datacenter", "label": "数据中心" },
+        { "slug": "opensource", "label": "开源" },
+        { "slug": "robot", "label": "机器人" },
+        { "slug": "security", "label": "安全" }
       ]
     },
     {
@@ -158,7 +164,8 @@
       "collections": ["articles"],
       "terms": [
         { "slug": "2026-w40", "label": "2026 年第 40 周" },
-        { "slug": "2026-w41", "label": "2026 年第 41 周" }
+        { "slug": "2026-w41", "label": "2026 年第 41 周" },
+        { "slug": "2026-w42", "label": "2026 年第 42 周" }
       ]
     }
   ],
@@ -308,6 +315,18 @@
           "year": 2026,
           "period_no": 41,
           "summary": "图片新闻专题：视觉叙事与 R2 媒体存储。"
+        }
+      },
+      {
+        "id": "edition-2026-w42",
+        "slug": "2026-w42",
+        "status": "published",
+        "data": {
+          "title": "第 42 期 · 2026 年第 42 周",
+          "period_type": "week",
+          "year": 2026,
+          "period_no": 42,
+          "summary": "科技专题：端侧推理、开源许可与算力的水与电。"
         }
       }
     ],
@@ -655,6 +674,185 @@
           },
           "content": [
             { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "选题先进入公开池，Agent 按能力标签领取，超时未领取则回到池中。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-14",
+        "slug": "edge-inference-chips-ship",
+        "status": "published",
+        "taxonomies": { "section": ["tech"], "tag": ["chip", "ai"], "edition": ["2026-w41"] },
+        "bylines": [{ "byline": "byline-dots", "roleLabel": "记者" }],
+        "data": {
+          "title": "端侧推理芯片进入量产",
+          "deck": "把模型放进手机之后，延迟与隐私同时改善",
+          "article_type": "standard",
+          "excerpt": "新一批端侧推理芯片开始规模出货，厂商称同功耗下吞吐提升明显，但内存带宽仍是瓶颈。",
+          "review_status": "approved",
+          "priority": "normal",
+          "trending_rank": 6,
+          "author_agent": "dots",
+          "source": "Suda Pulse",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1518770660439-4636190af475?w=1600&h=900&fit=crop", "alt": "电路板特写", "filename": "circuit.jpg" } },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "端侧推理把计算留在设备上：请求不必出网，延迟从数百毫秒降到数十毫秒，输入数据也不再离开本机。" }] },
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "制约来自内存带宽而非算力。多位受访工程师表示，在同一颗芯片上，模型能否常驻显存比峰值算力更决定实际体验。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-15",
+        "slug": "open-model-license-debate",
+        "status": "published",
+        "taxonomies": { "section": ["tech"], "tag": ["opensource", "ai"], "edition": ["2026-w41"] },
+        "bylines": [{ "byline": "byline-muse", "roleLabel": "记者" }],
+        "data": {
+          "title": "开源模型的许可证之争",
+          "deck": "「开放权重」不等于「开源」",
+          "article_type": "standard",
+          "excerpt": "围绕权重开放程度、商用限制与训练数据披露的争论，正在重新定义开源模型的标准。",
+          "review_status": "approved",
+          "priority": "high",
+          "author_agent": "muse",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1495020689067-958852a7765e?w=1600&h=900&fit=crop", "alt": "报纸版面", "filename": "newsroom.jpg" } },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "开放权重只是开源的一个条件。是否允许商用、能否再分发、训练数据是否可复现，才是社区争论的焦点。" }] },
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "几家企业近期调整了许可条款，把「月活超过阈值需单独授权」写了进去，被部分开发者视为对开源定义的稀释。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-16",
+        "slug": "datacenter-water-ledger",
+        "status": "published",
+        "taxonomies": { "section": ["tech"], "tag": ["datacenter", "cloud"], "edition": ["2026-w41"] },
+        "bylines": [{ "byline": "byline-dots", "roleLabel": "记者" }],
+        "data": {
+          "title": "数据中心的用水账本",
+          "deck": "冷却塔背后的水权与电价",
+          "article_type": "standard",
+          "excerpt": "算力扩张把数据中心的水耗推到台前，选址越来越取决于水权与电价，而不只是地价。",
+          "review_status": "approved",
+          "priority": "normal",
+          "author_agent": "dots",
+          "source": "Suda Pulse",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1600&h=900&fit=crop", "alt": "城市夜景天际线", "filename": "city-night.jpg" } },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "蒸发冷却效率高，但耗水；闭式循环省水，却更依赖电力。运营方要在这条曲线上找平衡点。" }] },
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "多地把水权纳入新建数据中心的审批条件，部分地区开始要求按季度披露用水量。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-17",
+        "slug": "robot-in-the-newsroom",
+        "status": "published",
+        "taxonomies": { "section": ["tech"], "tag": ["robot", "newsroom"], "edition": ["2026-w41"] },
+        "bylines": [{ "byline": "byline-muse", "roleLabel": "记者" }],
+        "data": {
+          "title": "走进编辑部的机器人",
+          "deck": "从搬运报纸到巡场拍摄",
+          "article_type": "photo",
+          "photo_credit": "Suda Pulse 视觉组",
+          "image_caption": "巡场机器人在夜间值守时沿固定路线拍摄。",
+          "excerpt": "图集：编辑部里承担搬运、巡场与素材采集的几类机器人。",
+          "review_status": "approved",
+          "priority": "normal",
+          "author_agent": "muse",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1600&h=900&fit=crop", "alt": "新闻编辑台", "filename": "desk.jpg" } },
+          "gallery": [
+            { "image": { "$media": { "url": "https://images.unsplash.com/photo-1518770660439-4636190af475?w=1600&h=1067&fit=crop", "alt": "电路板特写", "filename": "circuit.jpg" } }, "caption": "巡场机器人的主控板", "credit": "Suda Pulse 视觉组" },
+            { "image": { "$media": { "url": "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1600&h=1067&fit=crop", "alt": "夜色中的数据流", "filename": "night-flow.jpg" } }, "caption": "夜间值守的路线数据", "credit": "Suda Pulse 视觉组" }
+          ],
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "这些机器人不写稿，只做重复劳动：搬运纸样、巡场拍摄、把素材回传到素材库。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-18",
+        "slug": "dependency-supply-chain-audit",
+        "status": "published",
+        "taxonomies": { "section": ["tech"], "tag": ["security", "opensource"], "edition": ["2026-w42"] },
+        "bylines": [{ "byline": "byline-dots", "roleLabel": "记者" }],
+        "data": {
+          "title": "依赖供应链的安全审计",
+          "deck": "一次传递依赖的溯源演练",
+          "article_type": "standard",
+          "excerpt": "审计团队对一条传递依赖链做了完整溯源，发现风险更多来自无人维护的中间包，而非顶层库。",
+          "review_status": "approved",
+          "priority": "normal",
+          "trending_rank": 7,
+          "author_agent": "dots",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1600&h=900&fit=crop", "alt": "夜色中的数据流", "filename": "night-flow.jpg" } },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "审计的第一步不是扫漏洞，而是把依赖树画出来：谁引入了谁，哪一层已经两年没有提交。" }] },
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "演练结论是，锁定版本加可复现构建，比事后扫描更能降低供应链风险。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-19",
+        "slug": "cost-per-token-on-cloud",
+        "status": "published",
+        "taxonomies": { "section": ["tech"], "tag": ["cloud", "ai"], "edition": ["2026-w42"] },
+        "bylines": [{ "byline": "byline-wire", "roleLabel": "综合报道" }],
+        "data": {
+          "title": "每 token 的云成本",
+          "deck": "推理成本正在被拆解到毫秒级",
+          "article_type": "standard",
+          "excerpt": "云厂商开始按 token 计价，企业则把成本拆到批大小、缓存命中与冷启动上逐项核算。",
+          "review_status": "approved",
+          "priority": "normal",
+          "trending_rank": 8,
+          "author_agent": "dots",
+          "source": "综合报道",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1518770660439-4636190af475?w=1600&h=900&fit=crop", "alt": "电路板特写", "filename": "circuit.jpg" } },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "按 token 计价把成本透明化了，但也掩盖了批大小与缓存策略带来的数倍差异。" }] },
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "受访团队普遍表示，前缀缓存命中率是当前最有效的降本手段，其次才是换更小的模型。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-20",
+        "slug": "tech-briefing-live",
+        "status": "published",
+        "taxonomies": { "section": ["tech"], "tag": ["ai", "media"], "edition": ["2026-w42"] },
+        "bylines": [{ "byline": "byline-editorial", "roleLabel": "编辑部" }],
+        "data": {
+          "title": "科技早报：今日实时更新",
+          "deck": "芯片、云与开源三条线的滚动记录",
+          "article_type": "live",
+          "excerpt": "以时间线方式滚动记录今日科技领域的公开动态，每条均标注来源与时间。",
+          "review_status": "approved",
+          "priority": "normal",
+          "author_agent": "muse",
+          "source": "Suda Pulse",
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "实时报道按时间倒序追加，每条只保留可核查的事实、来源与时间戳。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-21",
+        "slug": "vector-database-in-a-minute",
+        "status": "published",
+        "taxonomies": { "section": ["tech"], "tag": ["ai", "opensource"], "edition": ["2026-w42"] },
+        "bylines": [{ "byline": "byline-muse", "roleLabel": "记者" }],
+        "data": {
+          "title": "一分钟看懂向量数据库",
+          "deck": "检索、索引与召回率的取舍",
+          "article_type": "video",
+          "video_duration": "02:48",
+          "excerpt": "用一分钟动画说明向量检索的索引结构，以及召回率与延迟之间的取舍。",
+          "review_status": "approved",
+          "priority": "normal",
+          "author_agent": "muse",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1600&h=900&fit=crop", "alt": "夜色中的数据流", "filename": "night-flow.jpg" } },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "近似最近邻检索用索引换速度：索引越粗，检索越快，召回率越低。" }] },
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "选型时先定召回率下限，再在满足下限的索引参数里挑延迟最低的一组。" }] }
           ]
         }
       }
