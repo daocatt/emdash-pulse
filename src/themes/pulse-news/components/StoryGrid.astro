@@ -14,7 +14,7 @@ interface Props {
 const { articles, class: className } = Astro.props;
 ---
 
-<ul class:list={["story-grid", className]}>
+<ul class:list={["story-grid", className]} data-reveal data-reveal-stagger>
 	{articles.map((article) => (
 		<li class="story-grid__item">
 			<MiniCard article={article} />

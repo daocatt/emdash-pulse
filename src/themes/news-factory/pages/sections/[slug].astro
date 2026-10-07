@@ -45,7 +45,7 @@ if (Astro.cache?.enabled) {
 		{articles.length === 0 ? (
 			<p class="archive-page__empty">{t("list.emptySection")}</p>
 		) : (
-			<ul class="archive-page__list">
+			<ul class="archive-page__list" data-reveal data-reveal-stagger>
 				{articles.map((article) => (
 					<li class="archive-page__row">
 						<StoryCard article={article} showImage size="md" headingLevel="h2" />

@@ -75,7 +75,7 @@ const latestWeek = latestPeriod?.weeks.at(-1) ?? 1;
 
 			<aside class="archive__recent">
 				<h2 class="archive__recent-title">{t("archive.recent")}</h2>
-				<ul class="archive__recent-list">
+				<ul class="archive__recent-list" data-reveal data-reveal-stagger>
 					{recent.map((article) => (
 						<li class="archive__recent-item">
 							<a href={`/articles/${article.id}`}>{article.data.title}</a>

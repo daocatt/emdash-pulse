@@ -61,7 +61,7 @@ const endLabel = formatDate(new Date(new Date(range.lt).getTime() - 86400000), l
 		{articles.length === 0 ? (
 			<p class="week-archive__empty">{t("archive.emptyWeek")}</p>
 		) : (
-			<ul class="week-archive__list">
+			<ul class="week-archive__list" data-reveal data-reveal-stagger>
 				{articles.map((article) => (
 					<li>
 						<StoryCard article={article} showImage size="md" headingLevel="h2" />

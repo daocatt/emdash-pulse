@@ -71,7 +71,7 @@ function resultHref(collection: string, slug: string | null, id: string): string
 				placeholder={t("search.placeholder")}
 				autofocus
 			/>
-			<button class="search__submit" type="submit">{t("common.searchSubmit")}</button>
+			<button class="search__submit" type="submit" data-press>{t("common.searchSubmit")}</button>
 		</form>
 
 		{query && (
@@ -83,7 +83,7 @@ function resultHref(collection: string, slug: string | null, id: string): string
 		)}
 
 		{results.length > 0 && (
-			<ul class="search__results">
+			<ul class="search__results" data-reveal data-reveal-stagger>
 				{results.map((result) => (
 					<li class="search__result">
 						<a class="search__result-link" href={resultHref(result.collection, result.slug, result.id)}>

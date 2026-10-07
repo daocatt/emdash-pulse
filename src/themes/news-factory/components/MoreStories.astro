@@ -24,7 +24,7 @@ const { t } = getTranslations(Astro);
 				<span class="more-stories__rule" aria-hidden="true" />
 			</header>
 
-			<div class="more-stories__grid">
+			<div class="more-stories__grid" data-reveal data-reveal-stagger>
 				{articles.map((article) => (
 					<StoryCard article={article} showImage size="sm" />
 				))}

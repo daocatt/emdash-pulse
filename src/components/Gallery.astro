@@ -1,5 +1,6 @@
 ---
 import { Image } from "emdash/ui";
+import { getTranslations } from "../i18n";
 import type { GalleryItem } from "../utils/media";
 
 interface Props {
@@ -10,21 +11,23 @@ interface Props {
 }
 
 const { items, groupId, class: className } = Astro.props;
+const { t } = getTranslations(Astro);
 ---
 
 {items.length > 0 && (
-	<div class:list={["gallery", className]}>
+	<div class:list={["gallery", className]} data-reveal data-reveal-stagger>
 		{items.map((item, index) => (
 			<figure class="gallery__item">
 				<button
 					type="button"
 					class="gallery__button"
 					data-lightbox
+					data-press
 					data-lightbox-src={item.url}
 					data-lightbox-caption={item.caption}
 					data-lightbox-credit={item.credit}
 					data-lightbox-group={groupId}
-					aria-label={`查看第 ${index + 1} 张图片`}
+					aria-label={t("lightbox.viewImage", { index: index + 1 })}
 				>
 					<Image
 						image={item.image}

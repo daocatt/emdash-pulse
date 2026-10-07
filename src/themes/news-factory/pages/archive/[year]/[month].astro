@@ -58,7 +58,7 @@ const title = t("archive.monthTitle", { label: monthLabel });
 		{articles.length === 0 ? (
 			<p class="month-archive__empty">{t("archive.emptyMonth")}</p>
 		) : (
-			<ul class="month-archive__list">
+			<ul class="month-archive__list" data-reveal data-reveal-stagger>
 				{articles.map((article) => (
 					<li>
 						<StoryCard article={article} showImage size="md" headingLevel="h2" />

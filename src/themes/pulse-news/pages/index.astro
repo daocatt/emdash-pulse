@@ -89,7 +89,7 @@ const asideStory = take(1)[0] ?? null;
 
 				{
 					minis.length > 0 && (
-						<div class="front__minis">
+						<div class="front__minis" data-reveal data-reveal-stagger>
 							{minis.map((article) => (
 								<MiniCard article={article} />
 							))}
@@ -98,7 +98,7 @@ const asideStory = take(1)[0] ?? null;
 				}
 			</div>
 
-			<aside class="front__aside">
+			<aside class="front__aside" data-reveal data-reveal-stagger>
 				{podcast && <PodcastBlock article={podcast} />}
 
 				{asideStory && <AsideStory article={asideStory} />}
