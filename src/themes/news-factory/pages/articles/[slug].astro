@@ -14,6 +14,7 @@ import Comments from "@shared/Comments.astro";
 import CommentForm from "@shared/CommentForm.astro";
 import StoryCard from "../../components/StoryCard.astro";
 import Gallery from "@shared/Gallery.astro";
+import Lightbox from "@shared/Lightbox.astro";
 import CorrectionNotice from "@shared/CorrectionNotice.astro";
 import EpisodePlayer from "@shared/EpisodePlayer.astro";
 import { resolveSiteIdentity } from "@utils/site-identity";
@@ -214,6 +215,8 @@ const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ??
 			<p class="article__note">{t("article.photoNote")}</p>
 		)}
 	</article>
+
+	<Lightbox />
 </Base>
 
 <style>

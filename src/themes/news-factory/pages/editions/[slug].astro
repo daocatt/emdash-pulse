@@ -2,6 +2,7 @@
 import { getEmDashEntry, getEmDashCollection, decodeSlug, getSeoMeta, getSiteSettings } from "emdash";
 import { Image } from "emdash/ui";
 import Base from "../../layout/Base.astro";
+import Lightbox from "@shared/Lightbox.astro";
 import { resolveSiteIdentity } from "@utils/site-identity";
 import { resolveMediaUrl, resolveMediaAlt } from "@utils/media";
 import { formatDate } from "@utils/format";
@@ -114,6 +115,8 @@ const sections = [...groups.values()];
 			))
 		)}
 	</div>
+
+	<Lightbox />
 </Base>
 
 <style>

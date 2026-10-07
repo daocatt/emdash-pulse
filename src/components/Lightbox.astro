@@ -1,6 +1,10 @@
 ---
 /**
- * 全屏灯箱（全局单例，挂在 Base 布局末尾）。
+ * 全屏灯箱（全局单例）。
+ *
+ * **只挂在真正用它的页面**（两套主题的 `articles/[slug]` 与 `editions/[slug]`），
+ * 不放 Base 布局 —— 否则每个页面都要为它多下一段脚本。判据是 `data-lightbox`
+ * 触发器的分布（`Gallery.astro` 与文章/期号封面）。
  *
  * 任何元素带以下属性即可触发：
  *   data-lightbox
@@ -9,8 +13,10 @@
  *   data-lightbox-credit="<署名，可选>"
  *   data-lightbox-group="<分组名，可选；同组可左右切换>"
  *
- * 本组件只管状态与导航；开合动效在 `src/scripts/motion/lightbox.ts`，通过
- * `lightbox:open` / `lightbox:close-request` 两个事件解耦（后者可取消）。
+ * 本组件只管状态与导航。开合（进场 / 退场）动效在 `src/scripts/motion/lightbox.ts`，
+ * 通过 `lightbox:open` / `lightbox:close-request` 两个事件解耦（后者可取消）；
+ * 上一张 / 下一张的淡入是本地 CSS keyframes —— 这样组件**不依赖 motion**，不必把
+ * 动效引擎拖进每个带图页面。
  */
 import { getTranslations } from "../i18n";
 
@@ -94,6 +100,22 @@ const { t } = getTranslations(Astro);
 		max-width: 70ch;
 	}
 
+	/* 上一张 / 下一张的淡入：用 keyframes 而非 transition —— 只需一个 class，
+	 * 动画结束自动回到无驱动状态，不必写 / 清内联样式。reduced-motion 由
+	 * `base.css` 的全局兜底压到 0.01ms。 */
+	@keyframes lightbox-fade-in {
+		from {
+			opacity: 0;
+		}
+		to {
+			opacity: 1;
+		}
+	}
+
+	.lightbox__image--swap {
+		animation: lightbox-fade-in var(--motion-duration-fast) var(--motion-ease);
+	}
+
 	.lightbox__close,
 	.lightbox__nav {
 		position: fixed;
@@ -143,9 +165,6 @@ const { t } = getTranslations(Astro);
 </style>
 
 <script>
-	import { animate } from "motion/mini";
-	import { durationSeconds, easing } from "../scripts/motion/tokens";
-
 	(() => {
 		const dialog = document.getElementById("suda-lightbox") as HTMLDialogElement | null;
 		if (!dialog || dialog.dataset.bound === "1") return;
@@ -164,7 +183,7 @@ const { t } = getTranslations(Astro);
 			);
 		};
 
-		/** `direction` 有值时（上一张 / 下一张）做一次淡入；打开时由运行时统一进场。 */
+		/** `direction` 有值时（上一张 / 下一张）重放一次 CSS 淡入；打开时由运行时统一进场。 */
 		const render = (direction?: number) => {
 			const el = group[index];
 			if (!el || !imageEl) return;
@@ -179,11 +198,10 @@ const { t } = getTranslations(Astro);
 			dialog.querySelector("[data-lightbox-prev]")?.toggleAttribute("hidden", !multiple);
 			dialog.querySelector("[data-lightbox-next]")?.toggleAttribute("hidden", !multiple);
 
-			if (direction && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-				animate(imageEl, { opacity: [0, 1] }, {
-					duration: durationSeconds(dialog, "--motion-duration-fast", 140),
-					ease: easing(dialog),
-				});
+			if (direction) {
+				imageEl.classList.remove("lightbox__image--swap");
+				void imageEl.offsetWidth; // 强制 reflow，让动画能重放
+				imageEl.classList.add("lightbox__image--swap");
 			}
 		};
 
@@ -241,7 +259,9 @@ const { t } = getTranslations(Astro);
 		});
 
 		dialog.addEventListener("close", () => {
-			if (imageEl) imageEl.removeAttribute("src");
+			if (!imageEl) return;
+			imageEl.removeAttribute("src");
+			imageEl.classList.remove("lightbox__image--swap");
 		});
 	})();
 </script>
