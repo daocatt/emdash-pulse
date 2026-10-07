@@ -50,11 +50,19 @@ async function themeBlocks(ctx: PluginContext, notice?: string): Promise<Array<R
 		...(notice ? [{ type: "section", text: notice }] : []),
 		{ type: "divider" },
 		{
-			type: "radio",
-			action_id: "theme-switch",
-			label: "选择前台主题",
-			options: THEMES.map((theme) => ({ label: theme.label, value: theme.value })),
-			initial_value: current,
+			// `radio` 是**元素**而非**块**：顶层 blocks[] 只接受块类型，元素必须包在
+			// `actions`（或 `form`）里，否则宿主校验直接 502 INVALID_BLOCK_RESPONSE。
+			// 选中即派发 `block_action`（见 blocks 的 RadioElementComponent）。
+			type: "actions",
+			elements: [
+				{
+					type: "radio",
+					action_id: "theme-switch",
+					label: "选择前台主题",
+					options: THEMES.map((theme) => ({ label: theme.label, value: theme.value })),
+					initial_value: current,
+				},
+			],
 		},
 	];
 }
