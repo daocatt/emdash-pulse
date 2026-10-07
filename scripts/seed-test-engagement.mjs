@@ -1,15 +1,19 @@
 #!/usr/bin/env node
 /**
- * 本地测试数据：一批评论 + 一批订阅者（仅用于 dev 复核 UI）。
+ * 本地测试数据：一批评论 + 一批订阅者 + 订阅分组 / 事件日志（仅用于 dev 复核 UI）。
  *
  * - 评论：写入 `_emdash_comments`（全部 `status='approved'`，含楼中楼回复），
  *   落到几篇已发布文章上，前台文章页评论区立即可见。
  * - 订阅者：写入插件存储 `_plugin_storage`
  *   （`pulse-subscriptions` / `subscribers`），状态混合
- *   `confirmed` / `pending` / `unsubscribed`，供后台「读者订阅」页复核。
+ *   `confirmed` / `pending` / `unsubscribed` / `paused`，供后台「订阅者」页复核。
+ * - 分组：同表 `groups` 集合（slug 即记录 id）。
+ * - 事件日志：同表 `events` 集合，按订阅者铺一条时间线，供后台「订阅记录」子视图复核。
  *
  * 幂等：默认先按邮箱标记（`@test.suda.im`）清除上一次的测试数据再写入；
  * 加 `--keep` 则只追加不清除。
+ * 注意：`events` 集合按插件整体清空（事件只由这些测试订阅者产生），
+ * `groups` 只清本脚本声明的 slug。
  *
  * 用法（dev server 可保持运行，SQLite 为 WAL）：
  *   node scripts/seed-test-engagement.mjs
@@ -25,6 +29,8 @@ import { createHash, randomBytes } from "node:crypto";
 const TEST_EMAIL_DOMAIN = "test.suda.im";
 const PLUGIN_ID = "pulse-subscriptions";
 const SUBSCRIBERS_COLLECTION = "subscribers";
+const GROUPS_COLLECTION = "groups";
+const EVENTS_COLLECTION = "events";
 
 // ---------- 参数 ----------
 
@@ -175,21 +181,40 @@ const COMMENT_THREADS = {
 	],
 };
 
-/** 订阅者：状态混合，个别带「待发邮件」快照以覆盖后台不同展示。 */
+/** 订阅分组：slug 即记录 id（创建后不可变）。 */
+const GROUPS = [
+	{ slug: "daily", name: "每日摘要", description: "每天早上推送前一天的报道精选。", sortOrder: 1, active: true },
+	{ slug: "weekly", name: "每周精选", description: "每周一封，编辑部挑的长文与深度报道。", sortOrder: 2, active: true },
+	{ slug: "breaking", name: "突发新闻", description: "重大事件即时推送，频率不固定。", sortOrder: 3, active: true },
+	// 已停用：不出现在前台表单，但保留已有订阅关系（后台应显示为「停用」）。
+	{ slug: "podcast-club", name: "播客俱乐部", description: "（已停用）播客更新通知。", sortOrder: 9, active: false },
+];
+
+/** 订阅者：状态混合，个别带「待发邮件」快照 / 分组 / 暂停信息以覆盖后台不同展示。 */
 const SUBSCRIBERS = [
-	{ local: "linyi", status: "confirmed", source: "web", daysAgo: 21 },
-	{ local: "zhouzhou", status: "confirmed", source: "web", daysAgo: 18 },
-	{ local: "chenmo", status: "confirmed", source: "article", daysAgo: 12 },
+	{ local: "linyi", status: "confirmed", source: "web", daysAgo: 21, groups: ["daily", "weekly"] },
+	{ local: "zhouzhou", status: "confirmed", source: "web", daysAgo: 18, groups: ["weekly"] },
+	{ local: "chenmo", status: "confirmed", source: "article", daysAgo: 12, groups: ["daily"] },
 	{ local: "suwan", status: "confirmed", source: "web", daysAgo: 9 },
-	{ local: "kevin", status: "confirmed", source: "footer", daysAgo: 6 },
-	{ local: "zhaoqing", status: "confirmed", source: "web", daysAgo: 3 },
+	{ local: "kevin", status: "confirmed", source: "footer", daysAgo: 6, groups: ["breaking", "daily"] },
+	{ local: "zhaoqing", status: "confirmed", source: "web", daysAgo: 3, groups: ["weekly", "podcast-club"] },
 	{ local: "lirang", status: "pending", source: "web", daysAgo: 2 },
-	{ local: "wangan", status: "pending", source: "article", daysAgo: 1 },
+	{ local: "wangan", status: "pending", source: "article", daysAgo: 1, groups: ["breaking"] },
 	{ local: "hesu", status: "pending", source: "web", hoursAgo: 8 },
 	// 邮件未投递（无 provider / 投递失败）时保留的待发快照。
 	{ local: "nina", status: "pending", source: "web", hoursAgo: 5, undelivered: true },
-	{ local: "mika", status: "unsubscribed", source: "web", daysAgo: 30, unsubDaysAgo: 4 },
-	{ local: "oliver", status: "unsubscribed", source: "web", daysAgo: 45, unsubDaysAgo: 11 },
+	{ local: "mika", status: "unsubscribed", source: "web", daysAgo: 30, unsubDaysAgo: 4, unsubReason: "频率太高" },
+	{ local: "oliver", status: "unsubscribed", source: "web", daysAgo: 45, unsubDaysAgo: 11, unsubReason: "内容不相关" },
+	// 后台主动暂停：读者重新提交订阅也不会自动恢复。
+	{
+		local: "tian",
+		status: "paused",
+		source: "web",
+		daysAgo: 14,
+		pauseDaysAgo: 3,
+		pauseReason: "收件地址被投诉，待编辑部核实",
+		groups: ["daily"],
+	},
 ];
 
 // ---------- 生成 ----------
@@ -234,12 +259,14 @@ function buildSubscriberRecord(spec) {
 	const createdAtMs =
 		(spec.daysAgo ?? 0) * DAY + (spec.hoursAgo ?? 0) * HOUR;
 	const createdAt = iso(createdAtMs);
+	// paused 只从 confirmed 进入（见 operations.ts），所以它也带 confirmedAt。
 	const confirmedAt =
-		spec.status === "confirmed" || spec.status === "unsubscribed"
+		spec.status === "confirmed" || spec.status === "unsubscribed" || spec.status === "paused"
 			? iso(createdAtMs - 2 * MINUTE)
 			: undefined;
 	const unsubscribedAt =
 		spec.unsubDaysAgo != null ? iso(spec.unsubDaysAgo * DAY) : undefined;
+	const pausedAt = spec.pauseDaysAgo != null ? iso(spec.pauseDaysAgo * DAY) : undefined;
 
 	// 确认 / 退订 token 只存哈希，明文仅在邮件链接里；测试数据用随机值占位。
 	const token = `ps_${spec.status === "pending" ? "confirm" : "unsub"}_${sha256(email)}`;
@@ -251,12 +278,18 @@ function buildSubscriberRecord(spec) {
 		tokenPrefix: token.slice(0, 12),
 		tokenPurpose: spec.status === "pending" ? "confirm" : "unsubscribe",
 		source: spec.source,
+		groups: spec.groups ?? [],
 		createdAt,
 		requestedAt: createdAt,
 		emailDelivered: !spec.undelivered,
 		lastSentAt: createdAt,
 		...(confirmedAt ? { confirmedAt } : {}),
 		...(unsubscribedAt ? { unsubscribedAt } : {}),
+		...(spec.unsubReason ? { unsubscribeReason: spec.unsubReason } : {}),
+		...(pausedAt
+			? { pausedAt, pausedBy: "admin", pausedFrom: "confirmed" }
+			: {}),
+		...(spec.pauseReason ? { pauseReason: spec.pauseReason } : {}),
 	};
 	if (spec.undelivered) {
 		record.pendingEmail = {
@@ -268,6 +301,51 @@ function buildSubscriberRecord(spec) {
 		};
 	}
 	return { id: `sub_${sha256(email).slice(0, 32)}`, data: record };
+}
+
+function buildGroupRecord(spec) {
+	const createdAt = iso(30 * DAY);
+	return {
+		id: spec.slug,
+		data: {
+			name: spec.name,
+			...(spec.description ? { description: spec.description } : {}),
+			sortOrder: spec.sortOrder,
+			active: spec.active,
+			createdAt,
+		},
+	};
+}
+
+/** 按订阅者当前态铺一条事件时间线（后台按 `at` 倒序展示）。 */
+function buildEvents(spec, id, record) {
+	const events = [];
+	const push = (type, at, actor, extra = {}) => {
+		if (!at) return;
+		events.push({
+			// 同一条记录里 (type, at) 可能重复（如 requested 与 groups_changed 同一时刻），
+			// 用哈希保证 id 唯一，避免同主键互相覆盖。
+			id: `evt_${sha256(`${id}:${type}:${at}`).slice(0, 32)}`,
+			// 刻意不写 emailHash：subscribers 的 uniqueIndexes 是全表唯一索引，
+			// 同名字段会让同一订阅者的第 2 条事件撞唯一约束（详见插件 events.ts 注释）。
+			data: { subscriberId: id, type, at, actor, ...extra },
+		});
+	};
+
+	push("requested", record.createdAt, "reader");
+	if (record.groups.length > 0) {
+		push("groups_changed", record.createdAt, "reader", { detail: record.groups.join(",") });
+	}
+	push("confirmed", record.confirmedAt, "reader");
+	if (spec.status === "paused") {
+		push("paused", record.pausedAt, "admin", { ...(record.pauseReason ? { reason: record.pauseReason } : {}) });
+	}
+	if (spec.status === "unsubscribed") {
+		push("unsubscribed", record.unsubscribedAt, "reader", {
+			...(record.unsubscribeReason ? { reason: record.unsubscribeReason } : {}),
+		});
+	}
+	return events;
 }
 
 // ---------- 主流程 ----------
@@ -300,7 +378,30 @@ function main() {
 			"DELETE FROM _plugin_storage WHERE plugin_id = ? AND collection = ? AND json_extract(data, '$.email') LIKE ?",
 		).run(PLUGIN_ID, SUBSCRIBERS_COLLECTION, `%@${TEST_EMAIL_DOMAIN}`);
 
-		console.log(`清理旧测试数据：评论 ${commentCount} 条，订阅者 ${subCount} 条`);
+		// 分组：只清本脚本声明的 slug（后台可能手工建过别的分组）。
+		const groupSlugs = GROUPS.map((group) => group.slug);
+		const groupCount = db
+			.prepare(
+				`SELECT count(*) AS n FROM _plugin_storage WHERE plugin_id = ? AND collection = ? AND id IN (${groupSlugs.map(() => "?").join(", ")})`,
+			)
+			.get(PLUGIN_ID, GROUPS_COLLECTION, ...groupSlugs).n;
+		db.prepare(
+			`DELETE FROM _plugin_storage WHERE plugin_id = ? AND collection = ? AND id IN (${groupSlugs.map(() => "?").join(", ")})`,
+		).run(PLUGIN_ID, GROUPS_COLLECTION, ...groupSlugs);
+
+		// 事件：只由这些测试订阅者产生，按插件整段清空。
+		const eventCount = db
+			.prepare(
+				"SELECT count(*) AS n FROM _plugin_storage WHERE plugin_id = ? AND collection = ?",
+			)
+			.get(PLUGIN_ID, EVENTS_COLLECTION).n;
+		db.prepare(
+			"DELETE FROM _plugin_storage WHERE plugin_id = ? AND collection = ?",
+		).run(PLUGIN_ID, EVENTS_COLLECTION);
+
+		console.log(
+			`清理旧测试数据：评论 ${commentCount} 条，订阅者 ${subCount} 条，分组 ${groupCount} 个，事件 ${eventCount} 条`,
+		);
 	}
 
 	// ---- 评论 ----
@@ -341,17 +442,33 @@ function main() {
 		perArticle.push(`${slug} (${rows.length})`);
 	}
 
-	// ---- 订阅者 ----
-	const insertSub = db.prepare(
+	// ---- 订阅分组 ----
+	const insertStorage = db.prepare(
 		`INSERT INTO _plugin_storage (plugin_id, collection, id, data, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?)`,
 	);
 
+	let groupCount = 0;
+	for (const spec of GROUPS) {
+		const { id, data } = buildGroupRecord(spec);
+		insertStorage.run(
+			PLUGIN_ID,
+			GROUPS_COLLECTION,
+			id,
+			JSON.stringify(data),
+			data.createdAt,
+			data.createdAt,
+		);
+		groupCount += 1;
+	}
+
+	// ---- 订阅者 + 事件日志 ----
 	let subCount = 0;
-	const byStatus = { confirmed: 0, pending: 0, unsubscribed: 0 };
+	let eventCount = 0;
+	const byStatus = { confirmed: 0, pending: 0, unsubscribed: 0, paused: 0 };
 	for (const spec of SUBSCRIBERS) {
 		const { id, data } = buildSubscriberRecord(spec);
-		insertSub.run(
+		insertStorage.run(
 			PLUGIN_ID,
 			SUBSCRIBERS_COLLECTION,
 			id,
@@ -361,6 +478,18 @@ function main() {
 		);
 		subCount += 1;
 		byStatus[data.status] += 1;
+
+		for (const event of buildEvents(spec, id, data)) {
+			insertStorage.run(
+				PLUGIN_ID,
+				EVENTS_COLLECTION,
+				event.id,
+				JSON.stringify(event.data),
+				event.data.at,
+				event.data.at,
+			);
+			eventCount += 1;
+		}
 	}
 
 	db.close();
@@ -368,10 +497,12 @@ function main() {
 	console.log(`\n写入完成：`);
 	console.log(`  评论 ${commentCount} 条 —— ${perArticle.join("、")}`);
 	console.log(
-		`  订阅者 ${subCount} 条 —— confirmed ${byStatus.confirmed} / pending ${byStatus.pending} / unsubscribed ${byStatus.unsubscribed}`,
+		`  订阅者 ${subCount} 条 —— confirmed ${byStatus.confirmed} / pending ${byStatus.pending} / paused ${byStatus.paused} / unsubscribed ${byStatus.unsubscribed}`,
 	);
+	console.log(`  分组 ${groupCount} 个 —— ${GROUPS.map((group) => group.slug).join("、")}`);
+	console.log(`  事件 ${eventCount} 条`);
 	console.log(
-		`\n前台：/articles/<slug> 评论区；后台：/_emdash/admin/plugins/${PLUGIN_ID}`,
+		`\n前台：/articles/<slug> 评论区、/subscribe 分组勾选、订阅管理页；后台：/_emdash/admin/plugins/${PLUGIN_ID}`,
 	);
 }
 
