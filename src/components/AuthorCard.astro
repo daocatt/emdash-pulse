@@ -1,13 +1,14 @@
 ---
 /**
- * 作者卡：头像（或首字色块）+ 姓名 + 角色 / 日期。
+ * 署名行：小头像（或首字色块）+ 姓名 + · 角色（+ · 日期）。
  *
- * 两套主题共用，靠令牌换肤；pulse-news 的「撰稿人」卡与文章页署名列都用它。
+ * 单行内联排布，不占独立板块（早先是「大圆头像 + 大字号 + 米黄卡片」，
+ * 视觉重量过大）。两套主题共用，靠令牌换肤。
  */
 import type { BylineSummary } from "emdash";
 import { getTranslations } from "../i18n";
 import { bylineAvatarUrl, bylineInitials } from "../utils/byline";
-import { formatDate } from "../utils/format";
+import { formatDate, toDate } from "../utils/format";
 
 interface Props {
 	byline: BylineSummary;
@@ -33,7 +34,10 @@ const { locale, t } = getTranslations(Astro);
 const avatarUrl = bylineAvatarUrl(byline);
 const initials = bylineInitials(byline.displayName);
 const role = roleLabel ?? t("pn.contributor");
-const dateLabel = date ? formatDate(date, locale) : null;
+// 通讯社署名（如 displayName = roleLabel = 「综合报道」）不必重复显示角色。
+const showRole = !compact && role.trim() !== byline.displayName.trim();
+const dateValue = toDate(date);
+const dateLabel = dateValue ? formatDate(dateValue, locale) : null;
 ---
 
 <div class:list={["author-card", `author-card--${size}`, className]}>
@@ -43,8 +47,8 @@ const dateLabel = date ? formatDate(date, locale) : null;
 				class="author-card__avatar"
 				src={avatarUrl}
 				alt={byline.avatarAlt ?? byline.displayName}
-				width="48"
-				height="48"
+				width="28"
+				height="28"
 				loading="lazy"
 				decoding="async"
 			/>
@@ -55,38 +59,42 @@ const dateLabel = date ? formatDate(date, locale) : null;
 		)
 	}
 
-	<div class="author-card__body">
-		<span class="author-card__name">{byline.displayName}</span>
-		{
-			!compact && (
-				<span class="author-card__meta">
-					<span class="author-card__role">{role}</span>
-					{dateLabel && <span class="author-card__date">{dateLabel}</span>}
-				</span>
-			)
-		}
-	</div>
+	<span class="author-card__name">{byline.displayName}</span>
+
+	{showRole && <span class="author-card__role">{role}</span>}
+
+	{
+		!compact && dateLabel && dateValue && (
+			<time class="author-card__date" datetime={dateValue.toISOString()}>
+				{dateLabel}
+			</time>
+		)
+	}
 </div>
 
 <style>
 	.author-card {
-		display: flex;
+		display: inline-flex;
 		align-items: center;
-		gap: var(--spacing-3);
+		flex-wrap: wrap;
+		font-size: var(--font-size-sm);
+		line-height: var(--leading-snug);
+		color: var(--color-muted);
 	}
 
 	.author-card__avatar {
 		flex: none;
-		width: 48px;
-		height: 48px;
+		width: 28px;
+		height: 28px;
+		margin-inline-end: var(--spacing-2);
 		border-radius: 50%;
 		object-fit: cover;
 		background: var(--color-bg-subtle);
 	}
 
 	.author-card--sm .author-card__avatar {
-		width: 36px;
-		height: 36px;
+		width: 22px;
+		height: 22px;
 	}
 
 	.author-card__avatar--initials {
@@ -97,34 +105,26 @@ const dateLabel = date ? formatDate(date, locale) : null;
 		color: var(--color-text);
 		font-family: var(--font-heading);
 		font-weight: var(--font-weight-heading);
-		font-size: var(--font-size-base);
-	}
-
-	.author-card__body {
-		display: flex;
-		flex-direction: column;
-		gap: 0.1em;
-		min-width: 0;
+		font-size: var(--font-size-xs);
 	}
 
 	.author-card__name {
 		font-family: var(--font-heading);
-		font-size: var(--font-size-lg);
-		line-height: var(--leading-snug);
+		font-weight: var(--font-weight-heading);
+		font-size: var(--font-size-base);
 		color: var(--color-text);
 	}
 
 	.author-card--sm .author-card__name {
-		font-size: var(--font-size-base);
+		font-size: var(--font-size-sm);
 	}
 
-	.author-card__meta {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: baseline;
-		gap: var(--spacing-3);
-		font-size: var(--font-size-sm);
-		color: var(--color-muted);
+	/* 分隔点由 CSS 生成：角色 / 日期缺省时不会留下孤立的「·」。 */
+	.author-card__role::before,
+	.author-card__date::before {
+		content: "·";
+		margin-inline: var(--spacing-2);
+		opacity: 0.55;
 	}
 
 	.author-card__role {
