@@ -4,11 +4,10 @@ import Base from "../../layout/Base.astro";
 import StoryCard from "../../components/StoryCard.astro";
 import Pagination from "@shared/Pagination.astro";
 import { getTranslations } from "../../../../i18n";
-import { formatDate } from "@utils/format";
 
 const PER_PAGE = 12;
 
-const { locale, t } = getTranslations(Astro);
+const { t } = getTranslations(Astro);
 const slug = decodeSlug(Astro.params.slug);
 const termsResult = await getTaxonomyTermsWithCacheHint("section", { includeCounts: true });
 const term = slug ? termsResult.data.find((item) => item.slug === slug) : null;
@@ -50,11 +49,6 @@ if (Astro.cache?.enabled) {
 				{articles.map((article) => (
 					<li class="archive-page__row">
 						<StoryCard article={article} showImage size="md" headingLevel="h2" />
-						{article.data.publishedAt && (
-							<time class="archive-page__date" datetime={new Date(article.data.publishedAt).toISOString()}>
-								{formatDate(article.data.publishedAt, locale)}
-							</time>
-						)}
 					</li>
 				))}
 			</ul>
@@ -118,11 +112,6 @@ if (Astro.cache?.enabled) {
 		gap: var(--spacing-2);
 		padding-bottom: var(--spacing-6);
 		border-bottom: var(--rule-hairline);
-	}
-
-	.archive-page__date {
-		font-size: var(--font-size-xs);
-		color: var(--color-muted);
 	}
 
 	.archive-page__empty {
