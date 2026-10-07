@@ -197,3 +197,190 @@ describe("pulse-subscriptions 双确认订阅", () => {
 		expect(unsubscribed.by_status.unsubscribed).toBeGreaterThan(0);
 	});
 });
+
+describe("pulse-subscriptions 订阅分组", () => {
+	const slug = (name: string) => `grp-${name}-${Math.random().toString(36).slice(2, 8)}`;
+
+	it("groups/save 新建、groups/list 带订阅人数、groups/public 只回启用中的", async () => {
+		const active = slug("active");
+		const retired = slug("retired");
+
+		const created = await invoke("groups/save", { create: true, slug: active, name: "每日摘要", sortOrder: 1 });
+		expect(created.ok).toBe(true);
+		expect(created.created).toBe(true);
+
+		const second = await invoke("groups/save", { create: true, slug: retired, name: "已停用", active: false });
+		expect(second.ok).toBe(true);
+
+		const listed = await invoke("groups/list", {});
+		expect(listed.ok).toBe(true);
+		const found = listed.groups.find((g: Res) => g.slug === active);
+		expect(found).toBeTruthy();
+		expect(found.members).toBe(0);
+
+		const pub = await invoke("groups/public", {});
+		expect(pub.ok).toBe(true);
+		const slugs = pub.groups.map((g: Res) => g.slug);
+		expect(slugs).toContain(active);
+		expect(slugs).not.toContain(retired);
+	});
+
+	it("groups/save 新建时 slug 冲突报 DUPLICATE_SLUG", async () => {
+		const dup = slug("dup");
+		await invoke("groups/save", { create: true, slug: dup, name: "第一个" });
+		const again = await invoke("groups/save", { create: true, slug: dup, name: "第二个" });
+		expect(again.ok).toBe(false);
+		expect(again.error).toBe("DUPLICATE_SLUG");
+	});
+
+	it("订阅时带分组：只保留存在且启用中的 slug", async () => {
+		const groupA = slug("a");
+		const groupOff = slug("off");
+		await invoke("groups/save", { create: true, slug: groupA, name: "甲" });
+		await invoke("groups/save", { create: true, slug: groupOff, name: "乙", active: false });
+
+		const email = `groups-${Date.now()}@example.com`;
+		const result = await invoke("subscribe/request", {
+			email,
+			groups: [groupA, groupOff, "does-not-exist"],
+		});
+
+		expect(result.ok).toBe(true);
+		expect(result.groups).toEqual([groupA]);
+	});
+
+	it("groups/delete 从订阅者身上摘掉该 slug", async () => {
+		const groupSlug = slug("gone");
+		await invoke("groups/save", { create: true, slug: groupSlug, name: "将被删除" });
+
+		const email = `detach-${Date.now()}@example.com`;
+		const token = await subscribeAndConfirm(email);
+		await invoke("preferences", { token, groups: [groupSlug] });
+
+		const removed = await invoke("groups/delete", { slug: groupSlug });
+		expect(removed.ok).toBe(true);
+		expect(removed.detached).toBeGreaterThan(0);
+
+		const after = await invoke("preferences", { token });
+		expect(after.groups).toEqual([]);
+	});
+});
+
+describe("pulse-subscriptions 读者偏好（preferences）", () => {
+	it("读偏好返回可选分组；写偏好更新分组并记事件", async () => {
+		const groupSlug = `pref-${Math.random().toString(36).slice(2, 8)}`;
+		await invoke("groups/save", { create: true, slug: groupSlug, name: "偏好测试" });
+
+		const email = `pref-${Date.now()}@example.com`;
+		const token = await subscribeAndConfirm(email);
+
+		const read = await invoke("preferences", { token });
+		expect(read.ok).toBe(true);
+		expect(read.email).toBe(email);
+		expect(read.status).toBe("confirmed");
+		expect(read.groups).toEqual([]);
+		expect(read.available.map((g: Res) => g.slug)).toContain(groupSlug);
+
+		const write = await invoke("preferences", { token, groups: [groupSlug] });
+		expect(write.ok).toBe(true);
+		expect(write.updated).toBe(true);
+		expect(write.groups).toEqual([groupSlug]);
+
+		const list = await invoke("subscribers/list", { limit: 100 });
+		const mine = list.subscribers.find((s: Res) => s.email === email);
+		expect(mine.groups).toEqual([groupSlug]);
+
+		const events = await invoke("subscribers/events", { id: mine.id });
+		expect(events.ok).toBe(true);
+		expect(events.events.some((e: Res) => e.type === "groups_changed")).toBe(true);
+	});
+
+	it("token 无效返回 INVALID_TOKEN（400）", async () => {
+		const result = await invoke("preferences", { token: "ps_unsub_deadbeefdeadbeef" });
+		expect(result.ok).toBe(false);
+		expect(result.error).toBe("INVALID_TOKEN");
+		expect(result.__status).toBe(400);
+	});
+});
+
+describe("pulse-subscriptions 后台暂停", () => {
+	it("暂停后读者再提交：不改状态、不发信、记 request_blocked", async () => {
+		const email = `paused-${Date.now()}@example.com`;
+		await subscribeAndConfirm(email);
+
+		const list = await invoke("subscribers/list", { limit: 100 });
+		const mine = list.subscribers.find((s: Res) => s.email === email);
+		expect(mine).toBeTruthy();
+
+		const paused = await invoke("subscribers/update", { id: mine.id, action: "pause", reason: "投诉" });
+		expect(paused.ok).toBe(true);
+		expect(paused.status).toBe("paused");
+
+		const before = (await host.inspect.email()).length;
+		const retry = await invoke("subscribe/request", { email });
+		expect(retry.status).toBe("paused");
+		expect(retry.blocked).toBe(true);
+		expect(retry.delivered).toBe(false);
+		expect((await host.inspect.email()).length).toBe(before);
+
+		const events = await invoke("subscribers/events", { id: mine.id });
+		expect(events.events.some((e: Res) => e.type === "request_blocked")).toBe(true);
+
+		const stillPaused = await invoke("subscribers/list", { limit: 100 });
+		expect(stillPaused.subscribers.find((s: Res) => s.email === email).status).toBe("paused");
+	});
+
+	it("resume 还原到暂停前的状态", async () => {
+		const email = `resume-${Date.now()}@example.com`;
+		await subscribeAndConfirm(email);
+		const list = await invoke("subscribers/list", { limit: 100 });
+		const mine = list.subscribers.find((s: Res) => s.email === email);
+
+		await invoke("subscribers/update", { id: mine.id, action: "pause" });
+		const resumed = await invoke("subscribers/update", { id: mine.id, action: "resume" });
+		expect(resumed.ok).toBe(true);
+		expect(resumed.status).toBe("confirmed");
+	});
+
+	it("已退订记录不能被暂停（INVALID_STATE）", async () => {
+		const email = `nopause-${Date.now()}@example.com`;
+		const token = await subscribeAndConfirm(email);
+		await invoke("unsubscribe", { token });
+
+		const list = await invoke("subscribers/list", { limit: 100 });
+		const mine = list.subscribers.find((s: Res) => s.email === email);
+
+		const result = await invoke("subscribers/update", { id: mine.id, action: "pause" });
+		expect(result.ok).toBe(false);
+		expect(result.error).toBe("INVALID_STATE");
+	});
+
+	it("退订可带原因，落进事件日志", async () => {
+		const email = `reason-${Date.now()}@example.com`;
+		const token = await subscribeAndConfirm(email);
+		await invoke("unsubscribe", { token, reason: "频率太高" });
+
+		const list = await invoke("subscribers/list", { limit: 100 });
+		const mine = list.subscribers.find((s: Res) => s.email === email);
+		expect(mine.unsubscribe_reason).toBe("频率太高");
+
+		const events = await invoke("subscribers/events", { id: mine.id });
+		const gone = events.events.find((e: Res) => e.type === "unsubscribed");
+		expect(gone.reason).toBe("频率太高");
+		expect(gone.actor).toBe("reader");
+	});
+
+	it("subscribers/list 支持按分组过滤", async () => {
+		const groupSlug = `filter-${Math.random().toString(36).slice(2, 8)}`;
+		await invoke("groups/save", { create: true, slug: groupSlug, name: "过滤测试" });
+
+		const email = `filter-${Date.now()}@example.com`;
+		const token = await subscribeAndConfirm(email);
+		await invoke("preferences", { token, groups: [groupSlug] });
+
+		const filtered = await invoke("subscribers/list", { group: groupSlug, limit: 100 });
+		expect(filtered.ok).toBe(true);
+		expect(filtered.subscribers.length).toBeGreaterThan(0);
+		expect(filtered.subscribers.every((s: Res) => s.groups.includes(groupSlug))).toBe(true);
+	});
+});

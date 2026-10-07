@@ -2,13 +2,19 @@
  * 订阅者注册表：插件存储 `subscribers` 的读写封装。
  *
  * 记录以规范化邮箱的 SHA-256（`emailHash`，唯一索引）去重；
- * 状态机：`pending`（待确认）→ `confirmed`（已确认）→ `unsubscribed`（已退订）。
+ * 状态机：`pending`（待确认）→ `confirmed`（已确认）→ `unsubscribed`（已退订），
+ * 以及只能由后台进出的 `paused`（暂停投递，记录保留）。
  * 确认 / 退订 token 只存哈希（`tokenHash`），随状态流转轮换。
+ *
+ * `groups` 是分组 slug 列表（见 `groups.ts`）；空数组 = 主刊订阅者。
  */
 
 import type { PluginContext } from "emdash/plugin";
 
-export type SubscriberStatus = "pending" | "confirmed" | "unsubscribed";
+export type SubscriberStatus = "pending" | "confirmed" | "unsubscribed" | "paused";
+
+/** 可以「暂停」的状态——退订是终态，不再暂停。 */
+export type PausableStatus = "pending" | "confirmed";
 
 /** 当前 token 的用途：确认（pending → confirmed）或退订（confirmed → unsubscribed）。 */
 export type TokenPurpose = "confirm" | "unsubscribe";
@@ -33,11 +39,21 @@ export interface SubscriberRecord {
 	tokenPurpose?: TokenPurpose;
 	/** 订阅来源（前台表单 / agent 等）。 */
 	source?: string;
+	/** 订阅分组 slug 列表；空数组 / 缺省 = 主刊订阅者。 */
+	groups?: string[];
 	createdAt: string;
 	/** 最近一次提交订阅的时间。 */
 	requestedAt: string;
 	confirmedAt?: string;
 	unsubscribedAt?: string;
+	/** 退订原因（读者在管理页选填）。 */
+	unsubscribeReason?: string;
+	/** 后台暂停的时间 / 操作者 / 原因。 */
+	pausedAt?: string;
+	pausedBy?: string;
+	pauseReason?: string;
+	/** 暂停前的状态，恢复时还原（暂停只允许从 pending / confirmed 进入）。 */
+	pausedFrom?: PausableStatus;
 	/** 最近一次尝试投递的时间。 */
 	lastSentAt?: string;
 	/** 最近一次投递是否成功。 */
@@ -63,6 +79,7 @@ export interface SubscriberQueryResult {
 export interface SubscriberStore {
 	get(id: string): Promise<SubscriberRecord | null>;
 	put(id: string, data: SubscriberRecord): Promise<void>;
+	delete(id: string): Promise<boolean>;
 	exists(id: string): Promise<boolean>;
 	query(options?: SubscriberQueryOptions): Promise<SubscriberQueryResult>;
 	count(where?: Record<string, unknown>): Promise<number>;
@@ -89,6 +106,49 @@ export async function findSubscriberByTokenHash(
 	if (!tokenHash) return null;
 	const result = await subscriberStore(ctx).query({ where: { tokenHash }, limit: 1 });
 	return result.items[0] ?? null;
+}
+
+/**
+ * 一次最多扫描的记录数。
+ *
+ * 「按分组筛选」是数组字段，插件存储建不了索引，因此后台列表走内存筛选 ——
+ * 需要先把记录读回来。这个上限既是护栏（防止一次拉爆沙箱），也是 UI 上要
+ * 显式告知用户的截断点（超过时提示收窄筛选，而不是静默少几行）。
+ */
+export const MAX_SCAN = 1000;
+
+const SCAN_PAGE = 200;
+
+export interface SubscriberScan {
+	items: Array<{ id: string; data: SubscriberRecord }>;
+	/** 是否因为触到 MAX_SCAN 而被截断。 */
+	truncated: boolean;
+}
+
+/**
+ * 按 `createdAt` 倒序扫描订阅者（内部翻页直到 `max` 或取完）。
+ *
+ * 只在需要「索引做不到的过滤 / 排序」（按分组、按邮箱模糊匹配、自定义排序）时使用；
+ * 纯按 `status` 过滤仍可直接用 `query({ where: { status } })`。
+ */
+export async function scanSubscribers(ctx: PluginContext, max = MAX_SCAN): Promise<SubscriberScan> {
+	const store = subscriberStore(ctx);
+	const items: Array<{ id: string; data: SubscriberRecord }> = [];
+	let cursor: string | undefined;
+
+	while (items.length < max) {
+		const remaining = max - items.length;
+		const page = await store.query({
+			orderBy: { createdAt: "desc" },
+			limit: Math.min(SCAN_PAGE, remaining),
+			...(cursor ? { cursor } : {}),
+		});
+		items.push(...page.items);
+		if (!page.hasMore || !page.cursor) return { items, truncated: false };
+		cursor = page.cursor;
+	}
+
+	return { items, truncated: true };
 }
 
 /** 邮箱脱敏（列表展示用）。 */

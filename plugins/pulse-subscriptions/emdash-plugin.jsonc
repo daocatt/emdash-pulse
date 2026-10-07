@@ -19,10 +19,24 @@
 		"subscribers": {
 			"indexes": ["status", "createdAt", "tokenHash"],
 			"uniqueIndexes": ["emailHash"]
+		},
+		// 订阅分组。`slug` 同时是记录 id（创建后不可变）。
+		"groups": {
+			"indexes": ["active", "sortOrder"]
+		},
+		// 订阅事件日志（append-only）：后台按订阅者回放时间线。
+		// 事件记录**不含** emailHash —— subscribers 的 uniqueIndexes 生成的是覆盖全表的
+		// 唯一索引（plugin_id, collection, json_extract(data,'$.emailHash')），
+		// 同名字段会让同一订阅者的第 2 条事件撞唯一约束而写不进去。
+		"events": {
+			"indexes": ["subscriberId", "type", "at"]
 		}
 	},
 	"admin": {
-		"pages": [{ "path": "/subscribers", "label": "订阅者", "icon": "mail" }],
+		"pages": [
+			{ "path": "/subscribers", "label": "订阅者", "icon": "mail" },
+			{ "path": "/groups", "label": "订阅分组", "icon": "tag" }
+		],
 		"settingsSchema": {
 			"autoConfirm": {
 				"label": "免确认直接订阅（单确认）",
