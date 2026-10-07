@@ -1,0 +1,21 @@
+{
+	"$schema": "./node_modules/@emdash-cms/plugin-cli/schemas/emdash-plugin.schema.json",
+
+	"slug": "pulse-theme",
+	"publisher": "did:plc:zp6y7q3n5k2m4x8w9v1t6r0s",
+
+	"license": "MIT",
+	"author": { "name": "Suda Pulse", "email": "dev@suda.im" },
+	"security": { "email": "security@suda.im" },
+	"description": "Suda Pulse front-end theme switcher: pick the active theme from the admin",
+
+	// Trust contract — 本插件只写自己的插件设置（`ctx.settings`），
+	// 不碰内容 / 媒体 / 用户 / 网络，故能力与存储都为空。
+	"capabilities": [],
+	"allowedHosts": [],
+	"storage": {},
+
+	"admin": {
+		"pages": [{ "path": "/theme", "label": "前台主题", "icon": "palette" }]
+	}
+}
