@@ -103,6 +103,9 @@ export const zhCN = {
 	"nf.newsletter": "订阅通讯",
 	"nf.newsletterHint": "留下邮箱，最新报道送到收件箱。",
 	"nf.aside": "侧栏",
+	"nf.editionPicks": "本期精选",
+	"nf.multimedia": "多媒体",
+	"nf.aiTopic": "AI 话题",
 
 	// pulse-news 首页
 	"pn.menu": "菜单",
@@ -113,6 +116,9 @@ export const zhCN = {
 	"pn.allPodcasts": "全部播客",
 	"pn.contributor": "撰稿人",
 	"pn.updated": "更新于 {date}",
+	"pn.editionPicks": "本期精选",
+	"pn.multimedia": "多媒体",
+	"pn.aiTopic": "AI 话题",
 
 	// 列表页（版块 / 标签）
 	"list.sectionKicker": "版块",

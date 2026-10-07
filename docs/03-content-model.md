@@ -244,7 +244,9 @@
 | `front-sidebar` | 头版侧栏 | `core:search`、`core:tags`、`core:archives`(monthly)、`core:recent-posts` |
 | `article-aside` | 文章页侧栏 | `core:recent-posts`、`core:tags` |
 
-> **不用 `core:categories`**：本站的分类走 taxonomy `section`（非 WordPress 式 category），`core:categories` 会渲染英文空态 "No categories yet"。版块入口由主题导航与 `/sections/*` 承担，侧栏用 `core:tags`。
+> **这两个部件区当前都不渲染**：`front-sidebar` 没有页面挂载；`article-aside` 原用于 news-factory 文章页右侧栏，现改为**主题自带侧栏**（「最新更新」+「标签」）—— 内置 `core:recent-posts` 写死查 `posts` 集合（本站是 `articles`，渲染为空）、`core:tags` 链接指向 `/tag/`（本站路由是 `/tags/`）。seed 里保留配置仅为后台可见。
+>
+> **不用 `core:categories`**：本站的分类走 taxonomy `section`（非 WordPress 式 category），`core:categories` 会渲染英文空态 "No categories yet"。版块入口由主题导航与 `/sections/*` 承担。
 
 ## 9. Sections（可复用块）
 

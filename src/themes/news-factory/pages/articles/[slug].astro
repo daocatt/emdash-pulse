@@ -2,11 +2,12 @@
 import {
 	getEmDashEntry,
 	getEmDashCollection,
+	getTaxonomyTermsWithCacheHint,
 	getSiteSettings,
 	getSeoMeta,
 	decodeSlug,
 } from "emdash";
-import { Image, PortableText, WidgetArea } from "emdash/ui";
+import { Image, PortableText } from "emdash/ui";
 import Base from "../../layout/Base.astro";
 import Byline from "@shared/Byline.astro";
 import ArticleMeta from "@shared/ArticleMeta.astro";
@@ -19,10 +20,10 @@ import CorrectionNotice from "@shared/CorrectionNotice.astro";
 import EpisodePlayer from "@shared/EpisodePlayer.astro";
 import { resolveSiteIdentity } from "@utils/site-identity";
 import { resolveMediaUrl, resolveMediaAlt, resolveGallery } from "@utils/media";
-import { estimateReadingTime } from "@utils/format";
+import { estimateReadingTime, formatDate } from "@utils/format";
 import { getTranslations } from "../../../../i18n";
 
-const { t } = getTranslations(Astro);
+const { locale, t } = getTranslations(Astro);
 const slug = decodeSlug(Astro.params.slug);
 if (!slug) return Astro.redirect("/404");
 
@@ -72,6 +73,21 @@ const relatedResult = section
 	: null;
 if (relatedResult && Astro.cache?.enabled) Astro.cache.set(relatedResult.cacheHint);
 const related = (relatedResult?.entries ?? []).filter((entry) => entry.id !== article.id).slice(0, 3);
+
+// 右侧栏：主题自带（不走 EmDash 内置部件 —— 内置「最新报道」写死查 posts 集合、
+// 内置「标签」链接是 /tag/，与本站 /tags/ 路由不符）。
+const recentResult = await getEmDashCollection("articles", {
+	orderBy: { published_at: "desc" },
+	limit: 6,
+});
+if (Astro.cache?.enabled) Astro.cache.set(recentResult.cacheHint);
+const recent = recentResult.entries.filter((entry) => entry.id !== article.id).slice(0, 5);
+
+const tagsResult = await getTaxonomyTermsWithCacheHint("tag", { includeCounts: true });
+if (Astro.cache?.enabled) Astro.cache.set(tagsResult.cacheHint);
+const tagTerms = [...tagsResult.data]
+	.sort((a, b) => (b.count ?? 0) - (a.count ?? 0) || a.label.localeCompare(b.label))
+	.slice(0, 12);
 
 const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ?? siteTitle;
 ---
@@ -207,7 +223,48 @@ const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ??
 			</div>
 
 			<aside class="article__aside" aria-label={t("article.aside")}>
-				<WidgetArea name="article-aside" />
+				{
+					recent.length > 0 && (
+						<section class="aside-block">
+							<h2 class="aside-block__title">{t("nf.latestUpdate")}</h2>
+							<ol class="aside-list">
+								{recent.map((entry) => (
+									<li class="aside-list__item">
+										<a class="aside-list__link" href={`/articles/${entry.id}`} {...entry.edit.title}>
+											{entry.data.title}
+										</a>
+										{entry.data.publishedAt && (
+											<time
+												class="aside-list__date"
+												datetime={new Date(entry.data.publishedAt).toISOString()}
+											>
+												{formatDate(entry.data.publishedAt, locale)}
+											</time>
+										)}
+									</li>
+								))}
+							</ol>
+						</section>
+					)
+				}
+
+				{
+					tagTerms.length > 0 && (
+						<section class="aside-block">
+							<h2 class="aside-block__title">{t("article.tags")}</h2>
+							<ul class="aside-tags">
+								{tagTerms.map((tag) => (
+									<li>
+										<a class="aside-tag" href={`/tags/${tag.slug}`}>
+											<span class="aside-tag__label">{tag.label}</span>
+											{tag.count !== undefined && <span class="aside-tag__count">{tag.count}</span>}
+										</a>
+									</li>
+								))}
+							</ul>
+						</section>
+					)
+				}
 			</aside>
 		</div>
 
@@ -393,10 +450,90 @@ const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ??
 
 	@media (min-width: 1100px) {
 		.article__aside {
-			display: block;
+			display: flex;
+			flex-direction: column;
+			gap: var(--spacing-8);
 			border-left: var(--rule-hairline);
 			padding-left: var(--spacing-6);
 		}
+	}
+
+	.aside-block__title {
+		margin: 0 0 var(--spacing-4);
+		padding-bottom: var(--spacing-2);
+		border-bottom: var(--rule-hairline);
+		font-family: var(--font-body);
+		font-size: var(--font-size-sm);
+		font-weight: 800;
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide);
+	}
+
+	.aside-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.aside-list__item {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-1);
+		padding-block: var(--spacing-3);
+	}
+
+	.aside-list__item + .aside-list__item {
+		border-top: var(--rule-hairline);
+	}
+
+	.aside-list__link {
+		font-family: var(--font-heading);
+		font-size: var(--font-size-base);
+		font-weight: var(--font-weight-heading);
+		line-height: var(--leading-snug);
+	}
+
+	.aside-list__link:hover {
+		color: var(--color-brand);
+	}
+
+	.aside-list__date {
+		font-size: var(--font-size-xs);
+		color: var(--color-muted);
+	}
+
+	.aside-tags {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--spacing-2);
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.aside-tag {
+		display: inline-flex;
+		align-items: baseline;
+		gap: var(--spacing-2);
+		padding: 3px 10px;
+		border: var(--rule-hairline);
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+	}
+
+	.aside-tag:hover {
+		border-color: var(--color-brand);
+		color: var(--color-brand);
+	}
+
+	.aside-tag__count {
+		font-size: var(--font-size-xs);
+		color: var(--color-muted);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.aside-tag:hover .aside-tag__count {
+		color: var(--color-brand);
 	}
 
 	.article__note {

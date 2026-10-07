@@ -1,13 +1,17 @@
 ---
 /**
- * news-factory 头版：三栏报纸版面。
+ * news-factory 头版：三栏报纸版面 + 第二/第三屏。
  *
- * 左栏三条纯文字稿 + 订阅通讯卡；中栏主稿（大图）+ 两条图文横排；
+ * 第一屏：左栏三条纯文字稿 + 订阅通讯卡；中栏主稿（大图）+ 两条图文横排；
  * 右栏热门/最新排行榜 + 视频卡 + 后台可配的侧栏组件区；底部「更多头条」。
+ * 第二/第三屏（全宽纵向堆叠，各一个 MoreStories）：本期精选（最新期号）/ 多媒体
+ * （video·podcast·photo）/ AI 话题（tag=ai）。
  *
  * 数据编排只在这里做：查询 → cacheHint → 去重切片 → 交给纯展示组件。
+ * 新屏必须放在 `.front__grid` **之外**：`MoreStories` 的列数由视口宽度决定，塞进三栏会被挤。
  */
 import { getEmDashCollection, getSiteSettings } from "emdash";
+import type { ArticleEntry } from "@utils/types";
 import Base from "../layout/Base.astro";
 import InlineStory from "../components/InlineStory.astro";
 import MainStory from "../components/MainStory.astro";
@@ -19,13 +23,25 @@ import SubscribeForm from "@shared/SubscribeForm.astro";
 import { getTranslations } from "../../../i18n";
 import { whereClause } from "@utils/query";
 import { resolveSiteIdentity } from "@utils/site-identity";
+import { getLatestEditionArticles } from "@utils/edition";
 
 const { t } = getTranslations(Astro);
 
 const settings = await getSiteSettings();
 const { siteTitle, siteTagline } = resolveSiteIdentity(settings);
 
-const [latestResult, leadResult, featuredResult, videoResult, trendingResult] = await Promise.all([
+const [
+	latestResult,
+	leadResult,
+	featuredResult,
+	videoResult,
+	trendingResult,
+	editionResult,
+	podcastMoreResult,
+	videoMoreResult,
+	photoMoreResult,
+	aiResult,
+] = await Promise.all([
 	getEmDashCollection("articles", { orderBy: { published_at: "desc" }, limit: 12 }),
 	getEmDashCollection("articles", {
 		where: { priority: "lead" },
@@ -48,6 +64,30 @@ const [latestResult, leadResult, featuredResult, videoResult, trendingResult] = 
 		orderBy: { trending_rank: "asc" },
 		limit: 5,
 	}),
+	// 第二屏：最新一期的文章（两段查询，见 @utils/edition）
+	getLatestEditionArticles(16),
+	// 第三屏：多媒体 —— 三种 article_type 各取一批再合并（不用数组 where）
+	getEmDashCollection("articles", {
+		where: { article_type: "podcast" },
+		orderBy: { published_at: "desc" },
+		limit: 8,
+	}),
+	getEmDashCollection("articles", {
+		where: { article_type: "video" },
+		orderBy: { published_at: "desc" },
+		limit: 8,
+	}),
+	getEmDashCollection("articles", {
+		where: { article_type: "photo" },
+		orderBy: { published_at: "desc" },
+		limit: 8,
+	}),
+	// 第三屏：话题
+	getEmDashCollection("articles", {
+		where: { tag: "ai" },
+		orderBy: { published_at: "desc" },
+		limit: 20,
+	}),
 ]);
 
 if (Astro.cache?.enabled) {
@@ -56,6 +96,11 @@ if (Astro.cache?.enabled) {
 	Astro.cache.set(featuredResult.cacheHint);
 	Astro.cache.set(videoResult.cacheHint);
 	Astro.cache.set(trendingResult.cacheHint);
+	for (const hint of editionResult.cacheHints) if (hint) Astro.cache.set(hint);
+	Astro.cache.set(podcastMoreResult.cacheHint);
+	Astro.cache.set(videoMoreResult.cacheHint);
+	Astro.cache.set(photoMoreResult.cacheHint);
+	Astro.cache.set(aiResult.cacheHint);
 }
 
 const latest = latestResult.entries;
@@ -97,6 +142,29 @@ const trending = [
 	),
 ].slice(0, 5);
 const latestFive = latest.slice(0, 5);
+
+// 第二/第三屏：把第一屏（含「更多头条」）用过的稿子并入排除集，再按维度取用。
+// 新稿的 published_at 是「导入时间」（比旧稿新），会占据「最新 12」→ 第一屏吃掉大半，
+// 所以这里**只取未上版面的稿子**（不兜底重复）：宁可区块少几条，也不要同一篇大图卡出现两次。
+// 因此各维度查询的 limit 要足够大，才能越过被第一屏占用的那批、拿到后面的新鲜稿。
+const placedAll = new Set<string | undefined>([...placed, ...more.map((article) => article.id)]);
+
+function pickFresh(entries: ArticleEntry[], n: number): ArticleEntry[] {
+	const picked = entries.filter((article) => !placedAll.has(article.id)).slice(0, n);
+	for (const article of picked) placedAll.add(article.id);
+	return picked;
+}
+
+// 多媒体：video → podcast → photo（稀缺类型先露面）
+const multimediaPool = [
+	...videoMoreResult.entries,
+	...podcastMoreResult.entries,
+	...photoMoreResult.entries,
+];
+
+const editionPicks = pickFresh(editionResult.entries, 4);
+const multimedia = pickFresh(multimediaPool, 4);
+const aiTopic = pickFresh(aiResult.entries, 4);
 ---
 
 <Base title={siteTitle} description={siteTagline} type="website">
@@ -135,6 +203,14 @@ const latestFive = latest.slice(0, 5);
 		</div>
 
 		<MoreStories articles={more} />
+
+		{editionPicks.length > 0 && (
+			<MoreStories articles={editionPicks} title={t("nf.editionPicks")} />
+		)}
+
+		{multimedia.length > 0 && <MoreStories articles={multimedia} title={t("nf.multimedia")} />}
+
+		{aiTopic.length > 0 && <MoreStories articles={aiTopic} title={t("nf.aiTopic")} />}
 	</div>
 </Base>
 

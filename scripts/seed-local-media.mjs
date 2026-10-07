@@ -92,6 +92,27 @@ const TARGETS = {
   "dependency-supply-chain-audit": { featured_image: { key: "nightFlow" } },
   "cost-per-token-on-cloud": { featured_image: { key: "circuit" } },
   "vector-database-in-a-minute": { featured_image: { key: "nightFlow" } },
+  "agent-desk-metrics": { featured_image: { key: "circuit" } },
+  "weekly-agent-roundup-w42": { featured_image: { key: "pressroom" } },
+  "newsroom-night-talk-ep13": { featured_image: { key: "desk" } },
+  "quantum-chip-in-a-minute": { featured_image: { key: "circuit" } },
+  "city-morning-timelapse": { featured_image: { key: "cityNight" } },
+  "harbor-dawn-photo-essay": {
+    featured_image: { key: "nightFlow" },
+    gallery: [{ key: "cityNight", caption: "黎明前的港口", credit: "Suda Pulse 视觉组" }],
+  },
+  "river-revival-photo": { featured_image: { key: "cityNight" } },
+  "cloud-region-latency": { featured_image: { key: "circuit" } },
+  "data-ethics-column": { featured_image: { key: "newsroom" } },
+  "inference-cold-start": { featured_image: { key: "circuit" } },
+  "old-town-morning-market": {
+    featured_image: { key: "cityNight" },
+    gallery: [{ key: "nightFlow", caption: "开市前的街口", credit: "Suda Pulse 视觉组" }],
+  },
+  "gpu-rental-in-a-minute": { featured_image: { key: "circuit" } },
+  "content-localization-at-scale": { featured_image: { key: "newsroom" } },
+  "culture-watch-ep3": { featured_image: { key: "desk" } },
+  "city-noise-map": { featured_image: { key: "nightFlow" } },
 };
 
 function log(msg) {

@@ -95,6 +95,9 @@ export const en: Record<MessageKey, string> = {
 	"nf.newsletter": "Subscribe our newsletter",
 	"nf.newsletterHint": "Leave your email and get the latest stories in your inbox.",
 	"nf.aside": "Sidebar",
+	"nf.editionPicks": "This Week's Picks",
+	"nf.multimedia": "Multimedia",
+	"nf.aiTopic": "AI Topic",
 
 	// pulse-news 首页
 	"pn.menu": "Menu",
@@ -105,6 +108,9 @@ export const en: Record<MessageKey, string> = {
 	"pn.allPodcasts": "All podcasts",
 	"pn.contributor": "Contributor",
 	"pn.updated": "Updated {date}",
+	"pn.editionPicks": "This Week's Picks",
+	"pn.multimedia": "Multimedia",
+	"pn.aiTopic": "AI Topic",
 
 	// Listing pages (section / tag)
 	"list.sectionKicker": "Section",

@@ -221,16 +221,23 @@ src/
 ### news-factory（UI-1）
 
 ```ts
-const [latestResult, leadResult, featuredResult, videoResult, trendingResult] = await Promise.all([
+const [latestResult, leadResult, featuredResult, videoResult, trendingResult,
+       editionResult, podcastMoreResult, videoMoreResult, photoMoreResult, aiResult] = await Promise.all([
   getEmDashCollection("articles", { orderBy: { published_at: "desc" }, limit: 12 }),
   getEmDashCollection("articles", { where: { priority: "lead" }, orderBy: { published_at: "desc" }, limit: 1 }),
   getEmDashCollection("articles", { where: whereClause({ is_featured: true }), orderBy: { published_at: "desc" }, limit: 5 }),
   getEmDashCollection("articles", { where: { article_type: "video" }, orderBy: { published_at: "desc" }, limit: 1 }),
   getEmDashCollection("articles", { where: { trending_rank: { gte: "1" } }, orderBy: { trending_rank: "asc" }, limit: 5 }),
+  // 第二/第三屏
+  getLatestEditionArticles(8),
+  getEmDashCollection("articles", { where: { article_type: "podcast" }, orderBy: { published_at: "desc" }, limit: 4 }),
+  getEmDashCollection("articles", { where: { article_type: "video" }, orderBy: { published_at: "desc" }, limit: 4 }),
+  getEmDashCollection("articles", { where: { article_type: "photo" }, orderBy: { published_at: "desc" }, limit: 4 }),
+  getEmDashCollection("articles", { where: { tag: "ai" }, orderBy: { published_at: "desc" }, limit: 8 }),
 ]);
 ```
 
-版面：左栏 3 条纯文字简讯 + 订阅通讯卡；中栏主稿（大图）+ 2 条图文横排；右栏「热门话题 / 最新更新」双页签排行 + 视频卡；底部「更多头条」。
+版面：左栏 3 条纯文字简讯 + 订阅通讯卡；中栏主稿（大图）+ 2 条图文横排；右栏「热门话题 / 最新更新」双页签排行 + 视频卡；底部「更多头条」；其后**第二/第三屏**（全宽纵向堆叠的三个 `MoreStories`，各传 `title`）：本期精选（最新期号）/ 多媒体（video·podcast·photo）/ AI 话题（tag=ai）。
 
 - 「热门话题」优先按编辑部标记的 `trending_rank` 升序，其次 `is_featured`，仍不足 5 条用最新稿补位。
 - `trending_rank` 的 `gte: "1"` 顺带排除未标记的 NULL（SQLite 里 `NULL >= 1` 为假）。
@@ -239,14 +246,27 @@ const [latestResult, leadResult, featuredResult, videoResult, trendingResult] = 
 ### pulse-news（UI-2）
 
 ```ts
-const [latestResult, leadResult, podcastResult] = await Promise.all([
-  getEmDashCollection("articles", { orderBy: { published_at: "desc" }, limit: 12 }),
-  getEmDashCollection("articles", { where: { priority: "lead" }, orderBy: { published_at: "desc" }, limit: 1 }),
-  getEmDashCollection("articles", { where: { article_type: "podcast" }, orderBy: { published_at: "desc" }, limit: 1 }),
-]);
+const [latestResult, leadResult, editionResult, podcastResult, videoResult, photoResult, aiResult] =
+  await Promise.all([
+    getEmDashCollection("articles", { orderBy: { published_at: "desc" }, limit: 12 }),
+    getEmDashCollection("articles", { where: { priority: "lead" }, orderBy: { published_at: "desc" }, limit: 1 }),
+    // 第二/第三屏
+    getLatestEditionArticles(8),
+    getEmDashCollection("articles", { where: { article_type: "podcast" }, orderBy: { published_at: "desc" }, limit: 4 }),
+    getEmDashCollection("articles", { where: { article_type: "video" }, orderBy: { published_at: "desc" }, limit: 4 }),
+    getEmDashCollection("articles", { where: { article_type: "photo" }, orderBy: { published_at: "desc" }, limit: 4 }),
+    getEmDashCollection("articles", { where: { tag: "ai" }, orderBy: { published_at: "desc" }, limit: 8 }),
+  ]);
 ```
 
-版面：左栏 SPOTLIGHT 米黄卡（4 条）；中栏主视觉（大图 + 超大斜体标题 + 作者卡 + 时间戳 + 摘要）+ 三栏小图卡；右栏播客区块 + 一条侧栏文章。用 `take(n)` 辅助函数按顺序取稿并去重，不够时按设计稿补位。
+版面：左栏 SPOTLIGHT 米黄卡（4 条）；中栏主视觉（大图 + 超大斜体标题 + 作者卡 + 时间戳 + 摘要）+ 三栏小图卡；右栏播客区块 + 一条侧栏文章。用 `take(n)` 辅助函数按顺序取稿并去重，不够时按设计稿补位。其后**第二/第三屏**（`.front__section` 全宽纵向堆叠的 `SectionHeading` + `StoryGrid`）：本期精选 / 多媒体 / AI 话题。
+
+### 第二/第三屏（两套共用）
+
+- **取数**：本期精选走 `@utils/edition` 的 `getLatestEditionArticles()`（先取最新期号 → 按 `where: { edition }` 取该期文章）；多媒体用 3 条 `article_type` 查询合并（**不用数组 `where`**，全仓库无先例），顺序 video → podcast → photo；话题 `where: { tag: "ai" }`。
+- **去重**：第一屏用过的稿子并入排除集后，用 `pickFresh(entries, n)` 取用 —— 优先未上版面的，不足时用**本维度**兜底补位。新稿 `published_at` 是导入时间（比旧稿新），会占据「最新 12」被第一屏吃掉大半，兜底保证新屏仍有内容。
+- **位置**：新屏必须放在 `.front__grid` **之外** —— `StoryGrid` / `MoreStories` 的列数由**视口宽度**决定，塞进三栏会被挤成一列。`StoryGrid` / `MoreStories` 根元素已自带 `data-reveal`，包裹 `<section>` 不要再加。
+
 
 ---
 
@@ -350,7 +370,7 @@ const tags = article.data.terms?.tag ?? [];
 - 评论：`<Comments collection="articles" contentId={article.data.id} threaded />`（**用 `data.id`（ULID），不是 `entry.id`（slug）**）；仅当 `article.data.allow_comments !== false` 渲染。
 - 相关报道：按第一个 `section` 术语查同版块最新稿并排除自身。
 - 播客 / 视频（`article_type` 为 `podcast` / `video`）额外渲染 `EpisodePlayer`。
-- news-factory 是三栏（左署名 / 正文 / 右侧栏 `WidgetArea name="article-aside"`）；pulse-news 是居中单栏。
+- news-factory 是三栏（左署名 / 正文 / 右侧栏）—— 右侧栏是**主题自带**的「最新更新」（近 5 篇）+「标签」（按篇数排序的 12 个，链到 `/tags/*`），不用 EmDash 部件区（内置部件与本项目的集合名 / 路由不符，见 [03-content-model.md §8](./03-content-model.md)）；pulse-news 是居中单栏。
 
 ### 图片新闻（`article_type === "photo"`）
 

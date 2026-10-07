@@ -1,47 +1,83 @@
 ---
 /**
- * pulse-news 首页：杂志式三栏（设计稿 UI-2）。
+ * pulse-news 首页：杂志式三栏（设计稿 UI-2）+ 第二/第三屏。
  *
- * 左：SPOTLIGHT 米黄卡（4 条）；中：主视觉（大图 + 超大斜体标题 + 作者卡 + 时间戳 +
- * 摘要）+ 三栏小图卡；右：播客区块 + 一条侧栏文章。
+ * 第一屏（三栏）：左 SPOTLIGHT 米黄卡（4 条）；中主视觉（大图 + 超大斜体标题 + 作者卡
+ * + 时间戳 + 摘要）+ 三栏小图卡；右播客区块 + 一条侧栏文章。
+ * 第二/第三屏（全宽纵向堆叠）：本期精选（最新期号）/ 多媒体（video·podcast·photo）/
+ * AI 话题（tag=ai）。
  *
  * 数据编排只在这里做：查询 → cacheHint → 去重取用 → 交给纯展示组件。
+ * 新屏必须放在 `.front__grid` **之外**：`StoryGrid` 的列数由视口宽度决定，塞进三栏会被挤。
  */
 import { getEmDashCollection, getSiteSettings } from "emdash";
 import type { ArticleEntry } from "@utils/types";
 import Base from "../layout/Base.astro";
 import SectionHeading from "../components/SectionHeading.astro";
 import SpotlightCard from "../components/SpotlightCard.astro";
+import StoryGrid from "../components/StoryGrid.astro";
 import MainFeature from "../components/MainFeature.astro";
 import MiniCard from "../components/MiniCard.astro";
 import PodcastBlock from "../components/PodcastBlock.astro";
 import AsideStory from "../components/AsideStory.astro";
 import { getTranslations } from "../../../i18n";
 import { resolveSiteIdentity } from "@utils/site-identity";
+import { getLatestEditionArticles } from "@utils/edition";
 
 const { t } = getTranslations(Astro);
 
 const settings = await getSiteSettings();
 const { siteTitle, siteTagline } = resolveSiteIdentity(settings);
 
-const [latestResult, leadResult, podcastResult] = await Promise.all([
+const [
+	latestResult,
+	leadResult,
+	editionResult,
+	podcastResult,
+	videoResult,
+	photoResult,
+	aiResult,
+] = await Promise.all([
 	getEmDashCollection("articles", { orderBy: { published_at: "desc" }, limit: 12 }),
 	getEmDashCollection("articles", {
 		where: { priority: "lead" },
 		orderBy: { published_at: "desc" },
 		limit: 1,
 	}),
+	// 第二屏：最新一期的文章（两段查询，见 @utils/edition）
+	getLatestEditionArticles(16),
+	// 第三屏：多媒体 —— 三种 article_type 各取一批再合并（不用数组 where）
 	getEmDashCollection("articles", {
 		where: { article_type: "podcast" },
 		orderBy: { published_at: "desc" },
-		limit: 1,
+		limit: 8,
+	}),
+	getEmDashCollection("articles", {
+		where: { article_type: "video" },
+		orderBy: { published_at: "desc" },
+		limit: 8,
+	}),
+	getEmDashCollection("articles", {
+		where: { article_type: "photo" },
+		orderBy: { published_at: "desc" },
+		limit: 8,
+	}),
+	// 第三屏：话题
+	getEmDashCollection("articles", {
+		where: { tag: "ai" },
+		orderBy: { published_at: "desc" },
+		limit: 20,
 	}),
 ]);
 
 if (Astro.cache?.enabled) {
 	Astro.cache.set(latestResult.cacheHint);
 	Astro.cache.set(leadResult.cacheHint);
+	for (const hint of editionResult.cacheHints) if (hint) Astro.cache.set(hint);
 	Astro.cache.set(podcastResult.cacheHint);
+	Astro.cache.set(videoResult.cacheHint);
+	Astro.cache.set(photoResult.cacheHint);
+	Astro.cache.set(aiResult.cacheHint);
 }
 
 const latest = latestResult.entries;
@@ -75,6 +111,25 @@ function take(n: number): ArticleEntry[] {
 const spotlight = take(4);
 const minis = take(3);
 const asideStory = take(1)[0] ?? null;
+
+// 第二/第三屏：先把第一屏用过的稿子并入排除集，再按维度取用。
+// 新稿的 published_at 是「导入时间」（比旧稿新），会占据「最新 12」→ 第一屏吃掉大半，
+// 所以这里**只取未上版面的稿子**（不兜底重复）：宁可区块少几条，也不要同一篇大图卡出现两次。
+// 因此各维度查询的 limit 要足够大，才能越过被第一屏占用的那批、拿到后面的新鲜稿。
+const placed = new Set<string | undefined>([feature?.id, podcast?.id, ...used]);
+
+function pickFresh(entries: ArticleEntry[], n: number): ArticleEntry[] {
+	const picked = entries.filter((article) => !placed.has(article.id)).slice(0, n);
+	for (const article of picked) placed.add(article.id);
+	return picked;
+}
+
+// 多媒体：video → podcast → photo（稀缺类型先露面）
+const multimediaPool = [...videoResult.entries, ...podcastResult.entries, ...photoResult.entries];
+
+const editionPicks = pickFresh(editionResult.entries, 6);
+const multimedia = pickFresh(multimediaPool, 6);
+const aiTopic = pickFresh(aiResult.entries, 6);
 ---
 
 <Base title={siteTitle} description={siteTagline} type="website">
@@ -104,6 +159,33 @@ const asideStory = take(1)[0] ?? null;
 				{asideStory && <AsideStory article={asideStory} />}
 			</aside>
 		</div>
+
+		{
+			editionPicks.length > 0 && (
+				<section class="front__section">
+					<SectionHeading title={t("pn.editionPicks")} />
+					<StoryGrid articles={editionPicks} />
+				</section>
+			)
+		}
+
+		{
+			multimedia.length > 0 && (
+				<section class="front__section">
+					<SectionHeading title={t("pn.multimedia")} />
+					<StoryGrid articles={multimedia} />
+				</section>
+			)
+		}
+
+		{
+			aiTopic.length > 0 && (
+				<section class="front__section">
+					<SectionHeading title={t("pn.aiTopic")} />
+					<StoryGrid articles={aiTopic} />
+				</section>
+			)
+		}
 	</div>
 </Base>
 
@@ -116,6 +198,13 @@ const asideStory = take(1)[0] ?? null;
 		display: grid;
 		grid-template-columns: 1fr;
 		gap: var(--spacing-10);
+	}
+
+	/* 第二/第三屏：全宽纵向堆叠，用粗分隔线拉开杂志式节奏 */
+	.front__section {
+		margin-top: var(--spacing-12);
+		padding-top: var(--spacing-10);
+		border-top: var(--rule-thick);
 	}
 
 	.front__main {

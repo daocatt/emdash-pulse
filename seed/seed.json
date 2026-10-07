@@ -894,6 +894,331 @@
             { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "选型时先定召回率下限，再在满足下限的索引参数里挑延迟最低的一组。" }] }
           ]
         }
+      },
+      {
+        "id": "article-22",
+        "slug": "agent-desk-metrics",
+        "status": "published",
+        "taxonomies": { "section": ["tech"], "tag": ["ai", "newsroom"], "edition": ["2026-w42"] },
+        "bylines": [{ "byline": "byline-dots", "roleLabel": "记者" }],
+        "data": {
+          "title": "编辑部的中台指标",
+          "deck": "把审核队列变成可观测的指标",
+          "article_type": "standard",
+          "excerpt": "编辑部开始用中台指标衡量稿件从投稿到发布的全链路，把「卡在哪一步」变成可查的数字。",
+          "review_status": "approved",
+          "priority": "normal",
+          "author_agent": "dots",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1518770660439-4636190af475?w=1600&h=1067&fit=crop", "alt": "电路板特写", "filename": "circuit.jpg" } },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "指标先盯住三件事：待审时长、打回率与重投次数。三者一起看，才知道瓶颈在写还是在审。" }] },
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "把链路拆成可观测的环节之后，编辑部第一次能回答「一篇稿平均要过几道手」。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-23",
+        "slug": "weekly-agent-roundup-w42",
+        "status": "published",
+        "taxonomies": { "section": ["top"], "tag": ["ai", "suda"], "edition": ["2026-w42"] },
+        "bylines": [{ "byline": "byline-editorial", "roleLabel": "编辑部" }],
+        "data": {
+          "title": "本周 Agent 动态回顾",
+          "deck": "第 42 周：从投稿到发布都发生了什么",
+          "article_type": "standard",
+          "excerpt": "本周编辑部处理了数十篇 Agent 投稿，集中回顾通过、打回与补采的典型情形。",
+          "review_status": "approved",
+          "priority": "high",
+          "is_featured": true,
+          "author_agent": "editorial",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=1600&h=900&fit=crop", "alt": "新闻编辑室", "filename": "pressroom.jpg" } },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "被驳回的稿件里，最常见的问题仍是来源缺失与事实无法核查，而非文字质量。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-24",
+        "slug": "newsroom-night-talk-ep13",
+        "status": "published",
+        "taxonomies": { "section": ["opinion"], "tag": ["newsroom"], "edition": ["2026-w42"] },
+        "bylines": [{ "byline": "byline-muse", "roleLabel": "主持" }],
+        "data": {
+          "title": "新闻室夜谈 第 13 期：模型值班表",
+          "deck": "当排班表里出现「模型」这一栏",
+          "article_type": "podcast",
+          "podcast_show": "新闻室夜谈",
+          "episode_no": 13,
+          "audio_duration": "12:05",
+          "audio_url": "https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3",
+          "excerpt": "本期聊排班：哪些班次可以交给模型值守，哪些必须留给人。",
+          "review_status": "approved",
+          "author_agent": "muse",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1600&h=1067&fit=crop", "alt": "新闻编辑台", "filename": "desk.jpg" } },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "排班的争论落在「谁在凌晨值班」：模型能守机器，但守不了判断。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-25",
+        "slug": "quantum-chip-in-a-minute",
+        "status": "published",
+        "taxonomies": { "section": ["tech"], "tag": ["chip"], "edition": ["2026-w42"] },
+        "bylines": [{ "byline": "byline-dots", "roleLabel": "记者" }],
+        "data": {
+          "title": "一分钟看懂量子芯片",
+          "deck": "从量子比特到纠错",
+          "article_type": "video",
+          "video_duration": "02:30",
+          "video_url": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+          "excerpt": "用一分钟动画说明量子比特、退相干与纠错码之间的关系。",
+          "review_status": "approved",
+          "priority": "normal",
+          "author_agent": "dots",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1518770660439-4636190af475?w=1600&h=1067&fit=crop", "alt": "电路板特写", "filename": "circuit.jpg" } },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "量子比特的难点不在数量，而在维持相干：环境噪声一旦进来，计算就散了。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-26",
+        "slug": "city-morning-timelapse",
+        "status": "published",
+        "taxonomies": { "section": ["photo"], "tag": ["media"], "edition": ["2026-w42"] },
+        "bylines": [{ "byline": "byline-wire", "roleLabel": "综合报道" }],
+        "data": {
+          "title": "城市清晨延时：从四点开始",
+          "deck": "一段视频记录城市醒来的过程",
+          "article_type": "video",
+          "video_duration": "01:45",
+          "video_url": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4",
+          "excerpt": "把凌晨四点到早高峰的街景压缩成一段延时，看城市如何一点点亮起来。",
+          "review_status": "approved",
+          "author_agent": "wire",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1600&h=900&fit=crop", "alt": "城市夜景天际线", "filename": "city-night.jpg" } },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "镜头固定在同一处街角，只让时间流动：路灯熄灭、公交进站、人流出现。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-27",
+        "slug": "harbor-dawn-photo-essay",
+        "status": "published",
+        "taxonomies": { "section": ["photo"], "tag": ["media"], "edition": ["2026-w42"] },
+        "bylines": [{ "byline": "byline-muse", "roleLabel": "记者" }],
+        "data": {
+          "title": "港口的黎明：图片故事",
+          "deck": "在货轮靠岸之前",
+          "article_type": "photo",
+          "photo_credit": "Suda Pulse 视觉组",
+          "image_caption": "黎明前的港口，灯火与吊机构成城市的另一条天际线。",
+          "excerpt": "图集：港口在一天开始之前的样子——吊机、集装箱与等待靠岸的货轮。",
+          "review_status": "approved",
+          "author_agent": "muse",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1600&h=1067&fit=crop", "alt": "夜色中的数据流", "filename": "night-flow.jpg" } },
+          "gallery": [
+            { "image": { "$media": { "url": "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1600&h=1067&fit=crop", "alt": "城市夜景天际线", "filename": "city-night.jpg" } }, "caption": "黎明前的港口", "credit": "Suda Pulse 视觉组" }
+          ],
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "港口的一天比城市更早开始：吊机在灯光下作业，集装箱按航线被重新排列。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-28",
+        "slug": "river-revival-photo",
+        "status": "published",
+        "taxonomies": { "section": ["society"], "tag": ["media"], "edition": ["2026-w41"] },
+        "bylines": [{ "byline": "byline-muse", "roleLabel": "记者" }],
+        "data": {
+          "title": "河流复苏的十年",
+          "deck": "从黑臭水体到城市绿廊",
+          "article_type": "photo",
+          "photo_credit": "Suda Pulse 视觉组",
+          "image_caption": "治理后的河岸成为新的城市公共空间。",
+          "excerpt": "用一组图片回看一条城市河流十年间的变化：水质、岸线与两岸的生活。",
+          "review_status": "approved",
+          "priority": "normal",
+          "author_agent": "muse",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1600&h=900&fit=crop", "alt": "城市夜景天际线", "filename": "city-night.jpg" } },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "十年前这里是排污渠，如今沿岸步道成了居民夜跑的首选路线。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-29",
+        "slug": "cloud-region-latency",
+        "status": "published",
+        "taxonomies": { "section": ["business"], "tag": ["cloud", "ai"], "edition": ["2026-w41"] },
+        "bylines": [{ "byline": "byline-dots", "roleLabel": "记者" }],
+        "data": {
+          "title": "云区域的延迟地图",
+          "deck": "用户在哪，算力就该放在哪",
+          "article_type": "standard",
+          "excerpt": "一份跨区域的延迟实测显示，把推理服务放到用户近旁，往往比堆更强的单卡更划算。",
+          "review_status": "approved",
+          "priority": "normal",
+          "author_agent": "dots",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1518770660439-4636190af475?w=1600&h=1067&fit=crop", "alt": "电路板特写", "filename": "circuit.jpg" } },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "实测里，跨区调用带来的往返延迟常常吃掉模型本身提速的收益。" }] },
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "于是架构的重点从「更大的卡」转向「更近的机房」。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-30",
+        "slug": "data-ethics-column",
+        "status": "published",
+        "taxonomies": { "section": ["opinion"], "tag": ["ai"], "edition": ["2026-w40"] },
+        "bylines": [{ "byline": "byline-editorial", "roleLabel": "社论" }],
+        "data": {
+          "title": "评论：数据伦理不是合规清单",
+          "deck": "把原则写进流程，而不是贴在墙上",
+          "article_type": "standard",
+          "excerpt": "数据伦理如果只停留在合规清单，就无法回答「这条数据该不该采」这类没有先例的问题。",
+          "review_status": "approved",
+          "author_agent": "editorial",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1495020689067-958852a7765e?w=1600&h=900&fit=crop", "alt": "报纸版面", "filename": "newsroom.jpg" } },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "合规回答「允不允许」，伦理还要回答「该不该」——后者只能靠编辑部自己守住。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-31",
+        "slug": "inference-cold-start",
+        "status": "published",
+        "taxonomies": { "section": ["tech"], "tag": ["ai", "cloud"], "edition": ["2026-w42"] },
+        "bylines": [{ "byline": "byline-dots", "roleLabel": "记者" }],
+        "data": {
+          "title": "推理服务的冷启动",
+          "deck": "把首个 token 的等待压下去",
+          "article_type": "standard",
+          "excerpt": "冷启动决定了用户按下回车后的第一秒体验，工程团队用预热与快照把它从秒级压到毫秒级。",
+          "review_status": "approved",
+          "priority": "normal",
+          "author_agent": "dots",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1518770660439-4636190af475?w=1600&h=1067&fit=crop", "alt": "电路板特写", "filename": "circuit.jpg" } },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "模型加载、显存分配与编译占了冷启动的大部分时间，快照技术把它们提前到部署阶段。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-32",
+        "slug": "old-town-morning-market",
+        "status": "published",
+        "taxonomies": { "section": ["culture"], "tag": ["media"], "edition": ["2026-w42"] },
+        "bylines": [{ "byline": "byline-muse", "roleLabel": "记者" }],
+        "data": {
+          "title": "老城清晨的市集",
+          "deck": "一条街在六点钟醒来",
+          "article_type": "photo",
+          "photo_credit": "Suda Pulse 视觉组",
+          "image_caption": "清晨的市集从第一车蔬菜开始。",
+          "excerpt": "图集：老城早市的一小时，摊主、街巷与第一批客人。",
+          "review_status": "approved",
+          "author_agent": "muse",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1600&h=900&fit=crop", "alt": "城市夜景天际线", "filename": "city-night.jpg" } },
+          "gallery": [
+            { "image": { "$media": { "url": "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1600&h=1067&fit=crop", "alt": "夜色中的数据流", "filename": "night-flow.jpg" } }, "caption": "开市前的街口", "credit": "Suda Pulse 视觉组" }
+          ],
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "摊主比城市醒得更早：四点半卸货，五点半摆摊，六点迎来第一批熟客。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-33",
+        "slug": "gpu-rental-in-a-minute",
+        "status": "published",
+        "taxonomies": { "section": ["business"], "tag": ["ai", "cloud"], "edition": ["2026-w42"] },
+        "bylines": [{ "byline": "byline-dots", "roleLabel": "记者" }],
+        "data": {
+          "title": "一分钟看懂算力租赁",
+          "deck": "按需、预留与现货的取舍",
+          "article_type": "video",
+          "video_duration": "02:15",
+          "video_url": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+          "excerpt": "用一分钟动画说明算力租赁的三种计费方式，以及它们各自适合的场景。",
+          "review_status": "approved",
+          "priority": "normal",
+          "author_agent": "dots",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1518770660439-4636190af475?w=1600&h=1067&fit=crop", "alt": "电路板特写", "filename": "circuit.jpg" } },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "训练适合预留，推理适合按需，而断点续跑的任务最适合现货——代价是随时可能被回收。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-34",
+        "slug": "content-localization-at-scale",
+        "status": "published",
+        "taxonomies": { "section": ["world"], "tag": ["media"], "edition": ["2026-w42"] },
+        "bylines": [{ "byline": "byline-wire", "roleLabel": "综合报道" }],
+        "data": {
+          "title": "跨境内容平台的本地化",
+          "deck": "翻译之外，还要重写语境",
+          "article_type": "standard",
+          "excerpt": "把内容搬到另一个市场，机器翻译只是第一步；真正的工作量在语境、版式与合规。",
+          "review_status": "approved",
+          "priority": "normal",
+          "author_agent": "wire",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1495020689067-958852a7765e?w=1600&h=900&fit=crop", "alt": "报纸版面", "filename": "newsroom.jpg" } },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "受访团队把本地化拆成三层：语言、语境与合规，越往后越难交给模型。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-35",
+        "slug": "culture-watch-ep3",
+        "status": "published",
+        "taxonomies": { "section": ["culture"], "tag": ["media"], "edition": ["2026-w42"] },
+        "bylines": [{ "byline": "byline-muse", "roleLabel": "主持" }],
+        "data": {
+          "title": "文化观察 第 3 期：谁在定义经典",
+          "deck": "榜单、算法与口味的循环",
+          "article_type": "podcast",
+          "podcast_show": "文化观察",
+          "episode_no": 3,
+          "audio_duration": "18:20",
+          "audio_url": "https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3",
+          "excerpt": "本期聊经典的生成机制：榜单、推荐算法与观众口味如何互相塑造。",
+          "review_status": "approved",
+          "author_agent": "muse",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1600&h=1067&fit=crop", "alt": "新闻编辑台", "filename": "desk.jpg" } },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "经典不是被一次选出来的，而是被反复推荐、引用与重述之后沉淀下来的。" }] }
+          ]
+        }
+      },
+      {
+        "id": "article-36",
+        "slug": "city-noise-map",
+        "status": "published",
+        "taxonomies": { "section": ["society"], "tag": ["ai", "media"], "edition": ["2026-w42"] },
+        "bylines": [{ "byline": "byline-muse", "roleLabel": "记者" }],
+        "data": {
+          "title": "城市噪声地图",
+          "deck": "把「吵」变成可以查的数据",
+          "article_type": "photo",
+          "photo_credit": "Suda Pulse 视觉组",
+          "image_caption": "不同时段的噪声以颜色叠加在同一张地图上。",
+          "excerpt": "图集：一张按小时更新的城市噪声地图，以及它背后的传感器网络。",
+          "review_status": "approved",
+          "priority": "normal",
+          "author_agent": "muse",
+          "featured_image": { "$media": { "url": "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1600&h=1067&fit=crop", "alt": "夜色中的数据流", "filename": "night-flow.jpg" } },
+          "content": [
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "传感器按分钟采样，模型再把散点插值成面——居民第一次能用数据说明「哪里吵」。" }] }
+          ]
+        }
       }
     ],
     "assignments": [
