@@ -153,6 +153,14 @@ export default defineConfig({
 		define: {
 			__DEFAULT_SITE_THEME__: JSON.stringify(DEFAULT_SITE_THEME),
 		},
+		optimizeDeps: {
+			// `motion/mini` 只被**动态** import 的 `src/scripts/motion/runtime.ts` 引用。
+			// 不预构建的话，Vite 可能在首次动态 import 时才把它当新依赖去优化，重新
+			// 生成 browserHash → 那一发请求拿到 `504 Outdated Optimize Dep`，整条
+			// 动效运行时静默失效（`boot.ts` 的 catch 只打一条 warn）。写进 include
+			// 让它在冷启动的第一次扫描里就进预构建，哈希从开始就是稳定的。
+			include: ["motion/mini"],
+		},
 		resolve: {
 			// 主题页面跨目录引用共享层用别名，避免随页面深度变化的 ../ 前缀。
 			alias: {

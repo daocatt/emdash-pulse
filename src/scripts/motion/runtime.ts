@@ -33,6 +33,9 @@ function clearHiddenState(): void {
 
 /** 逐个 init；单个失败只回滚隐藏态，不影响其余。 */
 export function run(): void {
+	// 标记运行时已接管：组件里的 CSS 兜底动画（页面刚打开、运行时还没绑定时用）
+	// 靠这个属性让位，避免和 WAAPI 同时驱动同一条属性。
+	document.documentElement.dataset.motionReady = "1";
 	for (const init of [initReveal, initDisclosures, initLightbox]) {
 		try {
 			init();

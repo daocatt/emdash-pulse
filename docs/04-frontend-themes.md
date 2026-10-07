@@ -506,7 +506,8 @@ src/components/MotionRuntime.astro   # 只含一个 <script>，引 boot.ts，挂
 | 卡片 hover 抬升（`data-hover-lift` → `translate`） | CSS | 数量多必须便宜；一条规则覆盖全站 |
 | 按钮按压（`data-press` → `:active { scale: 0.97 }`） | CSS | `:active` 就是语义本身，不必为它引一段 JS 手势；`scale` 与 `transform` 叠加不冲突 |
 | 灯箱上一张 / 下一张淡入（`.lightbox__image--swap`） | CSS | 单个 class + keyframes，动画结束自动回到无驱动状态；让灯箱组件不依赖 motion |
-| `<details>` 开合、灯箱开合、滚动进场 | motion（mini，延迟加载） | 需要测量 / 时序 / WAAPI |
+| 报头菜单面板**首次**展开（`html:not([data-motion-ready])`） | CSS | 运行时绑定在 `DOMContentLoaded` 之后，页面刚打开就点菜单会走原生开合、没有过渡；用本地 keyframes 兜一次，运行时绑定后自动让位 |
+| `<details>` 开合（运行时已就绪）、灯箱开合、滚动进场 | motion（mini，延迟加载） | 需要测量 / 时序 / WAAPI |
 
 ### 15.5 灯箱
 
@@ -568,6 +569,8 @@ src/components/MotionRuntime.astro   # 只含一个 <script>，引 boot.ts，挂
 17. **滚动进场的首屏判据收紧到 `innerHeight`**：延迟加载意味着运行时初始化时用户可能已滚过一段，原 `innerHeight * 0.9` 会把视口下缘 10% 的元素也藏起来再动画（可见闪烁）。改为「任何已落在视口内的一律跳过」，LCP 保护不退化。
 18. **性能脚手架用运行期主题切换而非两套构建**：`themeRoutes()` 让一次 `astro build` 就同时产出两套主题，所以 `scripts/perf.mjs` 只构建一次，切主题靠改 `options` 表的 `plugin:pulse-theme:settings:theme`（`finally` 还原）。路由也不硬编码 slug —— 从 `/sitemap.xml` 索引 → 子 sitemap → 第一条 `<loc>`。
 19. **播客 / 视频用外部公开 URL 演示**：seed 填 MDN 的 CC0 样本（`t-rex-roar.mp3` / `flower.mp4` / `friday.mp4`），只改字段值即可换成 R2 / 媒体库地址；热链风险见 [03-content-model.md](./03-content-model.md)。
+20. **`motion/mini` 写进 `optimizeDeps.include`**：它只被动态 import 的 `runtime.ts` 引用，Vite 若在首次动态 import 时才把它当新依赖优化，会重新生成 browserHash，那一发请求拿到 `504 Outdated Optimize Dep`，`boot.ts` 只打一条 warn 就放弃 —— **整个动效运行时静默失效**（下拉 / 滚动进场 / 灯箱全都没动画，看起来像「没写动效」）。预构建后哈希从冷启动就稳定。救急：停 dev server → `rm -rf node_modules/.vite` → 重启。
+21. **报头菜单面板补了 CSS 兜底动画**：运行时绑定发生在 `DOMContentLoaded` 之后，页面刚打开就点菜单走原生 `<details>` 开合、没有过渡。`Masthead.astro` 用本地 keyframes + `html:not([data-motion-ready])`（`runtime.ts` 的 `run()` 开头打这个属性）兜住首次展开，绑定后自动让位给 WAAPI —— 两条路径互斥，`opacity` 只有一个驱动源。
 
 ### 待办
 
