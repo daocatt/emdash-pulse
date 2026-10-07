@@ -7,16 +7,28 @@ interface Props {
 	readingTime?: number | null;
 	source?: string | null;
 	sourceUrl?: string | null;
+	/**
+	 * 排版方式：`inline` 单行（用 `·` 分隔，适合卡片 / 宽栏）；
+	 * `stacked` 竖排每项一行（适合文章页窄署名栏，避免分隔符折行成孤点）。
+	 */
+	layout?: "inline" | "stacked";
 	class?: string;
 }
 
-const { publishedAt, readingTime, source, sourceUrl, class: className } = Astro.props;
+const {
+	publishedAt,
+	readingTime,
+	source,
+	sourceUrl,
+	layout = "inline",
+	class: className,
+} = Astro.props;
 const { locale, t } = getTranslations(Astro);
 const date = publishedAt ? new Date(publishedAt) : null;
 const iso = date && !Number.isNaN(date.getTime()) ? date.toISOString() : null;
 ---
 
-<div class:list={["article-meta", className]}>
+<div class:list={["article-meta", `article-meta--${layout}`, className]}>
 	{iso && (
 		<time datetime={iso} class="article-meta__item">{formatDate(date, locale)}</time>
 	)}
@@ -52,6 +64,22 @@ const iso = date && !Number.isNaN(date.getTime()) ? date.toISOString() : null;
 		content: "·";
 		margin-right: 1em;
 		color: var(--color-border);
+	}
+
+	/* 竖排：每项独占一行，`·` 分隔符会折成孤点，故关闭 */
+	.article-meta--stacked {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: var(--spacing-2);
+		font-size: var(--font-size-xs);
+	}
+
+	.article-meta--stacked .article-meta__item {
+		display: block;
+	}
+
+	.article-meta--stacked .article-meta__item + .article-meta__item::before {
+		content: none;
 	}
 
 	.article-meta__source {

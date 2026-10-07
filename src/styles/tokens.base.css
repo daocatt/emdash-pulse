@@ -91,8 +91,8 @@
 		--content-width: 680px; /* 正文列 */
 		--wide-width: 1240px; /* 头版 / 归档容器 */
 		--max-width: var(--content-width);
-		--meta-col-width: 150px; /* 文章页左署名列 */
-		--gutter-width: 300px; /* 右侧栏 */
+		--meta-col-width: 200px; /* 文章页左署名列 */
+		--gutter-width: 250px; /* 右侧栏 */
 		--nav-height: 56px;
 
 		/* 圆角 */

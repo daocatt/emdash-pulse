@@ -90,13 +90,23 @@ const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ??
 	<article class="container article">
 		<div class="article__grid">
 			<aside class="article__meta-col" aria-label={t("article.info")}>
-				<Byline bylines={data.bylines} authorAgent={data.author_agent} />
-				<ArticleMeta publishedAt={data.publishedAt} readingTime={readingTime} source={data.source} sourceUrl={data.source_url} />
-				{editionTerm && (
-					<a class="article__edition" href={`/editions/${editionTerm.slug}`}>
-						{t("article.edition", { label: editionTerm.label })}
-					</a>
-				)}
+				<div class="article__byline">
+					<Byline bylines={data.bylines} authorAgent={data.author_agent} />
+				</div>
+				<div class="article__facts">
+					<ArticleMeta
+						layout="stacked"
+						publishedAt={data.publishedAt}
+						readingTime={readingTime}
+						source={data.source}
+						sourceUrl={data.source_url}
+					/>
+					{editionTerm && (
+						<a class="article__edition" href={`/editions/${editionTerm.slug}`}>
+							{t("article.edition", { label: editionTerm.label })}
+						</a>
+					)}
+				</div>
 				{data.review_status === "approved" && (
 					<p class="article__review"><span class="article__review-dot"></span>{t("article.reviewed")}</p>
 				)}
@@ -161,6 +171,27 @@ const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ??
 						))}
 					</footer>
 				)}
+
+				{data.allow_comments !== false && (
+					<section class="article__comments" id="comments">
+						<h2 class="article__comments-title">{t("article.comments")}</h2>
+						<div class="article__comment-form">
+							<CommentForm collection="articles" contentId={data.id} />
+						</div>
+						<Comments collection="articles" contentId={data.id} threaded />
+					</section>
+				)}
+
+				{related.length > 0 && (
+					<section class="article__related" aria-label={t("article.related")}>
+						<h2 class="article__related-title">{t("article.related")}</h2>
+						<div class="article__related-grid">
+							{related.map((entry) => (
+								<StoryCard article={entry} showImage size="sm" headingLevel="h3" />
+							))}
+						</div>
+					</section>
+				)}
 			</div>
 
 			<aside class="article__aside" aria-label={t("article.aside")}>
@@ -170,27 +201,6 @@ const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ??
 
 		{isPhoto && gallery.length === 0 && (
 			<p class="article__note">{t("article.photoNote")}</p>
-		)}
-
-		{data.allow_comments !== false && (
-			<section class="article__comments" id="comments">
-				<h2 class="article__comments-title">{t("article.comments")}</h2>
-				<div class="article__comment-form">
-					<CommentForm collection="articles" contentId={data.id} />
-				</div>
-				<Comments collection="articles" contentId={data.id} threaded />
-			</section>
-		)}
-
-		{related.length > 0 && (
-			<section class="article__related" aria-label={t("article.related")}>
-				<h2 class="article__related-title">{t("article.related")}</h2>
-				<div class="article__related-grid">
-					{related.map((entry) => (
-						<StoryCard article={entry} showImage size="sm" headingLevel="h3" />
-					))}
-				</div>
-			</section>
 		)}
 	</article>
 </Base>
@@ -217,7 +227,7 @@ const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ??
 	.article__meta-col {
 		display: flex;
 		flex-direction: column;
-		gap: var(--spacing-3);
+		gap: var(--spacing-4);
 	}
 
 	@media (min-width: 900px) {
@@ -230,11 +240,24 @@ const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ??
 		}
 	}
 
+	.article__byline {
+		padding-bottom: var(--spacing-3);
+		border-bottom: var(--rule-hairline);
+	}
+
+	.article__facts {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-2);
+	}
+
 	.article__review {
 		margin: 0;
 		display: inline-flex;
 		align-items: center;
 		gap: var(--spacing-2);
+		padding-top: var(--spacing-3);
+		border-top: var(--rule-hairline);
 		font-size: var(--font-size-xs);
 		color: var(--color-muted);
 	}
@@ -359,8 +382,7 @@ const authorName = data.bylines?.[0]?.byline.displayName ?? data.author_agent ??
 	}
 
 	.article__comments {
-		max-width: var(--content-width);
-		margin: var(--spacing-16) auto 0;
+		margin-top: var(--spacing-16);
 		padding-top: var(--spacing-8);
 		border-top: var(--rule-thick);
 	}
