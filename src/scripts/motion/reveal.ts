@@ -64,7 +64,9 @@ export function initReveal(): void {
 				try {
 					animate(
 						targets,
-						{ opacity: [0, 1], y: [from, "0px"] },
+						// `motion/mini` 不做 `y` → `transform` 的映射：它把 keyframe 的属性名直接交给
+						// WAAPI，`y` 不是合法 CSS 属性（实测无任何效果），必须写完整的 `transform`。
+						{ opacity: [0, 1], transform: [`translateY(${from})`, "translateY(0px)"] },
 						{ duration, ease, delay: (index) => index * step },
 					).then(clear);
 				} catch (error) {

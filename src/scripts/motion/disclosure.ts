@@ -43,7 +43,13 @@ export function initDisclosures(): void {
 		const open = () => {
 			if (floating) {
 				panel.style.opacity = "0"; // 先压住，避免 open 到首帧之间闪一下
-				animate(panel, { opacity: [0, 1], y: [offset, "0px"] }, { duration, ease }).then(reset);
+				// `motion/mini` 不做 `y` → `transform` 映射，必须写完整的 `transform`
+				// （面板横向居中用的是独立的 `translate` 属性，所以 `transform` 是空的）。
+				animate(
+					panel,
+					{ opacity: [0, 1], transform: [`translateY(${offset})`, "translateY(0px)"] },
+					{ duration, ease },
+				).then(reset);
 				return;
 			}
 			const height = panel.scrollHeight;
@@ -55,7 +61,14 @@ export function initDisclosures(): void {
 
 		const close = (done: () => void) => {
 			if (floating) {
-				animate(panel, { opacity: [1, 0], y: ["0px", offset] }, { duration, ease }).then(done);
+				animate(
+					panel,
+					{ opacity: [1, 0], transform: ["translateY(0px)", `translateY(${offset})`] },
+					{ duration, ease },
+				).then(() => {
+					reset();
+					done();
+				});
 				return;
 			}
 			panel.style.overflow = "hidden";
