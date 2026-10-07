@@ -41,7 +41,7 @@ const { siteTitle } = resolveSiteIdentity(settings);
 const seo = getSeoMeta(article, {
 	siteTitle,
 	siteUrl: Astro.url.origin,
-	path: Astro.url.pathname.replace(/\/$/, ""),
+	path: Astro.originPathname.replace(/\/$/, ""),
 });
 
 const section = data.terms?.section?.[0] ?? null;

@@ -13,7 +13,8 @@ interface Props {
 
 const { siteTitle, siteTagline, class: className } = Astro.props;
 const { t } = getTranslations(Astro);
-const isHome = (Astro.url.pathname.replace(/\/$/, "") || "/") === "/";
+// 原路径用 `originPathname`：主题可能是运行期 rewrite 过来的（`/_t/<theme>/…`）。
+const isHome = (Astro.originPathname.replace(/\/$/, "") || "/") === "/";
 const BrandTag = isHome ? "h1" : "div";
 ---
 

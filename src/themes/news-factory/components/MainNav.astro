@@ -12,7 +12,8 @@ interface Props {
 
 const { items, class: className } = Astro.props;
 const { t } = getTranslations(Astro);
-const current = Astro.url.pathname.replace(/\/$/, "") || "/";
+// 原路径用 `originPathname`：主题可能是运行期 rewrite 过来的（`/_t/<theme>/…`）。
+const current = Astro.originPathname.replace(/\/$/, "") || "/";
 
 function isActive(url: string): boolean {
 	const path = url.split("?")[0].replace(/\/$/, "") || "/";
