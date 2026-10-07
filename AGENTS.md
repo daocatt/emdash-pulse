@@ -9,11 +9,11 @@
 
 ```bash
 npm run dev                       # 构建插件 + 启动 Astro dev（SQLite data.db + ./uploads）
-SITE_THEME=pulse-news npm run dev # 换主题起 dev（默认 news-factory）
+SITE_THEME=pulse-news npm run dev # 改构建期默认主题（默认 news-factory；后台可运行期切换）
 npm run build:news-factory        # 构建 news-factory 主题（= plugin:build + SITE_THEME=... astro build）
 npm run build:pulse-news          # 构建 pulse-news 主题
-npm run typecheck:all             # 两套主题各跑一次 astro check
-npm run plugin:build              # 构建全部沙箱插件（--workspaces：pulse-review/pulse-agent/pulse-editorial）
+npm run typecheck:all             # 两套默认主题各跑一次 astro check
+npm run plugin:build              # 构建全部沙箱插件（--workspaces：pulse-review/pulse-agent/pulse-editorial/pulse-subscriptions/pulse-seo/pulse-theme）
 npm run plugin:test               # 全部插件单测
 node scripts/configure-search.mjs # 中文搜索：切 trigram 分词器并重建索引（重建库后需重跑）
 node scripts/seed-test-engagement.mjs # 灌入测试评论（已通过）+ 订阅者（混合状态），复核前台评论/后台订阅 UI
@@ -26,14 +26,14 @@ HOME=~/.wrangler-a npm run deploy # 构建并部署到 Cloudflare
 
 ## 前台主题
 
-两套前台主题都在仓库里，**构建期**用 `SITE_THEME` 选一套（默认 `news-factory`），一次只出一套：
+两套前台主题都在仓库里。**构建期默认值**由 `SITE_THEME` 决定（默认 `news-factory`），**运行期**可在后台「前台主题」页切换（立即全站生效，无需重新部署）。任一时刻只渲染一套：
 
 | 主题 | 设计来源 | 目录 |
 | --- | --- | --- |
 | `news-factory` | 报纸头版（深红 + 细横线 + 三栏） | `src/themes/news-factory/` |
 | `pulse-news` | 杂志式（米白纸色 + 大留白 + 作者卡） | `src/themes/pulse-news/` |
 
-- 主题页面**不是** `src/pages/` 下的文件路由，而是 `astro.config.mjs` 里 `THEME_ROUTES` + `themeRoutes()` 用 `injectRoute()` 注入的。**新增人类页面必须同时**：① 在 `THEME_ROUTES` 注册；② 两套主题各放一份同路径文件（缺文件会在 `astro:config:setup` 直接抛错）。
+- 主题页面**不是** `src/pages/` 下的文件路由，而是 `astro.config.mjs` 里 `THEME_ROUTES` + `themeRoutes()` 用 `injectRoute()` 注入的。**默认主题**注册在干净路径上，**另一套**注册在 `/_t/<theme>/…`；`src/middleware.ts` 按运行期设置把干净路径 rewrite 到前缀。**新增人类页面必须同时**：① 在 `THEME_ROUTES` 注册；② 两套主题各放一份同路径文件（缺文件会在 `astro:config:setup` 直接抛错）。
 - `src/pages/` 只保留主题无关的机器端点（`rss.xml` / `feed.json` / `llms.txt` / `robots.txt` / `sitemap*.xml` / `agent/**` / `spike/**`）。
 - 跨目录引用共享层用别名：`@shared/*` → `src/components/`，`@utils/*` → `src/utils/`（Vite alias 在 `astro.config.mjs`，TS paths 在 `tsconfig.json`，两处必须同步）。
 - 主题自述在 `src/themes/<name>/theme.config.ts`（`defineTheme()`，声明 `data-site-theme` 标识与 EmDash 菜单名）。
@@ -44,7 +44,8 @@ HOME=~/.wrangler-a npm run deploy # 构建并部署到 Cloudflare
 
 | File | Purpose |
 | --- | --- |
-| `astro.config.mjs` | emdash() 集成、数据库、存储、插件注册、**主题选择 + 路由注入** |
+| `astro.config.mjs` | emdash() 集成、数据库、存储、插件注册、**主题路由注入 + 默认主题** |
+| `src/middleware.ts` | **运行期主题切换**：读插件设置，把干净路径 rewrite 到 `/_t/<theme>/…`（详见文件头注释） |
 | `src/themes/<theme>/` | 前台主题（`theme.config.ts` / `layout/` / `components/` / `pages/`） |
 | `src/components/` | 主题无关共享组件（`@shared`） |
 | `src/utils/` | 主题无关数据层（`@utils`） |
@@ -55,12 +56,14 @@ HOME=~/.wrangler-a npm run deploy # 构建并部署到 Cloudflare
 | `plugins/pulse-review/` | 沙箱插件：发布门禁（`content:beforePublish`） |
 | `plugins/pulse-editorial/` | 沙箱插件：编辑台（选题分发 + 投稿审核发布，持有 `content:publish`） |
 | `plugins/pulse-agent/` | 沙箱插件：Agent 侧（注册/审批、选题领取、投稿、订阅意向） |
+| `plugins/pulse-theme/` | 沙箱插件：后台「前台主题」页（写插件设置，供 `src/middleware.ts` 读） |
 | `emdash-env.d.ts` | 生成的集合类型（dev 启动时自动更新） |
 
 ## Rules
 
 - **Cloudflare 部署与远端操作必须使用 `wrangler-a` 账号环境**：`HOME=~/.wrangler-a npx wrangler ...` 或 `HOME=~/.wrangler-a npm run deploy`。
 - 所有内容页面服务端渲染（`output: "server"`）。CMS 内容**不要**用 `getStaticPaths()`。
+- **主题是运行期值**：默认主题注册在干净路径上，另一套在 `/_t/<theme>/…`，由 `src/middleware.ts` 用 `next(payload)` rewrite（**不能**用 `context.rewrite()`，它会重跑整条中间件链）。因此主题页面里取路径**一律用 `Astro.originPathname`**，不要用 `Astro.url.pathname`（会带上 `/_t/<theme>` 前缀，污染 canonical / JSON-LD / `isHome` / 导航高亮 / 语言切换链接）；`Astro.url.origin` 与 `Astro.url.searchParams` 不受影响。rewrite **不保留查询串**，中间件已显式拼上。
 - 图片字段是对象（`{ id, src, alt, width, height, blurhash, ... }`），用 `emdash/ui` 的 `<Image image={...} />`（自动 `srcset`/`sizes`/宽高/WebP/LQIP；首屏图传 `priority`）。**`astro.config.mjs` 的 `image.remotePatterns` 必须包含站点自身 origin**（本地 `localhost`/`127.0.0.1` + 生产域名）：EmDash 会把同源媒体路径解析成绝对 URL 交给 Astro 的 image service，未授权时**生产构建会静默退回原图**（`srcset` 各档位指向同一张全尺寸图）。
 - `entry.id` 是 slug（URL 用）；`entry.data.id` 是数据库 ULID（`getEntryTerms`、评论 `contentId` 用）。
 - taxonomy 名称必须与 seed 的 `"name"` 完全一致（`section` / `tag` / `edition`）。

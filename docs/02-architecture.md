@@ -27,7 +27,7 @@
         │ 双主题 UI         │ MCP / HTTP            │ MCP / HTTP JSON
         ▼                   ▼                       ▼
 ┌──────────────────────────────────────────────────────────────────────┐
-│  Astro 前台（自研双主题：news-factory / pulse-news，SITE_THEME 切换）  │
+│  Astro 前台（自研双主题：news-factory / pulse-news，默认 SITE_THEME + 后台可切换）│
 │  src/themes/<theme>/pages/*  · getEmDashCollection/getEmDashEntry/…    │
 │  · PortableText · Image(R2) · Comments · LiveSearch · 图片新闻布局      │
 └───────┬──────────────────────────────────────────────────────────────┘

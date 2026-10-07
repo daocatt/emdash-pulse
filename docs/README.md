@@ -1,7 +1,7 @@
 # Suda Pulse — 报刊发布系统规划文档
 
 > 基于 [EmDash CMS](https://github.com/emdash-cms/emdash) + [Astro](https://astro.build/) 构建的 **AI 时代新闻 / 报刊发布系统**。
-> **双前台主题**（`news-factory` 报纸头版 / `pulse-news` 杂志式，构建期 `SITE_THEME` 切换），后台内容审核 + 多用户，**Author agent 生产 / Editor agent 审核发布**，双阅读面（人类 UI + Agent API），支持图片新闻、播客/视频、RSS、邮件订阅。
+> **双前台主题**（`news-factory` 报纸头版 / `pulse-news` 杂志式，默认 `SITE_THEME`、后台可运行期切换），后台内容审核 + 多用户，**Author agent 生产 / Editor agent 审核发布**，双阅读面（人类 UI + Agent API），支持图片新闻、播客/视频、RSS、邮件订阅。
 
 **站点**：Suda Pulse · `ai.suda.im` · `Asia/Shanghai` · 部署于 Cloudflare（D1 + R2 + Workers AI）。
 
@@ -80,7 +80,7 @@ Reader agent ──MCP/HTTP JSON──▶ Agent Read API ─┘
 | 新闻分类 | taxonomy `section`（hierarchical） | 复用 |
 | 标签 | taxonomy `tag`（flat） | 复用 |
 | 评论 | 内置评论 + `pulse-review` 规则/AI 审核 + 报纸主题覆盖 | 复用 + 自研 |
-| 前台 UI | 自研双主题（`news-factory` / `pulse-news`，`SITE_THEME` 切换） | 自研 |
+| 前台 UI | 自研双主题（`news-factory` / `pulse-news`，默认 `SITE_THEME` + 后台可切换） | 自研 |
 | 按月/周筛选 | `where: { published_at: { gte, lt } }` + 归档路由 | 自研 |
 | 搜索 | EmDash 内置 FTS + LiveSearch | 复用 |
 | 部署 | Cloudflare Workers + D1 + R2 + Workers AI | 复用 |

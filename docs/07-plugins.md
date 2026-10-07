@@ -46,6 +46,7 @@ EmDash 插件分两类：
 | `pulse-review` | Sandboxed | 编审策略：发布门禁 + 评论审核（规则 + AI） | `hooks.content-policy:register`、`users:read`、`network:request` | P0 |
 | `pulse-subscriptions` | Sandboxed | **读者订阅**：双确认 / 退订 / 订阅者管理（替代 `bulletin`） | `email:send` | P0 |
 | `pulse-seo` | **Trusted** | **结构化数据**：为公开页面贡献唯一 JSON-LD（文章 `NewsArticle` / 其余 `WebSite`） | 无（`page:metadata` 无能力要求） | P1 |
+| `pulse-theme` | Sandboxed | **前台主题**：后台「前台主题」页写插件设置，供 `src/middleware.ts` 运行期切换 | 无（只写自己的插件设置） | P2c |
 | `pulse-digest` | Sandboxed | 摘要邮件（若需自定义摘要格式） | `content:read`、`email:send`、`cron` | P2（按需） |
 
 > 订阅由自研 `pulse-subscriptions` 承担（**D4 修订**，见 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)）。仅在需要**自定义摘要格式**时才做 `pulse-digest`。
@@ -99,6 +100,13 @@ EmDash 插件分两类：
   - 其余页 → `WebSite`
 - 数据只取自 `PublicPageContext`（标题/描述/时间/作者/图片/站点名），**零额外查询**；图片会补成绝对 URL（JSON-LD `image` 建议绝对地址）。
 - 模板侧不再手工注入 JSON-LD（`Base.astro` 的 `jsonLd` 属性已移除）。
+
+### 2.7 `pulse-theme`（前台主题切换）
+
+- **零能力沙箱插件**：只注册一个后台 `admin` 路由（Block Kit 页），把选择写进**插件设置** `plugin:pulse-theme:settings:theme`（`ctx.settings.set`）—— 不碰内容 / 媒体 / 用户 / 网络，所以 `capabilities` 与 `storage` 都为空。
+- **消费方是宿主信任代码**，不是插件：`src/middleware.ts` 用 `getPluginSetting("pulse-theme", "theme")` 读同一个键（两者都落 options 表），取不到 / 非法则回退 `__DEFAULT_SITE_THEME__`（`astro.config.mjs` 的 `vite.define`）。
+- `THEMES` 名称必须与 `astro.config.mjs` 的 `THEME_NAMES` 一致（后者注入 `/_t/<theme>/…` 路由前缀）。
+- 详见 [04-frontend-themes.md](./04-frontend-themes.md) §1.1。
 
 ---
 

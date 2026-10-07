@@ -86,6 +86,20 @@
 
 ---
 
+## Phase 2c · 运行期主题切换（Runtime Theme Switch）
+
+**目标**：后台能切换前台主题，切换后立即全站生效，无需重新部署。`SITE_THEME` 从「构建期唯一选择」降级为「默认值」。
+
+- [x] 沙箱插件 `pulse-theme`：后台「前台主题」页（Block Kit `radio`）写插件设置 `plugin:pulse-theme:settings:theme`。
+- [x] `astro.config.mjs`：默认主题注册在干净路径，另一套注册在 `/_t/<theme>/…`；`vite.define` 注入 `__DEFAULT_SITE_THEME__`。
+- [x] `src/middleware.ts`：读插件设置（异常回退默认值），需要时用 `next(payload)` rewrite 到前缀路由；`/_t/**` 直接访问 302 回干净路径；404 状态码在 rewrite 后还原。
+- [x] 主题页面统一改用 `Astro.originPathname`（canonical / JSON-LD / `isHome` / 导航高亮 / 语言切换），避免带上 `/_t/<theme>` 前缀。
+- [x] `robots.txt` 屏蔽 `/_t/`。
+
+**验收**：后台切到另一套主题后，前台（含导航菜单与 404 页）立即变样 ✅；`canonical` / JSON-LD 不含前缀 ✅；`?lang=` / `?q=` / `?page=` 查询串透传正常 ✅；`typecheck:all` 与两套构建均通过 ✅。详见 [04-frontend-themes.md](./04-frontend-themes.md) §1.1。
+
+---
+
 ## Phase 3 · 评论与邮件订阅（Comments & Newsletter）
 
 **目标**：评论与订阅闭环。

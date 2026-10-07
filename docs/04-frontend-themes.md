@@ -2,7 +2,12 @@
 
 前台是**自研 Astro 主题**，仅复用参考项目的工程结构（`Base.astro`、RSS、站点标识工具），视觉与布局从零设计。
 
-仓库里**同时存在两套完整主题**，构建期用 `SITE_THEME` 选一套，**一次只出一套**：
+仓库里**同时存在两套完整主题**：
+
+- **构建期默认值**：`SITE_THEME` 决定哪套是「默认主题」，它注册在干净路径上；
+- **运行期切换**：后台「前台主题」页（沙箱插件 `pulse-theme`）可以把**另一套**设为当前主题，切换后立即全站生效，无需重新部署（见 §1.1）。
+
+任一时刻只**渲染**一套。
 
 | 主题 | 设计来源 | 目录 | 视觉语言 |
 | --- | --- | --- | --- |
@@ -10,59 +15,70 @@
 | `pulse-news` | 设计稿 UI-2 | `src/themes/pulse-news/` | 杂志：米白纸色 + 纸纹噪点、陶土红/粉强调、大留白、粗斜体衬线标题、圆角 6–10px |
 
 ```bash
-npm run dev                        # 默认 news-factory
-SITE_THEME=pulse-news npm run dev  # 换主题起 dev
+npm run dev                        # 默认 news-factory（后台可切到 pulse-news）
+SITE_THEME=pulse-news npm run dev  # 改构建期默认值为 pulse-news
 npm run build:news-factory         # = plugin:build + SITE_THEME=... astro build
 npm run build:pulse-news
-npm run typecheck:all              # 两套主题各跑一次 astro check
+npm run typecheck:all              # 两套默认值各跑一次 astro check
 ```
 
 ---
 
-## 1. 切换机制：`injectRoute` 注入主题页面
+## 1. 主题路由与运行期切换
 
-主题页面**不是** `src/pages/` 下的文件路由，而是 `astro.config.mjs` 里的 `THEME_ROUTES` + `themeRoutes()` integration 在 `astro:config:setup` 阶段用 `injectRoute()` 注入的：
+主题页面**不是** `src/pages/` 下的文件路由，而是 `astro.config.mjs` 里的 `THEME_ROUTES` + `themeRoutes()` integration 在 `astro:config:setup` 阶段用 `injectRoute()` 注入的。
+
+**默认主题**注册在干净路径上，**另一套**注册在带前缀的 `/_t/<theme>/…`：
 
 ```js
 const THEME_NAMES = ["news-factory", "pulse-news"];
-const SITE_THEME = process.env.SITE_THEME ?? "news-factory";
-if (!THEME_NAMES.includes(SITE_THEME)) throw new Error(`Unknown SITE_THEME="${SITE_THEME}"`);
-const themeDir = `src/themes/${SITE_THEME}`;
+const DEFAULT_SITE_THEME = process.env.SITE_THEME ?? "news-factory";
+const THEME_PREFIX = "/_t";
 
-const THEME_ROUTES = [
-  ["/", "pages/index.astro"],
-  ["/articles/[slug]", "pages/articles/[slug].astro"],
-  ["/sections/[slug]", "pages/sections/[slug].astro"],
-  ["/tags/[slug]", "pages/tags/[slug].astro"],
-  ["/archive", "pages/archive/index.astro"],
-  ["/archive/[year]/[month]", "pages/archive/[year]/[month].astro"],
-  ["/archive/[year]/week/[week]", "pages/archive/[year]/week/[week].astro"],
-  ["/editions/[slug]", "pages/editions/[slug].astro"],
-  ["/pages/[slug]", "pages/pages/[slug].astro"],
-  ["/search", "pages/search.astro"],
-  ["/subscribe", "pages/subscribe.astro"],
-  ["/subscribe/confirm", "pages/subscribe/confirm.astro"],
-  ["/subscribe/unsubscribe", "pages/subscribe/unsubscribe.astro"],
-  ["/404", "pages/404.astro"],
-];
+// 14 条人类页面，见 §5 路由表
+const THEME_ROUTES = [["/", "pages/index.astro"], /* … */];
 
 function themeRoutes() {
   return {
     name: "suda-pulse:theme-routes",
     hooks: {
       "astro:config:setup": ({ injectRoute }) => {
-        for (const [pattern, rel] of THEME_ROUTES) {
-          const entrypoint = `${themeDir}/${rel}`;
-          if (!existsSync(fileURLToPath(new URL(entrypoint, import.meta.url)))) {
-            throw new Error(`主题 "${SITE_THEME}" 缺少路由 ${pattern} 的页面：${entrypoint}`);
+        for (const name of THEME_NAMES) {
+          const prefix = name === DEFAULT_SITE_THEME ? "" : `${THEME_PREFIX}/${name}`;
+          for (const [pattern, rel] of THEME_ROUTES) {
+            const entrypoint = `src/themes/${name}/${rel}`;
+            if (!existsSync(fileURLToPath(new URL(entrypoint, import.meta.url)))) {
+              throw new Error(`主题 "${name}" 缺少路由 ${pattern} 的页面：${entrypoint}`);
+            }
+            injectRoute({ pattern: `${prefix}${pattern}`, entrypoint });
           }
-          injectRoute({ pattern, entrypoint });
         }
       },
     },
   };
 }
 ```
+
+### 1.1 运行期切换（后台「前台主题」页）
+
+| 环节 | 位置 | 做什么 |
+| --- | --- | --- |
+| 写 | `plugins/pulse-theme`（沙箱） | 后台页 Block Kit `radio` → `ctx.settings.set("theme", …)`，落 options 表 `plugin:pulse-theme:settings:theme` |
+| 读 | `src/middleware.ts`（宿主信任代码） | `getPluginSetting("pulse-theme", "theme")`；取不到 / 非法则回退 `__DEFAULT_SITE_THEME__` |
+| 生效 | `src/middleware.ts` | 当前主题 === 默认 → 直接 `next()`；否则把干净路径 rewrite 到 `/_t/<theme>/…` |
+
+`__DEFAULT_SITE_THEME__` 由 `astro.config.mjs` 的 `vite.define` 烘进产物（Node / Workers 两种运行时都能读到，不依赖 `process.env`）。
+
+中间件的四条硬约束（改之前先读 `src/middleware.ts` 顶部注释）：
+
+1. **必须用 `next(payload)`**，不能用 `context.rewrite()` —— 后者走 `executeRewrite` → `handleMiddleware`，会**重跑整条中间件链**（重复执行 EmDash 中间件 + 递归回本文件）。
+2. EmDash 的内置中间件全部是 `order: "pre"`，本中间件**排在最后**，所以 EmDash 的 redirect / setup / auth 看到的始终是原始路径（`locals.emdash.db` 注入、redirect 命中、404 记账都不受影响）。
+3. **rewrite 不保留查询串**，必须显式拼 `context.url.search`。
+4. **rewrite 会改写 `Astro.url`**：主题页面里取路径一律用 `Astro.originPathname`（canonical / JSON-LD `path` / `isHome` / 导航高亮 / 语言切换）；`Astro.url.origin` 与 `Astro.url.searchParams` 不受影响。
+
+**默认主题留在干净路径上**不只是为了省一次 rewrite：只有干净路径能命中路由，`routePattern` 才会是真实页面的 pattern；否则所有请求都会落到 `/404` 路由，中间件无法区分「真 404」与「正常页面」。因此 `/_t/<theme>/404` 必须单独注册，并在 rewrite 后把状态码改回 404（rewrite 会把 `state.status` 重置为 200）。
+
+`/_t/**` 只作内部命名空间：直接访问会被中间件 302 回干净路径，`robots.txt` 也 `Disallow: /_t/`。
 
 **新增人类页面时必须同时**：① 在 `THEME_ROUTES` 注册；② **两套主题各放一份同路径文件**（缺文件会在 `astro:config:setup` 直接抛错）。
 

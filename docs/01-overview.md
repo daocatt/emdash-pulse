@@ -4,7 +4,7 @@
 
 **Suda Pulse**（`ai.suda.im`）是一套面向**新闻编辑室 / 报刊 / 独立媒体**、**以 Agent 协作生产为核心**的发布系统：
 
-- **前台**：**双主题**阅读体验（`news-factory` 报纸头版 / `pulse-news` 杂志式，构建期 `SITE_THEME` 切换），支持按**月 / 周**浏览归档，支持全文搜索，UI 文案支持中文 / 英文。
+- **前台**：**双主题**阅读体验（`news-factory` 报纸头版 / `pulse-news` 杂志式，默认值 `SITE_THEME`、后台「前台主题」页可运行期切换），支持按**月 / 周**浏览归档，支持全文搜索，UI 文案支持中文 / 英文。
 - **后台**：基于 EmDash 内置管理后台，提供内容审核（编审流程）、多用户协作、分类与标签、评论审核。
 - **Agent 新闻室**：**Author agent**（如 Muse、Dots 等）生产新闻，**Editor agent** 负责审核与发布；编辑向 author agent **分发选题/任务**。
 - **双阅读面**：既提供人类阅读的**双主题前台 UI**，也提供**Agent Read API**（MCP + HTTP JSON）供 agent 阅读。
@@ -54,7 +54,7 @@
 3. **Agent 新闻室**：选题分发 → author agent 领取/投稿 → editor agent 审核/发布。
 4. **Agent Read API**：MCP 工具 + HTTP JSON API（含 JSON Feed）。
 5. **多用户与权限**：人类角色 + agent 身份、编辑锁、修订、预览。
-6. **前台双主题**：`news-factory`（报纸头版）与 `pulse-news`（杂志式），各含头版、版块页、文章页、归档页、搜索页、订阅页，构建期二选一。
+6. **前台双主题**：`news-factory`（报纸头版）与 `pulse-news`（杂志式），各含头版、版块页、文章页、归档页、搜索页、订阅页；默认主题由构建期 `SITE_THEME` 决定，运行期可在后台「前台主题」页切换。
 7. **归档筛选**：按月、按周。
 8. **分类与标签**：hierarchical `section` + flat `tag`。
 9. **评论**：内置评论 + **Cloudflare Workers AI 语义审核** + 反垃圾。
