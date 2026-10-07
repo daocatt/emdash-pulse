@@ -115,6 +115,26 @@ async function download(url) {
   return Buffer.from(await res.arrayBuffer());
 }
 
+/**
+ * 带重试的 JSON GET。dev server 在插件重建 / HMR 期间可能短暂返回 HTML 错误页
+ * （`<title>Err…`），此时 `res.json()` 会抛 `Unexpected token '<'`；重试通常即可恢复。
+ */
+async function getJson(cookie, path, attempts = 3) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const res = await fetch(`${BASE}${path}`, { headers: { cookie } });
+      const text = await res.text();
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+      return JSON.parse(text);
+    } catch (err) {
+      lastError = err;
+      if (attempt < attempts) await new Promise((r) => setTimeout(r, 400 * attempt));
+    }
+  }
+  throw lastError;
+}
+
 async function upload(cookie, img) {
   const buf = await download(img.url);
   const form = new FormData();
@@ -126,18 +146,40 @@ async function upload(cookie, img) {
   });
   const json = await res.json();
   if (!res.ok || !json.success) throw new Error(`上传失败: ${JSON.stringify(json)}`);
-  const item = json.data.item;
-  return { id: item.id, src: item.url, alt: img.alt };
+  return json.data.item;
+}
+
+/**
+ * 把媒体 API 的项转成内容字段里存的标准 `MediaValue` —— 形状与 seed 的 `$media`
+ * 落库结果一致（`apply-*.mjs` 里的 `mediaValue`）。**必须带 width/height**：
+ * `emdash/ui` 的 `<Image>` 只在两者齐全时才走响应式优化，缺了就退化成无尺寸的裸
+ * `<img>`（CLS 风险）。`meta.storageKey` 是本地 provider 解析 URL 的兜底。
+ */
+function toMediaValue(item, alt) {
+  const value = {
+    provider: "local",
+    id: item.id,
+    src: item.url,
+    alt: alt || undefined,
+    width: item.width ?? undefined,
+    height: item.height ?? undefined,
+    mimeType: item.mimeType ?? undefined,
+    filename: item.filename ?? undefined,
+    blurhash: item.blurhash ?? undefined,
+    dominantColor: item.dominantColor ?? undefined,
+  };
+  if (item.storageKey) value.meta = { storageKey: item.storageKey };
+  return value;
+}
+
+/** 已上传的媒体（按 filename 去重，避免重复执行时反复上传）。 */
+async function listMedia(cookie) {
+  const json = await getJson(cookie, "/_emdash/api/media?limit=100");
+  return new Map((json.data?.items ?? []).map((m) => [m.filename, m]));
 }
 
 async function listArticles(cookie) {
-  const res = await fetch(`${BASE}/_emdash/api/content/articles?limit=50`, {
-    headers: { cookie },
-  });
-  if (!res.ok) {
-    throw new Error(`列出文章失败 ${res.status}: ${(await res.text()).slice(0, 200)}`);
-  }
-  const json = await res.json();
+  const json = await getJson(cookie, "/_emdash/api/content/articles?limit=50");
   const map = new Map();
   for (const it of json.data?.items ?? []) map.set(it.slug, it.id);
   return map;
@@ -152,13 +194,7 @@ async function listArticles(cookie) {
  * 的 `image` 是对象，`{ image: null }` 会导致整个 PUT 400。
  */
 async function patchArticle(cookie, id, patch) {
-  const cur = await fetch(`${BASE}/_emdash/api/content/articles/${id}`, {
-    headers: { cookie },
-  });
-  if (!cur.ok) {
-    throw new Error(`读取文章 ${id} 失败 ${cur.status}: ${(await cur.text()).slice(0, 200)}`);
-  }
-  const curJson = await cur.json();
+  const curJson = await getJson(cookie, `/_emdash/api/content/articles/${id}`);
   const data = { ...(curJson.data?.item?.data ?? {}), ...patch };
   if (Array.isArray(data.gallery)) {
     data.gallery = data.gallery.filter((g) => g && g.image);
@@ -194,11 +230,19 @@ async function main() {
   log(`base = ${BASE}`);
   const cookie = await authenticate();
 
+  const existing = await listMedia(cookie);
   const uploaded = {};
   for (const [key, img] of Object.entries(IMAGES)) {
+    const found = existing.get(img.filename);
+    if (found) {
+      uploaded[key] = toMediaValue(found, img.alt);
+      log(`↺ ${key} -> ${found.id}（复用已上传）`);
+      continue;
+    }
     try {
-      uploaded[key] = await upload(cookie, img);
-      log(`✓ ${key} -> ${uploaded[key].id}`);
+      const item = await upload(cookie, img);
+      uploaded[key] = toMediaValue(item, img.alt);
+      log(`✓ ${key} -> ${item.id}`);
     } catch (err) {
       log(`✗ ${key}: ${err.message}`);
     }
