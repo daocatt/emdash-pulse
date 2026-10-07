@@ -2,24 +2,10 @@
  * sitemap 渲染工具。
  *
  * 本项目覆盖了 EmDash 内置的 `/sitemap.xml`（只含内容集合），把版块/标签
- * 分类页也纳入索引。三个 sitemap 路由共用这里的转义与序列化逻辑。
+ * 分类页也纳入索引。三个 sitemap 路由共用这里的序列化逻辑（转义在 `./xml`）。
  */
 
-const XML_ESCAPE_PATTERNS = [
-	[/&/g, "&amp;"],
-	[/</g, "&lt;"],
-	[/>/g, "&gt;"],
-	[/"/g, "&quot;"],
-	[/'/g, "&apos;"],
-] as const;
-
-export function escapeXml(str: string): string {
-	let result = str;
-	for (const [pattern, replacement] of XML_ESCAPE_PATTERNS) {
-		result = result.replace(pattern, replacement);
-	}
-	return result;
-}
+import { escapeXml } from "./xml";
 
 /** 站点绝对地址（去掉结尾斜杠）。 */
 export function siteOrigin(settingsUrl: string | undefined, url: URL): string {

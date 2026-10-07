@@ -31,6 +31,8 @@ interface Props {
 	modifiedTime?: string | null;
 	author?: string | null;
 	content?: { collection: string; id: string; slug?: string | null };
+	/** 页面专属的 feed 发现链接（如分版块 RSS），渲染在两条全站 feed 之后。 */
+	feedAlternates?: Array<{ title: string; href: string }>;
 }
 
 const {
@@ -45,6 +47,7 @@ const {
 	modifiedTime,
 	author,
 	content,
+	feedAlternates = [],
 } = Astro.props;
 
 const [settingsResult, menuResult, footerResult] = await Promise.all([
@@ -91,6 +94,11 @@ const pageCtx = createPublicPageContext({
 		<title>{fullTitle}</title>
 		<link rel="alternate" type="application/rss+xml" title={siteTitle} href="/rss.xml" />
 		<link rel="alternate" type="application/feed+json" title={siteTitle} href="/feed.json" />
+		{
+			feedAlternates.map((feed) => (
+				<link rel="alternate" type="application/rss+xml" title={feed.title} href={feed.href} />
+			))
+		}
 		<EmDashHead page={pageCtx} />
 		<script is:inline>
 			// 首屏主题初始化，避免闪烁

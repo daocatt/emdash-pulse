@@ -118,6 +118,9 @@ export const en: Record<MessageKey, string> = {
 	"list.count": "{count} stories",
 	"list.other": "Other",
 
+	// Feed discovery links (<link rel="alternate">)
+	"feed.sectionTitle": "{label} · RSS feed",
+
 	// Archive
 	"archive.title": "Archive",
 	"archive.allReports": "All stories",

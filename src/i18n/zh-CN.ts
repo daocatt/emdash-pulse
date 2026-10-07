@@ -126,6 +126,9 @@ export const zhCN = {
 	"list.count": "共 {count} 篇",
 	"list.other": "其他",
 
+	// Feed 发现链接（<link rel="alternate">）
+	"feed.sectionTitle": "{label} · RSS 订阅",
+
 	// 归档
 	"archive.title": "归档",
 	"archive.allReports": "全部报道",

@@ -33,6 +33,9 @@ if (Astro.cache?.enabled) {
 	pageTitle={term.label}
 	description={t("list.sectionDescription", { label: term.label })}
 	canonical={`${Astro.url.origin}/sections/${term.slug}`}
+	feedAlternates={[
+		{ title: t("feed.sectionTitle", { label: term.label }), href: `/sections/${term.slug}/rss.xml` },
+	]}
 >
 	<div class="container archive-page">
 		<header class="archive-page__header">
