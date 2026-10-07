@@ -53,6 +53,9 @@ export const zhCN = {
 	"subscribe.failed": "提交失败，请稍后再试。",
 	"subscribe.network": "网络异常，请稍后再试。",
 	"subscribe.needsJs": "需要启用 JavaScript 才能提交订阅。",
+	"subscribe.groupsLabel": "订阅分组",
+	"subscribe.groupsHint": "可多选；一个都不勾则只收主刊。",
+	"subscribe.paused": "该邮箱已被暂停订阅，请联系编辑部。",
 
 	// 菜单标签
 	// 后台菜单只提供链接与排序，显示标签由字典按当前语言渲染（见 menuLabel）。
@@ -221,6 +224,24 @@ export const zhCN = {
 	"subscribePage.unsubscribeFailed": "退订失败",
 	"subscribePage.unsubscribeInvalid": "退订链接无效或已失效。",
 	"subscribePage.unsubscribeMissingToken": "退订链接缺少 token。",
+
+	// 订阅管理页（退订页兼作偏好中心）
+	"subscribeManage.title": "订阅管理",
+	"subscribeManage.heading": "管理你的订阅",
+	"subscribeManage.lede": "在这里调整订阅分组，或退订。此链接即凭证，请勿转发。",
+	"subscribeManage.currentStatus": "当前状态",
+	"subscribeManage.groupsHeading": "订阅分组",
+	"subscribeManage.groupsHint": "勾选想收的分组；一个都不勾 = 只收主刊。",
+	"subscribeManage.noGroups": "当前没有可选分组。",
+	"subscribeManage.saveGroups": "保存分组",
+	"subscribeManage.groupsSaved": "分组已保存。",
+	"subscribeManage.groupsFailed": "保存失败，请稍后再试。",
+	"subscribeManage.unsubscribeHeading": "退订",
+	"subscribeManage.unsubscribeHint": "退订后将不再收到任何订阅邮件，随时可以重新订阅。",
+	"subscribeManage.reasonLabel": "退订原因（选填）",
+	"subscribeManage.reasonPlaceholder": "比如：内容不相关 / 频率太高",
+	"subscribeManage.confirmUnsubscribe": "确认退订",
+	"subscribeManage.pausedNote": "该邮箱当前处于暂停状态，请联系编辑部恢复。",
 
 	// 图片查看器（Lightbox 单例 + 图集 / 文章主图 / 期号封面的触发器）
 	"lightbox.label": "图片查看器",

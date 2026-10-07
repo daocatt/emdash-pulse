@@ -7,10 +7,12 @@ import Base from "../layout/Base.astro";
 import SubscribeForm from "@shared/SubscribeForm.astro";
 import { getTranslations } from "../../../i18n";
 import { resolveSiteIdentity } from "@utils/site-identity";
+import { fetchActiveGroups } from "@utils/subscriptions";
 
 const { t } = getTranslations(Astro);
 const { siteTitle } = resolveSiteIdentity(await getSiteSettings());
 const siteUrl = Astro.url.origin;
+const groups = await fetchActiveGroups(Astro.locals);
 ---
 
 <Base
@@ -31,6 +33,7 @@ const siteUrl = Astro.url.origin;
 				heading={t("subscribePage.formHeading")}
 				description={t("subscribePage.formHint")}
 				source="subscribe-page"
+				groups={groups}
 			/>
 		</div>
 

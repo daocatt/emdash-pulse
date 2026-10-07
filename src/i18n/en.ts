@@ -47,6 +47,9 @@ export const en: Record<MessageKey, string> = {
 	"subscribe.failed": "Submission failed. Please try again later.",
 	"subscribe.network": "Network error. Please try again later.",
 	"subscribe.needsJs": "JavaScript is required to subscribe.",
+	"subscribe.groupsLabel": "Newsletter groups",
+	"subscribe.groupsHint": "Pick any; leave all unchecked to get the main newsletter only.",
+	"subscribe.paused": "This address is paused. Please contact the newsroom.",
 
 	// 菜单标签
 	"menu.home": "Home",
@@ -213,6 +216,24 @@ export const en: Record<MessageKey, string> = {
 	"subscribePage.unsubscribeFailed": "Unsubscribe failed",
 	"subscribePage.unsubscribeInvalid": "This unsubscribe link is invalid or has expired.",
 	"subscribePage.unsubscribeMissingToken": "The unsubscribe link is missing its token.",
+
+	// Subscription management page (the unsubscribe page doubles as a preference centre)
+	"subscribeManage.title": "Manage subscription",
+	"subscribeManage.heading": "Manage your subscription",
+	"subscribeManage.lede": "Adjust your newsletter groups or unsubscribe. This link is your credential — do not forward it.",
+	"subscribeManage.currentStatus": "Current status",
+	"subscribeManage.groupsHeading": "Newsletter groups",
+	"subscribeManage.groupsHint": "Check the groups you want; leave all unchecked for the main newsletter only.",
+	"subscribeManage.noGroups": "No groups are available right now.",
+	"subscribeManage.saveGroups": "Save groups",
+	"subscribeManage.groupsSaved": "Groups saved.",
+	"subscribeManage.groupsFailed": "Could not save. Please try again later.",
+	"subscribeManage.unsubscribeHeading": "Unsubscribe",
+	"subscribeManage.unsubscribeHint": "You will stop receiving every newsletter. You can resubscribe at any time.",
+	"subscribeManage.reasonLabel": "Reason (optional)",
+	"subscribeManage.reasonPlaceholder": "e.g. not relevant / too frequent",
+	"subscribeManage.confirmUnsubscribe": "Confirm unsubscribe",
+	"subscribeManage.pausedNote": "This address is currently paused. Please contact the newsroom to resume it.",
 
 	// Image viewer (Lightbox singleton + gallery / hero / edition cover triggers)
 	"lightbox.label": "Image viewer",

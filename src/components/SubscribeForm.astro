@@ -10,7 +10,7 @@
  * 不能按组件实例内联不同语言，所以在渲染期把当前语言的文案挂到表单上。
  */
 import { getTranslations } from "../i18n";
-import { SUBSCRIPTIONS_API_BASE } from "../utils/subscriptions";
+import { SUBSCRIPTIONS_API_BASE, type SubscriptionGroup } from "../utils/subscriptions";
 
 interface Props {
 	/** 订阅来源标记，写入订阅记录。 */
@@ -21,12 +21,18 @@ interface Props {
 	compact?: boolean;
 	/** 视觉变体：default 为块状表单，card 为报纸侧栏的通讯卡。 */
 	variant?: "default" | "card";
+	/**
+	 * 可选订阅分组。只在 `/subscribe` 页传入 —— 首页 / 侧栏的卡片保持紧凑，
+	 * 不渲染勾选框（那会显著抬高卡片高度）。
+	 */
+	groups?: SubscriptionGroup[];
 }
 
-const { source = "web", heading, description, compact = false, variant = "default" } = Astro.props;
+const { source = "web", heading, description, compact = false, variant = "default", groups = [] } = Astro.props;
 const { t } = getTranslations(Astro);
 const endpoint = `${SUBSCRIPTIONS_API_BASE}/subscribe/request`;
 const inputId = `subscribe-email-${Math.random().toString(36).slice(2, 8)}`;
+const groupsId = `subscribe-groups-${Math.random().toString(36).slice(2, 8)}`;
 
 const messages = {
 	required: t("subscribe.required"),
@@ -38,6 +44,7 @@ const messages = {
 	invalid: t("subscribe.invalid"),
 	failed: t("subscribe.failed"),
 	network: t("subscribe.network"),
+	paused: t("subscribe.paused"),
 };
 ---
 
@@ -59,6 +66,7 @@ const messages = {
 	data-msg-invalid={messages.invalid}
 	data-msg-failed={messages.failed}
 	data-msg-network={messages.network}
+	data-msg-paused={messages.paused}
 >
 	{heading && <h2 class="subscribe-form__heading">{heading}</h2>}
 	{description && <p class="subscribe-form__desc">{description}</p>}
@@ -86,6 +94,20 @@ const messages = {
 		</button>
 	</div>
 
+	{groups.length > 0 && (
+		<fieldset class="subscribe-form__groups" id={groupsId}>
+			<legend class="subscribe-form__groups-legend">{t("subscribe.groupsLabel")}</legend>
+			<p class="subscribe-form__groups-hint">{t("subscribe.groupsHint")}</p>
+			{groups.map((group) => (
+				<label class="subscribe-form__group">
+					<input type="checkbox" name="groups" value={group.slug} />
+					<span class="subscribe-form__group-name">{group.name}</span>
+					{group.description && <span class="subscribe-form__group-desc">{group.description}</span>}
+				</label>
+			))}
+		</fieldset>
+	)}
+
 	<p class="subscribe-form__status" data-subscribe-status role="status" aria-live="polite"></p>
 	<noscript>
 		<p class="subscribe-form__status">{t("subscribe.needsJs")}</p>
@@ -104,6 +126,11 @@ const messages = {
 		const endpoint = form.dataset.endpoint ?? "";
 		const source = form.dataset.source ?? "web";
 		const msg = (key: string): string => form.dataset[`msg${key}`] ?? "";
+
+		const selectedGroups = (): string[] =>
+			Array.from(form.querySelectorAll<HTMLInputElement>('input[name="groups"]:checked')).map(
+				(input) => input.value,
+			);
 
 		const setStatus = (message: string, kind: Status): void => {
 			if (!statusEl) return;
@@ -128,11 +155,14 @@ const messages = {
 				const response = await fetch(endpoint, {
 					method: "POST",
 					headers: { "content-type": "application/json" },
-					body: JSON.stringify({ email, source }),
+					// 始终带上 groups（哪怕是空数组）：这样「取消勾选」也会被保存下来。
+					body: JSON.stringify({ email, source, groups: selectedGroups() }),
 				});
 				const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
 
-				if (response.ok && data.status === "confirmed") {
+				if (response.ok && data.status === "paused") {
+					setStatus(msg("Paused"), "error");
+				} else if (response.ok && data.status === "confirmed") {
 					setStatus(msg("Confirmed"), "success");
 					form.reset();
 				} else if (response.ok) {
@@ -229,6 +259,59 @@ const messages = {
 
 	.subscribe-form--compact .subscribe-form__heading {
 		font-size: var(--font-size-xl);
+	}
+
+	/* ---------- 订阅分组勾选（只在 /subscribe 页传入 groups 时出现） ---------- */
+
+	.subscribe-form__groups {
+		margin: var(--spacing-5) 0 0;
+		padding: 0;
+		border: none;
+	}
+
+	.subscribe-form__groups-legend {
+		font-family: var(--font-heading);
+		font-weight: 700;
+		font-size: var(--font-size-sm);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--color-text-secondary);
+		padding: 0;
+	}
+
+	.subscribe-form__groups-hint {
+		margin: var(--spacing-1) 0 var(--spacing-3);
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+
+	.subscribe-form__group {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: var(--spacing-2);
+		padding: var(--spacing-2) 0;
+		cursor: pointer;
+		border-bottom: var(--rule-hairline);
+	}
+
+	.subscribe-form__group:last-of-type {
+		border-bottom: none;
+	}
+
+	.subscribe-form__group input {
+		accent-color: var(--color-brand);
+		margin: 0;
+	}
+
+	.subscribe-form__group-name {
+		font-weight: 600;
+	}
+
+	.subscribe-form__group-desc {
+		flex-basis: 100%;
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
 	}
 
 	/* ---------- card：报纸侧栏的通讯卡（下划线输入框 + 圆形箭头按钮） ---------- */

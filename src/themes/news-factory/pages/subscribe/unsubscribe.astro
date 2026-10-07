@@ -1,67 +1,246 @@
 ---
+/**
+ * 订阅管理页（由退订页演进而来）。
+ *
+ * **打开即退订**是旧行为，已废弃：邮件客户端与安全扫描器会预取邮件里的链接，
+ * 那样会把人悄悄退订掉。现在 GET 只做只读展示，退订与改分组都是显式 POST。
+ *
+ * 无 JS 可用：全部走原生 `<form method="post">` + SSR 调插件公开路由（token 即凭证）。
+ * 状态机在 `@utils/subscriptions` 的 `resolveManageOutcome`，这里只负责渲染。
+ */
 import Base from "../../layout/Base.astro";
-import { callSubscriptionsRoute } from "@utils/subscriptions";
+import { resolveManageOutcome } from "@utils/subscriptions";
 import { getTranslations } from "../../../../i18n";
 
 const { t } = getTranslations(Astro);
 
-// 退订走 SSR：token 即凭证，无需前端 JS。
-const token = Astro.url.searchParams.get("token")?.trim() ?? "";
-const result = token ? await callSubscriptionsRoute(Astro.locals, "unsubscribe", { token }) : null;
+const isPost = Astro.request.method === "POST";
+const form = isPost ? await Astro.request.formData() : null;
 
-const unsubscribed = result?.ok === true && result.body.status === "unsubscribed";
-const email = typeof result?.body.email === "string" ? result.body.email : null;
-const failure = token ? t("subscribePage.unsubscribeInvalid") : t("subscribePage.unsubscribeMissingToken");
+const outcome = await resolveManageOutcome(Astro.locals, {
+	method: Astro.request.method,
+	token: (isPost ? String(form?.get("token") ?? "") : (Astro.url.searchParams.get("token") ?? "")).trim(),
+	intent: isPost ? String(form?.get("intent") ?? "") : "",
+	groups: form?.getAll("groups").map((value) => String(value)) ?? [],
+	reason: isPost ? String(form?.get("reason") ?? "").trim() : "",
+});
+
+const manage = outcome.kind === "manage" ? outcome : null;
+const pageTitle =
+	outcome.kind === "unsubscribed" ? t("subscribePage.unsubscribeTitle") : t("subscribeManage.title");
 ---
 
-<Base title={t("subscribePage.unsubscribeTitle")} pageTitle={t("subscribePage.unsubscribeTitle")} robots="noindex, nofollow">
-	<div class="container result">
+<Base title={pageTitle} pageTitle={pageTitle} robots="noindex, nofollow">
+	<div class="container manage">
 		<p class="kicker">{t("common.subscribe")}</p>
-		{unsubscribed ? (
+
+		{outcome.kind === "missingToken" || outcome.kind === "invalidToken" ? (
 			<>
-				<h1 class="result__title">{t("subscribePage.unsubscribed")}</h1>
-				<p class="result__text">{t("subscribePage.unsubscribedText")}</p>
-				{email && <p class="result__email">{email}</p>}
-				<p class="result__actions"><a href="/subscribe">{t("subscribePage.resubscribe")}</a></p>
+				<h1 class="manage__title">{t("subscribePage.unsubscribeFailed")}</h1>
+				<p class="manage__lede">
+					{outcome.kind === "missingToken"
+						? t("subscribePage.unsubscribeMissingToken")
+						: t("subscribePage.unsubscribeInvalid")}
+				</p>
+				<p class="manage__actions"><a href="/">{t("common.backHome")}</a></p>
 			</>
-		) : (
+		) : outcome.kind === "unsubscribed" ? (
 			<>
-				<h1 class="result__title">{t("subscribePage.unsubscribeFailed")}</h1>
-				<p class="result__text">{failure}</p>
-				<p class="result__actions"><a href="/">{t("common.backHome")}</a></p>
+				<h1 class="manage__title">{t("subscribePage.unsubscribed")}</h1>
+				<p class="manage__lede">{t("subscribePage.unsubscribedText")}</p>
+				{outcome.email && <p class="manage__email">{outcome.email}</p>}
+				<p class="manage__actions"><a href="/subscribe">{t("subscribePage.resubscribe")}</a></p>
 			</>
-		)}
+		) : outcome.kind === "paused" ? (
+			<>
+				<h1 class="manage__title">{t("subscribeManage.heading")}</h1>
+				<p class="manage__lede">{t("subscribeManage.pausedNote")}</p>
+				{outcome.email && <p class="manage__email">{outcome.email}</p>}
+			</>
+		) : manage ? (
+			<>
+				<h1 class="manage__title">{t("subscribeManage.heading")}</h1>
+				<p class="manage__lede">{t("subscribeManage.lede")}</p>
+				{manage.email && <p class="manage__email">{manage.email}</p>}
+				{manage.notice && (
+					<p class="manage__notice" role="status">
+						{manage.notice === "saved" ? t("subscribeManage.groupsSaved") : t("subscribeManage.groupsFailed")}
+					</p>
+				)}
+
+				<section class="manage__section">
+					<h2 class="manage__section-title">{t("subscribeManage.groupsHeading")}</h2>
+					{manage.available.length === 0 ? (
+						<p class="manage__hint">{t("subscribeManage.noGroups")}</p>
+					) : (
+						<form method="post" class="manage__form">
+							<input type="hidden" name="token" value={manage.token} />
+							<input type="hidden" name="intent" value="groups" />
+							<p class="manage__hint">{t("subscribeManage.groupsHint")}</p>
+							{manage.available.map((group) => (
+								<label class="manage__group">
+									<input
+										type="checkbox"
+										name="groups"
+										value={group.slug}
+										checked={manage.groups.includes(group.slug)}
+									/>
+									<span class="manage__group-name">{group.name}</span>
+									{group.description && <span class="manage__group-desc">{group.description}</span>}
+								</label>
+							))}
+							<button type="submit" class="manage__button" data-press>
+								{t("subscribeManage.saveGroups")}
+							</button>
+						</form>
+					)}
+				</section>
+
+				<section class="manage__section manage__section--danger">
+					<h2 class="manage__section-title">{t("subscribeManage.unsubscribeHeading")}</h2>
+					<form method="post" class="manage__form">
+						<input type="hidden" name="token" value={manage.token} />
+						<input type="hidden" name="intent" value="unsubscribe" />
+						<p class="manage__hint">{t("subscribeManage.unsubscribeHint")}</p>
+						<label class="manage__field">
+							<span>{t("subscribeManage.reasonLabel")}</span>
+							<input
+								type="text"
+								name="reason"
+								maxlength="200"
+								placeholder={t("subscribeManage.reasonPlaceholder")}
+							/>
+						</label>
+						<button type="submit" class="manage__button manage__button--danger" data-press>
+							{t("subscribeManage.confirmUnsubscribe")}
+						</button>
+					</form>
+				</section>
+			</>
+		) : null}
 	</div>
 </Base>
 
 <style>
-	.result {
+	.manage {
 		padding-top: var(--spacing-8);
 		max-width: var(--content-width);
 	}
 
-	.result__title {
+	.manage__title {
 		font-size: var(--font-size-3xl);
-		margin: var(--spacing-2) 0 var(--spacing-4);
+		margin: var(--spacing-2) 0 var(--spacing-3);
 	}
 
-	.result__text {
+	.manage__lede {
 		font-size: var(--font-size-lg);
 		color: var(--color-text-secondary);
 		line-height: var(--leading-relaxed);
 	}
 
-	.result__email {
+	.manage__email {
 		font-family: var(--font-mono);
 		font-size: var(--font-size-sm);
 		color: var(--color-muted);
 	}
 
-	.result__actions {
+	.manage__notice {
+		margin: var(--spacing-4) 0 0;
+		padding: var(--spacing-2) var(--spacing-3);
+		border-left: 3px solid var(--color-brand);
+		background: var(--color-surface);
+		font-weight: 600;
+	}
+
+	.manage__section {
+		margin-top: var(--spacing-8);
+		padding-top: var(--spacing-4);
+		border-top: var(--rule-hairline);
+	}
+
+	.manage__section--danger {
+		border-top: var(--rule-double);
+	}
+
+	.manage__section-title {
+		font-size: var(--font-size-xl);
+		margin: 0 0 var(--spacing-3);
+	}
+
+	.manage__hint {
+		margin: 0 0 var(--spacing-3);
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+
+	.manage__group {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: var(--spacing-2);
+		padding: var(--spacing-2) 0;
+		cursor: pointer;
+		border-bottom: var(--rule-hairline);
+	}
+
+	.manage__group input {
+		accent-color: var(--color-brand);
+		margin: 0;
+	}
+
+	.manage__group-name {
+		font-weight: 600;
+	}
+
+	.manage__group-desc {
+		flex-basis: 100%;
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+
+	.manage__field {
+		display: block;
+		margin: var(--spacing-3) 0;
+	}
+
+	.manage__field span {
+		display: block;
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		margin-bottom: var(--spacing-1);
+	}
+
+	.manage__field input {
+		width: 100%;
+		font: inherit;
+		padding: var(--spacing-2) var(--spacing-3);
+		background: var(--color-surface);
+		color: var(--color-text);
+		border: 2px solid var(--color-border-strong);
+	}
+
+	.manage__button {
+		font-family: var(--font-heading);
+		font-weight: 700;
+		margin-top: var(--spacing-4);
+		padding: var(--spacing-3) var(--spacing-6);
+		background: var(--color-brand);
+		color: var(--color-on-brand);
+		border: none;
+		cursor: pointer;
+	}
+
+	.manage__button--danger {
+		background: transparent;
+		color: var(--color-text);
+		border: 2px solid var(--color-border-strong);
+	}
+
+	.manage__actions {
 		margin-top: var(--spacing-6);
 	}
 
-	.result__actions a {
+	.manage__actions a {
 		color: var(--color-brand);
 	}
 </style>
