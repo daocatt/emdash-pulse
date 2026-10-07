@@ -336,6 +336,8 @@
 
 - `article_type: "video"` 同理，用 `video_url` / `video_duration`。
 - 前台由共享组件 `EpisodePlayer` 渲染：有 `audio_url` / `video_url` 走原生 `<audio>` / `<video>`，否则退化为装饰播放条 + 时长。
+- **seed 里填的是外部公开 URL**（MDN 的 CC0 样本：`t-rex-roar.mp3` / `flower.mp4` / `friday.mp4`），仅为演示播放链路。这是**热链**，站点不自控、可能被防盗链或下线；**生产建议换成 R2 / 媒体库地址**，只需改 `audio_url` / `video_url` 的值（字段类型不变）。
+- 不在当前范围：视频 `poster`、`<source type>` 多格式、把字段改成 EmDash `file` 类型（需重建库）。
 - `trending_rank` 供头版「热门话题」榜按升序取（`where: { trending_rank: { gte: "1" } }`，`gte: "1"` 顺带排除未标记的 NULL）。
 
 ---

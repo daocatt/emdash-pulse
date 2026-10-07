@@ -82,7 +82,7 @@ function themeRoutes() {
 
 **新增人类页面时必须同时**：① 在 `THEME_ROUTES` 注册；② **两套主题各放一份同路径文件**（缺文件会在 `astro:config:setup` 直接抛错）。
 
-`src/pages/` 只保留**主题无关的机器端点**：`rss.xml` / `feed.json` / `llms.txt` / `robots.txt` / `sitemap*.xml` / `agent/**` / `spike/**`。
+`src/pages/` 只保留**主题无关的机器端点**：`rss.xml` / `feed.json` / `sections/[slug]/rss.xml` / `llms.txt` / `robots.txt` / `sitemap*.xml` / `agent/**` / `spike/**`。
 
 ### 为什么不用「Vite alias + `src/pages` 薄转发层」
 
@@ -209,7 +209,7 @@ src/
 | `/search` | 全文搜索（`?q=`） |
 | `/subscribe` · `/subscribe/confirm` · `/subscribe/unsubscribe` | 邮件订阅（双确认） |
 | `/404` | 未找到 |
-| `/rss.xml` · `/feed.json` · `/llms.txt` · `/robots.txt` · `/sitemap*.xml` | 机器端点（主题无关） |
+| `/rss.xml` · `/feed.json` · `/sections/[slug]/rss.xml` · `/llms.txt` · `/robots.txt` · `/sitemap*.xml` | 机器端点（主题无关） |
 | `/agent/**` | Agent Read API，见 [09-agent-newsroom.md](./09-agent-newsroom.md#5-agent-read-api-d13) |
 
 ---
@@ -400,7 +400,29 @@ const { entries: articles } = await getEmDashCollection("articles", {
   - 首屏图（首页主图、文章 hero、期号封面）传 `priority` → `loading="eager"` + `fetchpriority="high"`。
   - **`image.remotePatterns` 必须包含站点自身 origin**（见 `astro.config.mjs`）：EmDash 把同源媒体路径解析成绝对 URL 交给 Astro，未授权时生产构建会静默退回原图（`srcset` 各档位指向同一张全尺寸图）。
 - 首屏主题脚本 `is:inline` 防闪烁。
-- 目标：LCP < 2.5s，CLS < 0.1。CLS 由「容器 `aspect-ratio` + `<Image>` 输出的 `width`/`height`」双重保障。
+- CLS 由「容器 `aspect-ratio` + `<Image>` 输出的 `width`/`height`」双重保障。
+- **公开页 JS 很小**：首屏 eager 只有 `boot`（≈0.6KB gzip）+ Vite 的 preload helper（≈0.8KB gzip）；含 `motion/mini` 的 `runtime.*` chunk（≈4.1KB gzip）延迟到空闲 / 首次交互才请求，且 reduced-motion 下完全不请求（见 §15.1）。
+
+### 13.1 移动端实测（`npm run perf`）
+
+Lighthouse 移动端（412×823、4x CPU + 慢速 4G 模拟），本地构建产物 + 运行期主题切换，每个采样点 3 次取中位数：
+
+| 主题 | 代表路由 | Perf | LCP | CLS | TBT |
+| --- | --- | --- | --- | --- | --- |
+| news-factory | `/` | 1.00 | 1458ms | 0.000 | 0ms |
+| news-factory | `/archive` | 1.00 | 1462ms | 0.000 | 0ms |
+| news-factory | `/articles/<slug>` | 0.99 | 1607ms | 0.000 | 0ms |
+| news-factory | `/editions/<slug>` | 1.00 | 1387ms | 0.000 | 0ms |
+| news-factory | `/sections/<slug>` | 0.98 | 1468ms | 0.000 | 170ms※ |
+| pulse-news | `/` | 1.00 | 1451ms | 0.000 | 0ms |
+| pulse-news | `/archive` | 1.00 | 1559ms | 0.000 | 0ms |
+| pulse-news | `/articles/<slug>` | 1.00 | 1388ms | 0.000 | 0ms |
+| pulse-news | `/editions/<slug>` | 1.00 | 1373ms | 0.000 | 0ms |
+| pulse-news | `/sections/<slug>` | 1.00 | 1377ms | 0.000 | 0ms |
+
+※ 该格是 3 次采样的方差离群点：单独跑 `--runs=5` 复测同一路由为 **TBT 0ms / Perf 1.00**。其余格子与改造前基线（LCP 1364–1595ms）差异在噪声内 —— 本站在改造前 TBT 已是 0，动效改造的收益主要体现在**下载量与不阻塞首屏**，而不是这些分数。
+
+阈值表（脚本内置，任一越界即退出码 1）：LCP ≤ 2500ms、CLS ≤ 0.1、TBT ≤ 200ms、Perf ≥ 0.9。
 
 ---
 
@@ -420,18 +442,24 @@ const { entries: articles } = await getEmDashCollection("articles", {
 
 只从 **`motion/mini`** 引入（`animate`，WAAPI 版）。完整版 `motion` 会把动画引擎打进每个页面的公共 chunk —— 实测 `dist/client/_astro`：完整版 **21.4KB gzip**（引擎）+ 2.4KB（运行时）；换成 mini 后共享 chunk **3.2KB gzip**，加运行时与灯箱脚本共 **≈5.2KB**（预算 ≤ 12KB）。mini 没有 `inView` / `stagger` / `press`，替代方案见 15.1 / 15.4。
 
+**延迟加载后（现状）**：首屏 eager JS 只剩 `boot` + Vite 的 preload helper（**≈1.5KB gzip**）；含 `motion/mini` 的 `runtime.*` chunk（**≈4.2KB gzip**）只在「有动效目标且非 reduced-motion」的页面、空闲或首次交互时才请求。灯箱组件去掉 motion 依赖后其脚本已小到被 Astro 内联进 HTML，不再单独成请求。
+
 ### 15.1 架构
 
 ```
 src/scripts/motion/
-├── index.ts        # 入口：reduced-motion 门禁 + 逐个 init + 失败兜底
-├── tokens.ts       # 从 CSS 自定义属性读 时长/缓动/位移/错峰
-├── reveal.ts       # 滚动进场（原生 IntersectionObserver + animate）
-├── disclosure.ts   # <details> 开合（拦截 summary click）
-└── lightbox.ts     # 灯箱开合（与组件用 DOM 事件解耦）
+├── boot.ts           # 延迟引导（无 motion）：两道门 + idle/交互触发 + 动态 import
+├── reduced-motion.ts # reduced 状态与订阅（无 motion，boot 与各 init 共用）
+├── runtime.ts        # 运行时（含 motion）：逐个 init + 失败兜底，只由 boot 动态引入
+├── tokens.ts         # 从 CSS 自定义属性读 时长/缓动/位移/错峰
+├── reveal.ts         # 滚动进场（原生 IntersectionObserver + animate）
+├── disclosure.ts     # <details> 开合（拦截 summary click）
+└── lightbox.ts       # 灯箱开合（与组件用 DOM 事件解耦）
 
-src/components/MotionRuntime.astro   # 只含一个 <script>，挂在两套 Base 的 <Lightbox /> 旁
+src/components/MotionRuntime.astro   # 只含一个 <script>，引 boot.ts，挂在两套 Base
 ```
+
+**延迟加载**：`boot.ts` 过两道门 —— ① 非 reduced-motion；② 页面里真有动效目标（`[data-reveal]` / `details[data-motion-disclosure]` / `[data-motion-lightbox]`）。通过后先 `requestIdleCallback`（回退 `setTimeout`）等空闲，用户先滚动 / 按下 / 按键则立刻加载，最后 `import("./runtime")`。于是没有动效目标的页面（版块 / 归档 / 订阅…）连 `motion/mini` 都不请求。**`runtime.ts` 只能被 boot 动态 import**，静态引用会让延迟加载失效。
 
 组件侧**只加 `data-*`**，命令式动画只写在运行时里：
 
@@ -462,8 +490,8 @@ src/components/MotionRuntime.astro   # 只含一个 <script>，挂在两套 Base
 
 ### 15.3 四条硬约束
 
-1. **滚动进场的隐藏态只能由 JS 加**。SSR HTML / CSS 里绝不出现初始隐藏样式 —— `Astro.cache` 会缓存 HTML，且无 JS / 爬虫必须看到全部内容。做法：SSR 只有静态 `data-reveal` 属性 → 运行时**跳过首屏**（`top < innerHeight * 0.9`，保护 LCP）→ 其余元素设 `opacity: 0` 并在同一 tick 注册 `IntersectionObserver` → 进场结束清除内联样式。任何一步抛错都兜底还原（含一个超时兜底）。
-2. **`prefers-reduced-motion` 要管两遍**。`src/styles/base.css` 的全局兜底只覆盖 CSS transition / animation；`animate()` 是 JS/WAAPI 驱动，管不到。每个 init 开头用 `matchMedia` 早退 —— reduced-motion 下**完全不设隐藏态**；CSS 侧的 `data-hover-lift` / `data-press` 位移也在同一个媒体查询里显式关掉。
+1. **滚动进场的隐藏态只能由 JS 加**。SSR HTML / CSS 里绝不出现初始隐藏样式 —— `Astro.cache` 会缓存 HTML，且无 JS / 爬虫必须看到全部内容。做法：SSR 只有静态 `data-reveal` 属性 → 运行时**跳过已在视口内的元素**（`rect.top < innerHeight`，保护 LCP）→ 其余元素设 `opacity: 0` 并在同一 tick 注册 `IntersectionObserver` → 进场结束清除内联样式。任何一步抛错都兜底还原（含一个超时兜底）。判据从 `innerHeight * 0.9` 收紧到 `innerHeight`，是因为运行时延迟加载，初始化时用户可能已滚过一段 —— 把视口下缘那 10% 也算进「要隐藏」会「闪一下再动画」。
+2. **`prefers-reduced-motion` 要管两遍**。`src/styles/base.css` 的全局兜底只覆盖 CSS transition / animation；`animate()` 是 JS/WAAPI 驱动，管不到。`boot.ts` 用 `matchMedia` 早退 —— reduced-motion 下**整个运行时都不加载**（也就不设隐藏态）；各 init 仍以 `prefersReducedMotion()` 二次早退（防运行时中途被动态改设置）。CSS 侧的 `data-hover-lift` / `data-press` 位移也在同一个媒体查询里显式关掉。
 3. **一条属性只能有一个驱动源**。滚动进场由 `motion` 写内联 `transform`，所以卡片 hover 抬升用独立的 **`translate`**、按压反馈用独立的 **`scale`** —— 都是与 `transform` 叠加而非覆盖的独立属性；进场结束还会清除内联 `transform` 归还给 CSS。反过来，被 CSS 占了 `translate` 的元素（如 `.main-nav__panel` 的横向居中）只能把动效放到 `transform` 上。
 4. **keyframe 名必须是真实 CSS 属性**。`motion/mini` 的 `animate()` 不做 shorthand 映射：它把 keyframe 的属性名直接交给 WAAPI，`y` / `x` 不是合法 CSS 属性，会被**静默忽略**（只在内联 `style` 上留一条无效的 `y: 0px`）——位移全丢、只剩淡入。所以位移一律写 `transform: ["translateY(6px)", "translateY(0px)"]`（或真实属性 `translate`），`opacity` / `height` / `scale` 可直接用。**排查手法**：动画进行中读 `getComputedStyle(el).transform`；只看 `element.style` 会被 WAAPI 骗（WAAPI 不写内联样式）。
 
@@ -475,13 +503,20 @@ src/components/MotionRuntime.astro   # 只含一个 <script>，挂在两套 Base
 | 卡片图片 zoom（`scale(1.03)`） | CSS | 已有实现 |
 | 卡片 hover 抬升（`data-hover-lift` → `translate`） | CSS | 数量多必须便宜；一条规则覆盖全站 |
 | 按钮按压（`data-press` → `:active { scale: 0.97 }`） | CSS | `:active` 就是语义本身，不必为它引一段 JS 手势；`scale` 与 `transform` 叠加不冲突 |
-| `<details>` 开合、灯箱开合/切换、滚动进场 | motion（mini） | 需要测量 / 时序 / WAAPI |
+| 灯箱上一张 / 下一张淡入（`.lightbox__image--swap`） | CSS | 单个 class + keyframes，动画结束自动回到无驱动状态；让灯箱组件不依赖 motion |
+| `<details>` 开合、灯箱开合、滚动进场 | motion（mini，延迟加载） | 需要测量 / 时序 / WAAPI |
 
 ### 15.5 灯箱
 
-`src/components/Lightbox.astro` 是全局单例 `<dialog>`，`data-lightbox*` 属性 + document 事件委托触发。开合与上一张/下一张都有动效（`close()` 会立即移除对话框，所以关闭动画必须播完再关；Esc 的 `cancel` 事件被拦截后走同一流程）。`aria-label` 与图集的「查看第 N 张图片」走 `lightbox.*` 字典键。
+`src/components/Lightbox.astro` 是单例 `<dialog>`，`data-lightbox*` 属性 + document 事件委托触发。开合有动效（`close()` 会立即移除对话框，所以关闭动画必须播完再关；Esc 的 `cancel` 事件被拦截后走同一流程）。`aria-label` 与图集的「查看第 N 张图片」走 `lightbox.*` 字典键。
+
+**挂载范围**：**不放在 `Base.astro`**，而是两套主题的 `pages/articles/[slug].astro` 与 `pages/editions/[slug].astro` 各自渲染（共 4 个模板）—— 判据就是下面「触发范围」里那三类触发器只出现在这些页面。这样其余页面不必为它多下一段脚本。新增带图页面若要灯箱，必须自己挂。
 
 **触发范围**：图集（`Gallery.astro`）、文章 hero、期号封面。**卡片图不接** —— 它们包在 `<a href="/articles/…">` 里，接灯箱会与跳转冲突。
+
+**上一张 / 下一张**的淡入是**本地 CSS keyframes**（`.lightbox__image--swap` + `@keyframes lightbox-fade-in`），组件不依赖 motion。开合（进场 / 退场）仍由运行时驱动 `figure`（`opacity` + `scale`），与前者是不同元素、不同属性，不违反「一条属性一个驱动源」。
+
+**降级**：运行时就绪前点开灯箱 → `lightbox:open` 无人监听 → 灯箱正常打开但没有进场动画；关闭时 `close-request` 返回 `true` → 组件走原生 `dialog.close()`。无 JS / 减动效走同一路径。
 
 ---
 
@@ -506,6 +541,7 @@ src/components/MotionRuntime.astro   # 只含一个 <script>，挂在两套 Base
 | P8 | 前台动效层：`motion/mini` 单例运行时（滚动进场 / `<details>` 开合 / 灯箱）+ 主题动效令牌 + 卡片 hover 抬升与按钮按压（CSS） | 见下 |
 | P8 后续 | 灯箱接入文章 hero 与期号封面、`lightbox.*` 字典键、折叠菜单外部点击收合 | 见下 |
 | P8 复核 | 无头浏览器（CDP）逐主题实测：进场 / 下拉 / 灯箱动画与减动效早退；修复 `y` shorthand 失效与子菜单挂错菜单 | 见下 |
+| P9 | 分版块 RSS + feed 发现链接；播客 / 视频外部媒体接入；动效运行时**延迟加载** + 灯箱收窄到 4 个模板；`npm run perf`（Lighthouse 移动端脚手架） | 见下 |
 
 ### 与原设计的偏差
 
@@ -522,9 +558,15 @@ src/components/MotionRuntime.astro   # 只含一个 <script>，挂在两套 Base
 11. **灯箱不接卡片图**：卡片图外层是 `<a href="/articles/…">`，接灯箱会与跳转冲突。只接图集、文章 hero、期号封面这三类「独立的图」。
 12. **动效的位移改用完整 `transform` 写法**：`motion/mini` 不把 `y` / `x` 映射成 `transform`，而是把 keyframe 名直接交给 WAAPI —— 实测 `y` 无任何效果（`getComputedStyle().transform` 恒为 `none`），只在内联 `style` 上留一条无效的 `y: 0px`。改为 `transform: ["translateY(…)","translateY(0px)"]` 后滚动进场与下拉菜单才真正有位移（见 15.3 第 4 条）。
 13. **导航子菜单挂在主题自己的菜单上**：`primary` 是通用兜底，两套主题分别读 `theme.config.ts` 里的 `menuName`（`news-factory` / `pulse-news`），所以子菜单 `children` 必须写在对应主题的菜单里，否则前台永远不渲染（见 `AGENTS.md`）。
+14. **motion 运行时改为延迟加载**：原先入口 `index.ts` 静态 import `motion/mini`，每个页面都要先下完 ≈5.2KB 才跑动效。拆成 `boot.ts`（无 motion，两道门 + idle/交互触发）+ `runtime.ts`（含 motion，只被动态 import）+ `reduced-motion.ts`（无 motion 的共享状态）后，首屏 eager JS 降到 ≈1.5KB，含引擎的 `runtime.*` chunk 只在真有动效目标的页面、空闲或首次交互时才请求。
+15. **灯箱从 Base 收窄到 4 个页面模板**：`<Lightbox />` 原挂在两套 `Base.astro`，每个页面（含订阅 / 归档 / 静态页）都要为它下一段脚本，而触发器只出现在文章页与期号页。改为这两类页面各自渲染，其余页面 `suda-lightbox` 计数为 0。
+16. **灯箱上一张 / 下一张淡入改 CSS keyframes**：原用 `animate(imageEl, { opacity })`，为此组件静态 import `motion/mini`。改成 `.lightbox__image--swap` + `@keyframes lightbox-fade-in`（`classList.remove` → 强制 reflow → `add` 重放）后组件不再依赖 motion，脚本小到被 Astro 内联。开合动画仍由运行时驱动 `figure`，与它是不同元素、不同属性。
+17. **滚动进场的首屏判据收紧到 `innerHeight`**：延迟加载意味着运行时初始化时用户可能已滚过一段，原 `innerHeight * 0.9` 会把视口下缘 10% 的元素也藏起来再动画（可见闪烁）。改为「任何已落在视口内的一律跳过」，LCP 保护不退化。
+18. **性能脚手架用运行期主题切换而非两套构建**：`themeRoutes()` 让一次 `astro build` 就同时产出两套主题，所以 `scripts/perf.mjs` 只构建一次，切主题靠改 `options` 表的 `plugin:pulse-theme:settings:theme`（`finally` 还原）。路由也不硬编码 slug —— 从 `/sitemap.xml` 索引 → 子 sitemap → 第一条 `<loc>`。
+19. **播客 / 视频用外部公开 URL 演示**：seed 填 MDN 的 CC0 样本（`t-rex-roar.mp3` / `flower.mp4` / `friday.mp4`），只改字段值即可换成 R2 / 媒体库地址；热链风险见 [03-content-model.md](./03-content-model.md)。
 
 ### 待办
 
-- [ ] 分版块 RSS `/sections/[slug]/rss.xml`（可选）。
-- [ ] 真机移动端复核（Lighthouse 实测 LCP / CLS）。
-- [ ] 播客 / 视频真实媒体文件接入（当前 `audio_url` / `video_url` 为空，`EpisodePlayer` 走装饰态）。
+- [x] 分版块 RSS `/sections/[slug]/rss.xml` + 版块页 feed 发现链接。
+- [x] 移动端 Lighthouse 实测（`npm run perf`，见 §13）。
+- [x] 播客 / 视频真实媒体接入（seed 填外部公开 URL；`EpisodePlayer` 渲染原生 `<audio>` / `<video>`）。**待办**：生产换成 R2 / 媒体库地址。

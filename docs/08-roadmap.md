@@ -62,10 +62,10 @@
 - [x] 搜索 `/search` + 报头 `LiveSearch`；**trigram 分词器**支持中文（≥3 字），1–2 字走内存回退（见 `10-phase0-report.md`）。
 - [x] RSS `/rss.xml` + **JSON Feed `/feed.json`**。
 - [x] 缓存 `cacheHint`（各查询均已 `Astro.cache.set()`）；响应式（3 断点）；语义标签/`skip-link`；文章页 `NewsArticle` JSON-LD + 首页 `WebSite` JSON-LD。
-- [ ] 分版块 RSS（可选）。
+- [x] 分版块 RSS `/sections/[slug]/rss.xml` + 版块页 `<link rel="alternate">` 发现链接（公共层 `src/utils/feed.ts` / `xml.ts`）。
 - [x] `SubscribeForm`（Phase 3）✅；评论样式细化（Phase 3）✅。
 
-**验收**：可按月/周/版块/标签浏览 ✅；图片新闻正常 ✅；搜索可用 ✅（中文 ≥3 字精确、1–2 字模糊）；RSS/JSON Feed 校验通过 ✅；移动端良好（响应式已实现，待真机复核）。
+**验收**：可按月/周/版块/标签浏览 ✅；图片新闻正常 ✅；搜索可用 ✅（中文 ≥3 字精确、1–2 字模糊）；RSS/JSON Feed 校验通过 ✅；移动端良好 ✅（响应式 + Lighthouse 移动端实测，见 Phase 5）。
 
 ---
 
@@ -80,7 +80,7 @@
 - [x] `news-factory`（报纸头版）14 页 + `pulse-news`（杂志式）14 页全部实现。
 - [x] 共享 `EpisodePlayer`（播客 / 视频播放块）；`pulse-news` 新增 `StoryGrid`。
 - [x] 验证：`typecheck:all` 两套 0 error；`build:news-factory` / `build:pulse-news` 均通过；两套逐路由 HTTP 冒烟 + 语言切换验证。
-- [ ] 分版块 RSS、真机 Lighthouse 实测、播客 / 视频真实媒体文件接入。
+- [x] 分版块 RSS、Lighthouse 移动端实测、播客 / 视频真实媒体接入（外部公开 URL 写进 seed；生产建议换 R2 地址）。
 
 **验收**：`SITE_THEME=news-factory|pulse-news` 各出一套完整站点 ✅；两套构建产物互不泄漏对方标记 ✅。详见 [04-frontend-themes.md](./04-frontend-themes.md)。
 
@@ -149,7 +149,7 @@
 - [ ] 发布前校验（`publish-check`/`preflight`）按需接入。
 - [x] **SEO 套件 / sitemap / robots / JSON-LD 复核**：JSON-LD 去重（新增可信插件 `pulse-seo`，单页单实体：文章 `NewsArticle` / 其余 `WebSite`）；`/sitemap.xml` 覆盖并补 `sitemap-sections.xml`/`sitemap-tags.xml`；`/robots.txt` 覆盖并 `Disallow: /spike/`；文章页 `og:image` 回退到题图。详见 [04-frontend-themes.md §12](./04-frontend-themes.md)、[07-plugins.md §2.6/§5.6](./07-plugins.md)。
 - [x] **性能：图片响应式 + LCP/CLS**：全站改用 `emdash/ui` 的 `<Image>`（`srcset` 640–3200w、`sizes` 按栅格给出、`width`/`height`、WebP、LQIP 占位），首屏图 `priority`；新增 `image.remotePatterns` 修复生产环境 srcset 退化为原图的问题。字体维持系统字体栈（无需子集，公开页 0 字体请求；产物里 944 KB 字体仅属后台编辑器 chunk）。详见 [04-frontend-themes.md §13](./04-frontend-themes.md)。
-- [ ] 真机移动端复核（Lighthouse 实测 LCP/CLS）。
+- [x] 移动端 Lighthouse 实测：新增 `npm run perf`（Lighthouse + 运行期主题切换 + 阈值断言），两套主题 × 代表路由实测 LCP 1373–1607ms / CLS 0.000 / TBT 0ms / Perf 0.98–1.00。详见 [04-frontend-themes.md §13](./04-frontend-themes.md)。
 - [ ] 分析插件接入（可选）。
 - [ ] Cloudflare 资源：D1 + R2 + Workers AI；`wrangler.prod.jsonc` 配置。
 - [ ] `HOME=~/.wrangler-a npm run deploy` 部署；cron 生效。

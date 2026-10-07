@@ -13,6 +13,8 @@ SITE_THEME=pulse-news npm run dev # 改构建期默认主题（默认 news-facto
 npm run build:news-factory        # 构建 news-factory 主题（= plugin:build + SITE_THEME=... astro build）
 npm run build:pulse-news          # 构建 pulse-news 主题
 npm run typecheck:all             # 两套默认主题各跑一次 astro check
+npm run perf                      # 移动端性能复核（Lighthouse：构建 + 两套主题 × 代表路由，超阈值退出码 1）
+npm run perf -- --no-build --runs=3 --theme=pulse-news   # 复用产物 / 取中位数 / 只测一套主题
 npm run plugin:build              # 构建全部沙箱插件（--workspaces：pulse-review/pulse-agent/pulse-editorial/pulse-subscriptions/pulse-seo/pulse-theme）
 npm run plugin:test               # 全部插件单测
 node scripts/configure-search.mjs # 中文搜索：切 trigram 分词器并重建索引（重建库后需重跑）
@@ -49,6 +51,7 @@ HOME=~/.wrangler-a npm run deploy # 构建并部署到 Cloudflare
 | `src/themes/<theme>/` | 前台主题（`theme.config.ts` / `layout/` / `components/` / `pages/`） |
 | `src/components/` | 主题无关共享组件（`@shared`） |
 | `src/utils/` | 主题无关数据层（`@utils`） |
+| `scripts/perf.mjs` | 移动端性能复核（Lighthouse + 运行期主题切换，`npm run perf`） |
 | `src/live.config.ts` | EmDash loader 注册（样板，勿改） |
 | `src/worker.ts` | Cloudflare Worker 入口 + scheduled |
 | `wrangler.jsonc` | D1 / R2 / Workers AI 绑定 + cron |
@@ -64,11 +67,13 @@ HOME=~/.wrangler-a npm run deploy # 构建并部署到 Cloudflare
 - **Cloudflare 部署与远端操作必须使用 `wrangler-a` 账号环境**：`HOME=~/.wrangler-a npx wrangler ...` 或 `HOME=~/.wrangler-a npm run deploy`。
 - 所有内容页面服务端渲染（`output: "server"`）。CMS 内容**不要**用 `getStaticPaths()`。
 - **主题是运行期值**：默认主题注册在干净路径上，另一套在 `/_t/<theme>/…`，由 `src/middleware.ts` 用 `next(payload)` rewrite（**不能**用 `context.rewrite()`，它会重跑整条中间件链）。因此主题页面里取路径**一律用 `Astro.originPathname`**，不要用 `Astro.url.pathname`（会带上 `/_t/<theme>` 前缀，污染 canonical / JSON-LD / `isHome` / 导航高亮 / 语言切换链接）；`Astro.url.origin` 与 `Astro.url.searchParams` 不受影响。rewrite **不保留查询串**，中间件已显式拼上。
-- **前台客户端动效运行时放 `src/scripts/`**（唯一导入者是 `src/components/MotionRuntime.astro`，用相对导入，不设别名）。`src/utils/` 只放主题无关数据层、`src/components/` 只放 Astro 共享组件，都不放浏览器 DOM 运行时。动效一律 **data 属性驱动 + document 级委托的单例运行时**（仿 `Lightbox.astro`）：组件里只加 `data-*`（`data-reveal[ data-reveal-stagger]` / `data-motion-disclosure` / `data-motion-panel` / `data-press` / `data-motion-lightbox` / `data-hover-lift`），命令式动画只写在 `src/scripts/motion/` 里。运行时入口挂在两套 `layout/Base.astro`（`<Lightbox />` 旁）。
-- **灯箱与动效用 DOM 事件解耦**：`Lightbox.astro` 只加 `data-motion-lightbox` 并负责状态/导航，动画在 `src/scripts/motion/lightbox.ts`。打开后组件派发 `lightbox:open`；关闭前派发**可取消**的 `lightbox:close-request`，运行时 `preventDefault()` 接管、播完退场再 `dialog.close()`。没有接管者（无 JS / 减动效）时组件自行 `close()` —— 新增灯箱交互时务必保留「`dispatchEvent` 返回 true 就原生 close」的兜底。
+- **前台客户端动效运行时放 `src/scripts/motion/`**（唯一导入者是 `src/components/MotionRuntime.astro`，用相对导入，不设别名）。`src/utils/` 只放主题无关数据层、`src/components/` 只放 Astro 共享组件，都不放浏览器 DOM 运行时。动效一律 **data 属性驱动 + document 级委托的单例运行时**（仿 `Lightbox.astro`）：组件里只加 `data-*`（`data-reveal[ data-reveal-stagger]` / `data-motion-disclosure` / `data-motion-panel` / `data-press` / `data-motion-lightbox` / `data-hover-lift`），命令式动画只写在 `src/scripts/motion/` 里。`<MotionRuntime />` 挂在两套 `layout/Base.astro`。
+- **motion 运行时是延迟加载的**：`MotionRuntime.astro` 只引 `boot.ts`（**无 motion**）——它先过两道门（① 非 reduced-motion；② 页面里真有 `[data-reveal]` / `details[data-motion-disclosure]` / `[data-motion-lightbox]`），再等 `requestIdleCallback`（回退 `setTimeout`）或用户先交互（`scroll` / `pointerdown` / `keydown`），才 `import("./runtime")`。所以 **`runtime.ts` 只能被 boot 动态 import**，任何静态引用都会把 `motion/mini` 拉回首屏包、延迟加载失效。`reduced-motion.ts` 单独成文件（无 motion）就是为了让 boot 能读状态而不下载引擎。
+- **灯箱与动效用 DOM 事件解耦**：`Lightbox.astro` 只加 `data-motion-lightbox` 并负责状态/导航，开合动画在 `src/scripts/motion/lightbox.ts`。打开后组件派发 `lightbox:open`；关闭前派发**可取消**的 `lightbox:close-request`，运行时 `preventDefault()` 接管、播完退场再 `dialog.close()`。没有接管者（无 JS / 减动效 / **runtime 还没加载**）时组件自行 `close()` —— 新增灯箱交互时务必保留「`dispatchEvent` 返回 true 就原生 close」的兜底。上一张/下一张的淡入用**本地 CSS keyframes**（组件不依赖 motion）。
+- **灯箱只挂在使用它的页面**：`<Lightbox />` 不放在 `Base.astro`，而是两套主题的 `pages/articles/[slug].astro` 与 `pages/editions/[slug].astro` 各自渲染（共 4 个模板）。判据是 `data-lightbox` 触发器的分布（`Gallery.astro` + 文章 hero + 期号封面）。**新增带图页面若要灯箱，必须自己挂**；漏挂则触发器点了没反应。验证：`curl` 4 类路由有 `suda-lightbox`、其余为 0。
 - **动效强度是主题令牌**：`--motion-duration-*` / `--motion-ease` / `--motion-shift-*` / `--motion-stagger` / `--motion-hover-lift` 在 `src/styles/tokens.base.css` 给默认值，两套主题在各自 `styles/tokens.css` 覆盖（news-factory 克制 / pulse-news 明显）。**JS 不判断主题名**，一律 `getComputedStyle` 读令牌。
-- **滚动进场的隐藏态只能由 JS 加**：SSR HTML / CSS 里**不能**出现初始隐藏样式（`Astro.cache` 会缓存 HTML，且无 JS 时内容必须可见）。`data-reveal` 元素里，首屏（`top < innerHeight * 0.9`）一律跳过不进场，保护 LCP。
-- **`motion` 只从 `motion/mini` 引入**（只有 `animate` / `animateSequence`，WAAPI 版）。完整版 `motion` 会把动画引擎打进每个页面的公共 chunk（实测 ≈21KB gzip），mini 是个位数 KB。mini 没有 `inView` / `stagger` / `press` / `MotionGlobalConfig`，对应替代：滚动进场用原生 `IntersectionObserver`、错峰用 `delay: (i) => i * step`、按压与 hover 抬升留在 CSS。`ease` 直接给 CSS 形式（`cubic-bezier(...)` 或关键字），因为 WAAPI 就吃这个。改完必须量 `dist/client/_astro` 的体积（预算 ≤ 12KB gzip）。
+- **滚动进场的隐藏态只能由 JS 加**：SSR HTML / CSS 里**不能**出现初始隐藏样式（`Astro.cache` 会缓存 HTML，且无 JS 时内容必须可见）。`data-reveal` 元素里，**任何已落在视口内**的（`rect.top < innerHeight`）一律跳过不进场 —— 既保护 LCP，也因为运行时是延迟加载的（初始化时用户可能已滚动，把视口下缘那 10% 也算进去会「闪一下再动画」）。
+- **`motion` 只从 `motion/mini` 引入**（只有 `animate` / `animateSequence`，WAAPI 版）。完整版 `motion` 会把动画引擎打进每个页面的公共 chunk（实测 ≈21KB gzip），mini 是个位数 KB。mini 没有 `inView` / `stagger` / `press` / `MotionGlobalConfig`，对应替代：滚动进场用原生 `IntersectionObserver`、错峰用 `delay: (i) => i * step`、按压与 hover 抬升留在 CSS。`ease` 直接给 CSS 形式（`cubic-bezier(...)` 或关键字），因为 WAAPI 就吃这个。改完必须量 `dist/client/_astro` 的体积：**首屏 eager JS（boot + preload helper）≈1.5KB gzip；含 motion 的 `runtime.*` chunk ≈4.2KB gzip，预算 ≤ 12KB**。
 - **mini 的 keyframe 名必须是真实 CSS 属性**：`animate()` 不做 `y` / `x` → `transform` 的映射，它把 keyframe 的属性名**直接**交给 WAAPI。所以 `y` / `x` / `rotate` 这类完整版 shorthand 会被**静默忽略**（只在内联 `style` 里留一条无效的 `y: 0px`），必须写 `transform: ["translateY(6px)", "translateY(0px)"]`；`opacity` / `height` / `scale` / `translate` 是真实属性，可直接用。判断某个 keyframe 有没有生效，看动画中途的 `getComputedStyle(el).transform`，别只看 `element.style`（WAAPI 不写内联样式）。
 - **`prefers-reduced-motion` 要管两遍**：`src/styles/base.css` 的全局兜底只管 CSS transition/animation；`animate()` 是 JS/WAAPI 驱动，管不到 —— 每个 init 开头必须用 `matchMedia` 早退（reduced-motion 下不设隐藏态），CSS 侧的 `data-hover-lift` / `data-press` 位移也要在同一个媒体查询里显式关掉。
 - **一条属性只能有一个驱动源**：被 `motion` 用内联 `transform` 驱动的元素，不得同时有 CSS `:hover { transform }` / `transition: transform`。卡片 hover 抬升（`data-hover-lift`）与按压反馈（`data-press`，规则都在 `src/styles/base.css`）刻意用 `translate` / `scale` 这两个**独立属性**而非 `transform` —— 与 `transform` 叠加而非覆盖；滚动进场结束时也会清除内联 `transform` 归还给 CSS。

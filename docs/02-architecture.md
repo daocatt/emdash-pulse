@@ -190,7 +190,7 @@ suda-pulse/
 │       ├── archive/[year]/[month].astro
 │       ├── archive/[year]/week/[week].astro
 │       ├── search.astro · subscribe.astro · pages/[slug].astro · 404.astro
-│       ├── rss.xml.ts · feed.json.ts
+│       ├── rss.xml.ts · feed.json.ts · sections/[slug]/rss.xml.ts
 │       └── agent/                     # Agent Read API（可选，或走插件路由）
 ├── plugins/
 │   ├── pulse-agent/          # MCP：投稿 / 选题领取 / 阅读

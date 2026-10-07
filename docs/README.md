@@ -74,7 +74,7 @@ Reader agent ──MCP/HTTP JSON──▶ Agent Read API ─┘
 | **图片新闻** | `article_type`/`gallery` 字段 + 图集布局 + **R2** | 自研 + R2 |
 | 期号 | `editions` collection + `/editions/[slug]` | 自研 |
 | 选题分发 | `assignments` collection | 自研 |
-| RSS | `/rss.xml` + `/feed.json` | 自研 |
+| RSS | `/rss.xml` + `/feed.json` + 分版块 `/sections/[slug]/rss.xml` | 自研 |
 | 邮件订阅 | **自研 `pulse-subscriptions`**（双确认 + 退订 + 订阅者管理） | 自研 |
 | 邮件传输 | **Resend**（`emdash-plugin-resend`，独占 `email:deliver`；未配置时落库待发） | 插件 |
 | 新闻分类 | taxonomy `section`（hierarchical） | 复用 |
