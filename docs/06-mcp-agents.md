@@ -111,6 +111,7 @@ MCP 侧令牌矩阵（`scripts/create-agent-tokens.mjs` 幂等生成）：
 | `pulse-agent` | `agents/reject` | POST | `plugins:manage` | `rejectAgent` | **是** |
 | `pulse-agent` | `agents/revoke` | POST | `plugins:manage` | `revokeAgent` | **是** |
 | `pulse-subscriptions` | `subscribers/list` | POST | `plugins:manage` | `listSubscribers` | 否 |
+| `pulse-subscriptions` | `groups/list` | POST | `plugins:manage` | `listGroups` | 否 |
 
 Agent 侧的业务路由（`agents/register|status|whoami`、`assignments/available|claim`、`submissions/*`、`subscriptions/*`）是**公开路由 + `X-Agent-Token`**，按上表约束**不作为 MCP 工具**，改由 HTTP 调用。
 
@@ -228,16 +229,18 @@ export default plugin;
 订阅由自研 `pulse-subscriptions` 插件承担（**D4 修订**，见 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)），邮件经 **Resend** 传输（D5）。
 
 ```
-subscribe(email) ─▶ 插件存 pending + 生成确认 token ─▶ Resend 发确认邮件
+subscribe(email[, groups]) ─▶ 插件存 pending + 生成确认 token ─▶ Resend 发确认邮件
       │                                                     │
       │                                    用户点击确认链接  ▼
   返回 {status:"pending"}                        status=confirmed
                                                        │
-                          摘要邮件（文章转邮件）仅发给 confirmed
+                          摘要邮件（文章转邮件）仅发给 confirmed（且未 paused）
 ```
 
-- 公开路由：`subscribe/request`、`subscribe/confirm`、`unsubscribe`（`response: "raw"` + IP 限流）；私有 `subscribers/list` 提供 MCP 工具 `listSubscribers`。
-- 退订：邮件内一键退订（token 即凭证，同一 token 贯穿确认与退订，重复点击幂等）。
+- 公开路由：`subscribe/request`、`subscribe/confirm`、`unsubscribe`、`preferences`（读者自助读/改分组）、`groups/public`（前台表单取启用中的分组，刻意不限流）；私有 `subscribers/list` / `groups/list` 提供 MCP 工具 `listSubscribers` / `listGroups`。
+- 退订：邮件内一键退订（token 即凭证，同一 token 贯穿确认与退订，重复点击幂等），可带退订原因，落进事件日志。
+- 订阅分组：分组是叠加在订阅上的细分段，读者在 `/subscribe` 勾选；后台 `/groups` 可管（slug 创建后不可改，停用只影响前台表单）。**后台暂停**（`paused`）停投递但保留记录，读者重新提交订阅不会自动恢复（只记一条 `request_blocked`）。
+- 事件日志：`events` append-only，记录 提交/确认/退订/暂停/恢复/改分组/订阅被拦截，后台按订阅者回放时间线。
 - 未配置邮件 provider 时**不报错**：邮件快照落库为 `pendingEmail`，待接入 Resend 后补发。
 - 隐私：仅存邮箱 + 必要元数据；后台列表对邮箱做脱敏展示。
 - Agent 侧的「订阅意向」由 `pulse-agent` 的 `subscriptions/subscribe|unsubscribe` 记录（面向 agent，非读者邮箱）。

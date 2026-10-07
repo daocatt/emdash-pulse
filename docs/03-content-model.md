@@ -17,7 +17,7 @@
 - **Agent 身份**：`user 账号 + byline + scoped token`（见 [09-agent-newsroom.md](./09-agent-newsroom.md)），不单建 collection。
 
 > **`assignments` 不开 drafts/revisions（Phase 4d 修订）**：选题是**运营队列**（`open→claimed→submitted→done`），由 agent 经沙箱 `ctx.content.update` 即时改状态。若开启 drafts/revisions，`update` 只写**草稿修订**，条目行不变 —— `assignments/available`（按 `task_status="open"` 过滤条目行）仍会列出已被领取的选题，且 `claim` 的守卫读到旧值，导致**同一选题可被重复领取**。故 `supports: []`。
-- **订阅者**：由自研 `pulse-subscriptions` 插件管理（插件存储 `subscribers`，非 EmDash 集合）。
+- **订阅者**：由自研 `pulse-subscriptions` 插件管理（插件存储 `subscribers`，非 EmDash 集合）；同插件的 `groups`（订阅分组，slug 即记录 id）与 `events`（append-only 订阅事件日志）也是插件存储。
 - **评论**：EmDash 内置评论表。
 
 ---

@@ -6,8 +6,13 @@ Keep `emdash-plugin.jsonc` aligned with the runtime implementation, declare ever
 ## 本插件要点
 
 - 订阅者存于插件存储 `subscribers`（唯一索引 `emailHash`），**不是** EmDash 用户。
-- 状态机：`pending` → `confirmed` → `unsubscribed`；token（确认/退订）只存 SHA-256 哈希，明文仅在邮件链接里。
-- 公开路由（`subscribe/request|confirm`、`unsubscribe`）为 `response: "raw"`，返回真实状态码（400/429），并自带限流。
+- 状态机：`pending` → `confirmed` → `unsubscribed`，外加只能后台进出的 `paused`（暂停投递，记录保留；读者重新提交订阅不会自动恢复）。token（确认/退订）只存 SHA-256 哈希，明文仅在邮件链接里。
+- 分组存 `groups`（**slug 即记录 id，创建后不可变**），订阅记录用 `groups: string[]` 引用；事件日志存 `events`（append-only，`recordEvent` 吞异常不连累主流程）。
+- **事件记录里不要写 `emailHash`**：`subscribers` 的 `uniqueIndexes` 生成的是覆盖 `_plugin_storage` **全表**的唯一索引 `(plugin_id, collection, json_extract(data,'$.emailHash'))`，同名字段会让同一订阅者的第 2 条事件撞唯一约束 → `recordEvent` 吞异常 → 事件静默丢失（内存版测试宿主不校验索引，测不出来；只有本地 seed / dev 才暴露）。
+- 路由入参走 zod，**`z.object` 会剥掉未声明的键**：`groups/save` 的 `create` 开关漏声明过一次，`create: true` 被静默丢弃 → 新建退化成更新。要透传给内部函数的开关字段必须在 schema 里显式声明。
+- 状态流转只有一份实现（`src/operations.ts`）：后台行级操作与私有路由 `subscribers/update` 共用，别各写一遍状态机。
+- 公开路由（`subscribe/request|confirm`、`unsubscribe`、`preferences`、`groups/public`）为 `response: "raw"`，返回真实状态码（400/401/409/429），并自带限流 —— 但 `groups/public` 刻意**不加**限流（SSR 取不到真实 IP，加了会把所有页面挤进同一个桶）。
 - 邮件走 `ctx.email`（`email:send` + 已配置 provider）；**provider 缺失或投递失败时不抛错**，落库为 `pendingEmail`。无邮件服务时可开 `autoConfirm`（单确认）。
-- 改 `capabilities` / `storage` 必须升 `package.json` 的 `version`（信任契约变更）。
+- 后台两页（`/subscribers`、`/groups`）共用同一个 `admin` 路由，靠宿主补的 `input.page` 分派。宿主不回传上一次表单值 ⇒ 筛选状态必须内嵌进分页按钮 value；分组是数组字段建不了索引 ⇒ 列表走内存扫描（`MAX_SCAN` 护栏）。
+- 改 `capabilities` / `storage` / `admin.pages` 必须升 `package.json` 的 `version`（信任契约变更）。
 - 改动后必须 `npm run plugin:build`（根目录），沙箱 entry 内嵌的是已构建的 `dist/*.mjs`。

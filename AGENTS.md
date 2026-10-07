@@ -91,6 +91,8 @@ HOME=~/.wrangler-a npm run deploy # 构建并部署到 Cloudflare
 - **MCP 工具只能挂「私有 + POST + JSON」路由**：GET 路由或未声明 body 的路由无法作为 MCP 工具（构建期报错）。
 - **默认 JSON 路由一律 HTTP 200**（宿主包 `{success,data}`）。要真实状态码（如 401/429）需声明 `response: "raw"` 并返回 `pluginResponse({ status, headers, body: { kind: "text", value: JSON.stringify(...) } })`（`emdash/plugin`）。raw 路由**不能**作为 MCP 工具，响应头受白名单限制（`content-type`/`retry-after` 可用）。`pulse-agent` 公开路由即用此约定（400/401/404/409/429）。沙箱测试宿主会回传 `PluginResponse` 信封（`{__emdashPluginResponse,status,body}`），测试需解包。
 - 沙箱插件**没有** user/API token/byline 写能力（仅 `users:read`、`ctx.bylines` 只读）；需要建 user/token 只能走 trusted 代码（`UserRepository` 从 `emdash` 导出）。
+- **插件存储的 `uniqueIndexes` 是「整表」唯一索引**：声明后宿主建的是 `_plugin_storage(plugin_id, collection, json_extract(data,'$.field'))` 上的唯一索引，**覆盖该表所有行**。所以同一插件里**另一个集合复用同名字段就会互撞**（`pulse-subscriptions` 的 `events` 一度照抄 `subscribers` 的 `emailHash` → 同一订阅者第 2 条事件撞唯一约束 → `recordEvent` 吞异常 → 事件静默丢失）。跨集合复用的字段名要避开被声明为 unique 的字段。
+- **内存版测试宿主不校验索引 / 触发器**：唯一索引、字段规范化这类「只在真数据库生效」的约束，单测全绿也测不出来 —— 必须跑一次 `node scripts/seed-test-engagement.mjs` 或 dev 才能暴露。
 - `ctx.content.list` 的 `where.fieldFilters` **只支持 indexed 字段**；按字段筛选前需在 seed 里给该字段加 `"indexed": true` 并重建库。
 - **`ctx.content.update` 是 draft-aware**：集合支持 `revisions` 时改的是**草稿修订**，`ctx.content.get`/`list` 读的是**条目行**（要 `publish` 才更新）。审核类流程若只 `update`，队列会读到旧值 → 需用 `content:revisions:read` + `listRevisions` 读最新修订。
 - 本地沙箱 runner 用 `@emdash-cms/sandbox-workerd`（需 `workerd`），生产用 `@emdash-cms/cloudflare` 的 `sandbox()`。

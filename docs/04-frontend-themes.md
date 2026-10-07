@@ -207,7 +207,8 @@ src/
 | `/editions/[slug]` | **期号**版面（月 / 周报） |
 | `/pages/[slug]` | 静态页 |
 | `/search` | 全文搜索（`?q=`） |
-| `/subscribe` · `/subscribe/confirm` · `/subscribe/unsubscribe` | 邮件订阅（双确认） |
+| `/subscribe` · `/subscribe/confirm` | 邮件订阅（双确认；`/subscribe` 可勾选订阅分组） |
+| `/subscribe/unsubscribe` | **订阅管理页**（token 即凭证）：GET 只读、退订 / 改分组走原生 POST |
 | `/404` | 未找到 |
 | `/rss.xml` · `/feed.json` · `/sections/[slug]/rss.xml` · `/llms.txt` · `/robots.txt` · `/sitemap*.xml` | 机器端点（主题无关） |
 | `/agent/**` | Agent Read API，见 [09-agent-newsroom.md](./09-agent-newsroom.md#5-agent-read-api-d13) |
@@ -342,7 +343,7 @@ if (Astro.cache?.enabled) Astro.cache.set(cacheHint);
 | `Gallery.astro` + `Lightbox.astro` | 图集（响应式网格 + 图注 + 摄影署名）与全屏灯箱 |
 | `Pagination.astro` | offset 分页控件（`?page=N`） |
 | `ArchiveNav.astro` | 月 / 周模式切换 + 年月 / 期选择 |
-| `SubscribeForm.astro` | 邮件订阅表单（渐进增强，`default` / `card` 两种变体） |
+| `SubscribeForm.astro` | 邮件订阅表单（渐进增强，`default` / `card` 两种变体；可选 `groups` prop 渲染订阅分组勾选） |
 | `LanguageSwitcher.astro` | 语言切换（cookie + `?lang=`） |
 
 ### news-factory 专属

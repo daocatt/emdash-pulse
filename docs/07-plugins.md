@@ -84,12 +84,13 @@ EmDash 插件分两类：
 
 ### 2.5 `pulse-subscriptions`（读者订阅）
 
-- 存储：`subscribers`（唯一 `emailHash`；索引 `status`/`createdAt`/`tokenHash`）。状态机 `pending → confirmed → unsubscribed`。
-- 公开路由（`response: "raw"` + IP 限流）：`subscribe/request`（建 pending + 发确认邮件）、`subscribe/confirm`（token → confirmed，发欢迎邮件）、`unsubscribe`（token → unsubscribed）。
-- 私有路由（`plugins:manage`）：`subscribers/list`（列表 + 各状态计数，MCP `listSubscribers`）+ Block Kit 后台页 `/subscribers`。
+- 存储：`subscribers`（唯一 `emailHash`；索引 `status`/`createdAt`/`tokenHash`）、`groups`（订阅分组，slug 即记录 id）、`events`（append-only 事件日志）。状态机 `pending → confirmed → unsubscribed`，外加只能后台进出的 `paused`。
+- 公开路由（`response: "raw"` + IP 限流）：`subscribe/request`（建 pending + 发确认邮件，可带分组）、`subscribe/confirm`（token → confirmed，发欢迎邮件）、`unsubscribe`（token → unsubscribed，可带原因）、`preferences`（读者自助读/改分组）；`groups/public` 只读启用中的分组（**刻意不限流**，SSR 取不到真实 IP）。
+- 私有路由（`plugins:manage`）：`subscribers/list`（列表 + 计数 + 按分组/关键词过滤）、`subscribers/update`（暂停/恢复/退订/改分组）、`subscribers/events`、`groups/{list,save,delete}`；MCP 工具 `listSubscribers` / `listGroups`。
+- Block Kit 后台**两页**（`/subscribers`、`/groups`）共用同一个 `admin` 路由，靠宿主补的 `input.page` 分派。
 - **同一 token 贯穿确认与退订**（确认后用途翻转，不轮换）→ 重复点击确认/退订链接**幂等**。
 - 邮件走 `ctx.email`（`email:send`）；**provider 缺失或投递失败不报错**，落库为记录的 `pendingEmail`。`autoConfirm` 设置可在无邮件服务时走单确认。
-- 前台接线：提交走**浏览器 fetch**（端点按客户端 IP 限流，SSR 代理会丢失真实 IP）；确认/退订走 **SSR**（`getPublicPluginApiRouteHandler`，token 即凭证）。
+- 前台接线：提交走**浏览器 fetch**（端点按客户端 IP 限流，SSR 代理会丢失真实 IP）；确认/退订/读改分组走 **SSR**（`getPublicPluginApiRouteHandler`，token 即凭证）。`/subscribe/unsubscribe` 已改为**订阅管理页**（GET 只读，退订/改分组走原生 POST）。
 
 ### 2.6 `pulse-seo`（结构化数据）
 
@@ -203,7 +204,7 @@ audit-log 写入证据（建一篇草稿后 `_plugin_storage` 出现一条 `entr
 | `pulse-review` | 0（仅 hooks） | — | 40 用例（发布门禁 4 + 评论审核 36） |
 | `pulse-editorial` | 8 | 8 | 9 用例（审核流转 + 选题） |
 | `pulse-agent` | 14 | 4 | 29 用例（注册/审批/token/限流 12 + MD→PT 11 + 投稿 6） |
-| `pulse-subscriptions` | 5 | 1 | 27 用例（token/邮件 16 + 订阅流转 11） |
+| `pulse-subscriptions` | 12 | 2 | 55 用例（token/邮件 16 + 路由 22 + 后台两页 17） |
 
 HTTP 冒烟（`/_emdash/api/plugins/<slug>/<route>`）：
 
