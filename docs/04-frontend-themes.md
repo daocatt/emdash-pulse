@@ -430,6 +430,8 @@ const { entries: articles } = await getEmDashCollection("articles", {
 | P6 | 本文档（由 `04-frontend-newspaper.md` 改写）+ 其他文档同步 | `6de24ff`、`043b5d2` |
 | P7 | 运行期主题切换（`pulse-theme` 后台页 + `src/middleware.ts` 前缀路由 rewrite） | `d83c461`、`8a50e10`、`9d502ce` |
 | P7 修复 | 后台「前台主题」页 502 `INVALID_BLOCK_RESPONSE`：`radio` 是 Block Kit **元素**，需包在 `actions` 块里，不能直接放进顶层 `blocks[]` | `05c5079`、`73f24a8` |
+| P7 后续 | 署名行紧凑化（去掉米黄卡片，改单行 `头像 + 姓名 · 角色 · 日期`）；列表卡无主图时不再渲染空占位框 | `2b3d213`、`2203903` |
+| P7 后续 | seed 补 8 篇科技版块文章（含 6 个新标签与 `2026-w42` 期号） | `2e9f4ff` |
 
 ### 与原设计的偏差
 
@@ -440,6 +442,8 @@ const { entries: articles } = await getEmDashCollection("articles", {
 5. **归档分页用 `?page=`**：未引入 `/page/[n]` 路由，减少路由数。
 6. **报头日期为动态**：`Masthead` 用 `Intl`（`Asia/Shanghai`）渲染当天日期，不依赖内容。
 7. **Logo 不照搬设计稿**：pulse-news 的图形标改为呼应站名的**脉冲波形**（内联 SVG），不复制设计稿的枫叶。
+8. **作者卡不再是米黄卡片**：设计稿里主视觉右下角是「大圆头像 + 大字号 + 米黄底卡片」，实际排下来占一整个板块而信息量很低。改为单行署名（28px 头像 + 姓名 + `·` 角色 + `·` 日期），首页主视觉与文章页一致，外层容器不再有底色 / 内边距。
+9. **列表卡无主图时不留占位框**：`MiniCard` 原为对齐同排标题渲染一个同尺寸空边框，视觉上像「图挂了」。改为无图就不渲染媒体区；同排的**作者 / 日期行**仍靠 `margin-top: auto` 对齐。
 
 ### 待办
 
