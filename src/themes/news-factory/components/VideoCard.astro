@@ -25,7 +25,7 @@ const publishedAt = data.publishedAt ?? data.createdAt;
 const duration = (data as { video_duration?: string | null }).video_duration ?? null;
 ---
 
-<article class:list={["video-card", className]}>
+<article class:list={["video-card", className]} data-hover-lift>
 	<a class="video-card__media" href={href} tabindex="-1" aria-hidden="true">
 		{data.featured_image ? (
 			<Image

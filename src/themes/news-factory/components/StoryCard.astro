@@ -25,7 +25,7 @@ const publishedAt = data.publishedAt ?? data.createdAt;
 const Heading = headingLevel;
 ---
 
-<article class:list={["story-card", `story-card--${size}`, className]}>
+<article class:list={["story-card", `story-card--${size}`, className]} data-hover-lift>
 	{showImage && data.featured_image && (
 		<a class="story-card__media" href={href} tabindex="-1" aria-hidden="true">
 			<Image

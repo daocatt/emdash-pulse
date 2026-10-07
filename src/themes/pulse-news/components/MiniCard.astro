@@ -21,7 +21,7 @@ const author = data.bylines?.[0]?.byline?.displayName ?? t("byline.newsroom");
 const publishedAt = data.publishedAt ?? data.createdAt;
 ---
 
-<article class:list={["mini-card", className]}>
+<article class:list={["mini-card", className]} data-hover-lift>
 	{
 		data.featured_image && (
 			<a class="mini-card__media" href={`/articles/${article.id}`} tabindex="-1" aria-hidden="true">
