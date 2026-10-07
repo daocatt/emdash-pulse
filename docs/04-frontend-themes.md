@@ -410,11 +410,81 @@ const { entries: articles } = await getEmDashCollection("articles", {
 | --- | --- | --- |
 | ≥ 1040px | 头版 3 栏（3fr / 5fr / 3fr）+ 栏间细线；文章页 3 栏（署名 / 正文 / 侧栏） | 首页 3 栏（3fr / 6fr / 3fr）；文章页居中单栏（820px） |
 | 640–1039px | 单栏；文章页侧栏折到正文下方 | 首页 2 栏；小图卡 2 列 |
-| < 640px | 单栏，报头精简，导航横向滚动 | 单栏，报头精简，导航抽屉（`<details>`） |
+| < 640px | 单栏，报头精简，导航换行 | 单栏，报头精简，导航抽屉（`<details>`） |
 
 ---
 
-## 15. 实施记录
+## 15. 动效
+
+前台动效是**一层 data 属性驱动的单例运行时**，用 `motion` 的 **vanilla DOM API**（无 React、无 island）。
+
+只从 **`motion/mini`** 引入（`animate`，WAAPI 版）。完整版 `motion` 会把动画引擎打进每个页面的公共 chunk —— 实测 `dist/client/_astro`：完整版 **21.4KB gzip**（引擎）+ 2.4KB（运行时）；换成 mini 后共享 chunk **3.2KB gzip**，加运行时与灯箱脚本共 **≈5.2KB**（预算 ≤ 12KB）。mini 没有 `inView` / `stagger` / `press`，替代方案见 15.1 / 15.4。
+
+### 15.1 架构
+
+```
+src/scripts/motion/
+├── index.ts        # 入口：reduced-motion 门禁 + 逐个 init + 失败兜底
+├── tokens.ts       # 从 CSS 自定义属性读 时长/缓动/位移/错峰
+├── reveal.ts       # 滚动进场（原生 IntersectionObserver + animate）
+├── disclosure.ts   # <details> 开合（拦截 summary click）
+└── lightbox.ts     # 灯箱开合（与组件用 DOM 事件解耦）
+
+src/components/MotionRuntime.astro   # 只含一个 <script>，挂在两套 Base 的 <Lightbox /> 旁
+```
+
+组件侧**只加 `data-*`**，命令式动画只写在运行时里：
+
+| 属性 | 作用 |
+| --- | --- |
+| `data-reveal` | 该容器随滚动渐显（首屏元素自动跳过） |
+| `data-reveal-stagger` | 对**直接子元素**逐个错峰（不加则整块进场） |
+| `data-motion-disclosure` + `data-motion-panel` | `<details>` 开合动效 |
+| `data-motion-lightbox` | 灯箱（配合组件的 `lightbox:open` / `lightbox:close-request` 事件） |
+| `data-press` | 按压反馈（纯 CSS `:active`，见 15.4） |
+| `data-hover-lift` | 卡片 hover 抬升（纯 CSS，见 15.4） |
+
+### 15.2 强度是主题令牌
+
+`--motion-*` 默认值在 `src/styles/tokens.base.css`，两套主题在各自 `styles/tokens.css` 覆盖。**JS 不判断主题名**，一律 `getComputedStyle` 读令牌，所以新增主题只改 CSS。
+
+| 令牌 | news-factory（克制） | pulse-news（明显） |
+| --- | --- | --- |
+| `--motion-duration-fast` | `90ms` | `160ms` |
+| `--motion-duration-base` | `140ms` | `260ms` |
+| `--motion-duration-slow` | `220ms` | `460ms` |
+| `--motion-ease` | `cubic-bezier(0.2, 0, 0, 1)` | `cubic-bezier(0.22, 1, 0.36, 1)` |
+| `--motion-shift-sm` / `-md` | `2px` / `6px` | `6px` / `16px` |
+| `--motion-stagger` | `24ms` | `70ms` |
+| `--motion-hover-lift` | `2px` | `4px` |
+
+`--motion-ease` 存成 `cubic-bezier(...)` 是为了 CSS transition 也能直接用；JS 侧解析成四元组喂给 `animate()`。
+
+### 15.3 三条硬约束
+
+1. **滚动进场的隐藏态只能由 JS 加**。SSR HTML / CSS 里绝不出现初始隐藏样式 —— `Astro.cache` 会缓存 HTML，且无 JS / 爬虫必须看到全部内容。做法：SSR 只有静态 `data-reveal` 属性 → 运行时**跳过首屏**（`top < innerHeight * 0.9`，保护 LCP）→ 其余元素设 `opacity: 0` 并在同一 tick 注册 `IntersectionObserver` → 进场结束清除内联样式。任何一步抛错都兜底还原（含一个超时兜底）。
+2. **`prefers-reduced-motion` 要管两遍**。`src/styles/base.css` 的全局兜底只覆盖 CSS transition / animation；`animate()` 是 JS/WAAPI 驱动，管不到。每个 init 开头用 `matchMedia` 早退 —— reduced-motion 下**完全不设隐藏态**；CSS 侧的 `data-hover-lift` / `data-press` 位移也在同一个媒体查询里显式关掉。
+3. **一条属性只能有一个驱动源**。滚动进场由 `motion` 写内联 `transform`，所以卡片 hover 抬升用独立的 **`translate`**、按压反馈用独立的 **`scale`** —— 都是与 `transform` 叠加而非覆盖的独立属性；进场结束还会清除内联 `transform` 归还给 CSS。
+
+### 15.4 CSS 与 motion 的分工
+
+| 交互 | 归属 | 理由 |
+| --- | --- | --- |
+| 链接 / 导航 hover（颜色、下划线、border） | CSS | 零 JS、GPU 友好、天然被 reduced-motion 兜底 |
+| 卡片图片 zoom（`scale(1.03)`） | CSS | 已有实现 |
+| 卡片 hover 抬升（`data-hover-lift` → `translate`） | CSS | 数量多必须便宜；一条规则覆盖全站 |
+| 按钮按压（`data-press` → `:active { scale: 0.97 }`） | CSS | `:active` 就是语义本身，不必为它引一段 JS 手势；`scale` 与 `transform` 叠加不冲突 |
+| `<details>` 开合、灯箱开合/切换、滚动进场 | motion（mini） | 需要测量 / 时序 / WAAPI |
+
+### 15.5 灯箱
+
+`src/components/Lightbox.astro` 是全局单例 `<dialog>`，`data-lightbox*` 属性 + document 事件委托触发。开合与上一张/下一张都有动效（`close()` 会立即移除对话框，所以关闭动画必须播完再关；Esc 的 `cancel` 事件被拦截后走同一流程）。`aria-label` 与图集的「查看第 N 张图片」走 `lightbox.*` 字典键。
+
+**触发范围**：图集（`Gallery.astro`）、文章 hero、期号封面。**卡片图不接** —— 它们包在 `<a href="/articles/…">` 里，接灯箱会与跳转冲突。
+
+---
+
+## 16. 实施记录
 
 ### P0–P6 阶段
 
@@ -432,6 +502,8 @@ const { entries: articles } = await getEmDashCollection("articles", {
 | P7 修复 | 后台「前台主题」页 502 `INVALID_BLOCK_RESPONSE`：`radio` 是 Block Kit **元素**，需包在 `actions` 块里，不能直接放进顶层 `blocks[]` | `05c5079`、`73f24a8` |
 | P7 后续 | 署名行紧凑化（去掉米黄卡片，改单行 `头像 + 姓名 · 角色 · 日期`）；列表卡无主图时不再渲染空占位框 | `2b3d213`、`2203903` |
 | P7 后续 | seed 补 8 篇科技版块文章（含 6 个新标签与 `2026-w42` 期号） | `2e9f4ff` |
+| P8 | 前台动效层：`motion/mini` 单例运行时（滚动进场 / `<details>` 开合 / 灯箱）+ 主题动效令牌 + 卡片 hover 抬升与按钮按压（CSS） | 见下 |
+| P8 后续 | 灯箱接入文章 hero 与期号封面、`lightbox.*` 字典键、折叠菜单外部点击收合 | 见下 |
 
 ### 与原设计的偏差
 
@@ -444,6 +516,8 @@ const { entries: articles } = await getEmDashCollection("articles", {
 7. **Logo 不照搬设计稿**：pulse-news 的图形标改为呼应站名的**脉冲波形**（内联 SVG），不复制设计稿的枫叶。
 8. **作者卡不再是米黄卡片**：设计稿里主视觉右下角是「大圆头像 + 大字号 + 米黄底卡片」，实际排下来占一整个板块而信息量很低。改为单行署名（28px 头像 + 姓名 + `·` 角色 + `·` 日期），首页主视觉与文章页一致，外层容器不再有底色 / 内边距。
 9. **列表卡无主图时不留占位框**：`MiniCard` 原为对齐同排标题渲染一个同尺寸空边框，视觉上像「图挂了」。改为无图就不渲染媒体区；同排的**作者 / 日期行**仍靠 `margin-top: auto` 对齐。
+10. **动效只用 `motion/mini` 而非完整版**：方案原本按完整版 `motion`（`inView` / `stagger` / `press`）设计，实测每个页面公共 chunk 要多付 **21.4KB gzip**。降级为 mini 后，滚动进场改用原生 `IntersectionObserver`、错峰改用 `delay: (i) => i * step`，按压与卡片 hover 抬升改由 CSS 表达（`data-press` / `data-hover-lift`，用独立的 `scale` / `translate` 属性避免与 `transform` 打架），共享 chunk 降到 **3.2KB gzip**。
+11. **灯箱不接卡片图**：卡片图外层是 `<a href="/articles/…">`，接灯箱会与跳转冲突。只接图集、文章 hero、期号封面这三类「独立的图」。
 
 ### 待办
 
