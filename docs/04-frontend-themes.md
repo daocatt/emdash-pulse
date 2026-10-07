@@ -442,7 +442,7 @@ Lighthouse 移动端（412×823、4x CPU + 慢速 4G 模拟），本地构建产
 
 只从 **`motion/mini`** 引入（`animate`，WAAPI 版）。完整版 `motion` 会把动画引擎打进每个页面的公共 chunk —— 实测 `dist/client/_astro`：完整版 **21.4KB gzip**（引擎）+ 2.4KB（运行时）；换成 mini 后共享 chunk **3.2KB gzip**，加运行时与灯箱脚本共 **≈5.2KB**（预算 ≤ 12KB）。mini 没有 `inView` / `stagger` / `press`，替代方案见 15.1 / 15.4。
 
-**延迟加载后（现状）**：首屏 eager JS 只剩 `boot` + Vite 的 preload helper（**≈1.5KB gzip**）；含 `motion/mini` 的 `runtime.*` chunk（**≈4.2KB gzip**）只在「有动效目标且非 reduced-motion」的页面、空闲或首次交互时才请求。灯箱组件去掉 motion 依赖后其脚本已小到被 Astro 内联进 HTML，不再单独成请求。
+**延迟加载后（现状）**：首屏 eager JS 只剩 `boot` + Vite 的 preload helper（**≈1.5KB gzip**）；含 `motion/mini` 的 `runtime.*` chunk（**≈4.2KB gzip**）改由空闲 / 首次交互触发的动态 `import()` 拉取（实测 `runtime` 的 `startTime` 晚于 `boot`，且 reduced-motion 下完全不请求）。灯箱组件去掉 motion 依赖后其脚本已小到被 Astro 内联进 HTML，不再单独成请求。
 
 ### 15.1 架构
 
@@ -459,7 +459,9 @@ src/scripts/motion/
 src/components/MotionRuntime.astro   # 只含一个 <script>，引 boot.ts，挂在两套 Base
 ```
 
-**延迟加载**：`boot.ts` 过两道门 —— ① 非 reduced-motion；② 页面里真有动效目标（`[data-reveal]` / `details[data-motion-disclosure]` / `[data-motion-lightbox]`）。通过后先 `requestIdleCallback`（回退 `setTimeout`）等空闲，用户先滚动 / 按下 / 按键则立刻加载，最后 `import("./runtime")`。于是没有动效目标的页面（版块 / 归档 / 订阅…）连 `motion/mini` 都不请求。**`runtime.ts` 只能被 boot 动态 import**，静态引用会让延迟加载失效。
+**延迟加载**：`boot.ts` 过两道门 —— ① 非 reduced-motion；② 页面里真有动效目标（`[data-reveal]` / `details[data-motion-disclosure]` / `[data-motion-lightbox]`）。通过后先 `requestIdleCallback`（回退 `setTimeout`）等空闲，用户先滚动 / 按下 / 按键则立刻加载，最后 `import("./runtime")`。**`runtime.ts` 只能被 boot 动态 import**，静态引用会让延迟加载失效。
+
+> 两道门里第 ② 道是结构性的安全网：本站在**两套主题的导航**里都有 `<details data-motion-disclosure>`（news-factory 的子菜单、pulse-news 的汉堡菜单），所以实际上**每个页面都命中**，真正省下的是「不阻塞首屏」而不是「不下载」。第 ① 道（reduced-motion 完全不下载）才是能实测到零请求的那道门。
 
 组件侧**只加 `data-*`**，命令式动画只写在运行时里：
 
