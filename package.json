@@ -34,18 +34,18 @@
     "@astrojs/cloudflare": "^14.3.3",
     "@astrojs/node": "^11.1.5",
     "@astrojs/react": "^6.0.5",
-    "@emdash-cms/cloudflare": "^1.1.0",
+    "@emdash-cms/cloudflare": "^1.2.0",
     "@emdash-cms/plugin-ai-moderation": "^0.2.2",
     "@emdash-cms/plugin-audit-log": "^0.2.3",
     "astro": "^7.3.2",
-    "emdash": "^1.1.0",
+    "emdash": "^1.2.0",
     "motion": "^12.43.0",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
-    "@emdash-cms/sandbox-workerd": "^0.9.2",
+    "@emdash-cms/sandbox-workerd": "^0.9.3",
     "chrome-launcher": "^1.2.2",
     "lighthouse": "^13.5.0",
     "wrangler": "^4.145.0"
