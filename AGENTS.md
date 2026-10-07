@@ -16,6 +16,7 @@ npm run typecheck:all             # 两套主题各跑一次 astro check
 npm run plugin:build              # 构建全部沙箱插件（--workspaces：pulse-review/pulse-agent/pulse-editorial）
 npm run plugin:test               # 全部插件单测
 node scripts/configure-search.mjs # 中文搜索：切 trigram 分词器并重建索引（重建库后需重跑）
+node scripts/seed-test-engagement.mjs # 灌入测试评论（已通过）+ 订阅者（混合状态），复核前台评论/后台订阅 UI
 npx emdash types                  # 从运行中的站点生成类型
 npx emdash secret                 # 生成加密密钥
 HOME=~/.wrangler-a npm run deploy # 构建并部署到 Cloudflare
