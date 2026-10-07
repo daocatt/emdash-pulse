@@ -1,0 +1,12 @@
+---
+/**
+ * 前台动效运行时（全局单例，只挂脚本，不渲染任何标记）。
+ *
+ * 挂在两套 `layout/Base.astro` 的 `<Lightbox />` 旁；Astro 会按页面去重，
+ * 具体动效由 `data-*` 属性驱动（见 `src/scripts/motion/index.ts` 的文件头）。
+ */
+---
+
+<script>
+	import "../scripts/motion";
+</script>

@@ -309,6 +309,32 @@ hr {
 	text-underline-offset: 2px;
 }
 
+/* 卡片 hover 抬升（`data-hover-lift`）。
+ *
+ * 用 `translate` 而不是 `transform`：滚动进场的 `motion.animate()` 会往同一元素
+ * 写内联 `transform`，两者是不同的 CSS 属性、可叠加，避免「一条属性两个驱动源」。
+ * 抬升幅度是主题令牌（`--motion-hover-lift`：报纸克制 / 杂志明显）。 */
+[data-hover-lift] {
+	transition: translate var(--transition-base);
+}
+
+[data-hover-lift]:hover {
+	translate: 0 calc(-1 * var(--motion-hover-lift));
+}
+
+/* 按压反馈（`data-press`，用于按钮 / 灯箱控件）。
+ *
+ * 同样用独立属性：`scale` 与 `transform` 叠加不冲突，也不会覆盖
+ * `.lightbox__nav` 自身的 `transform: translateY(-50%)` 定位。纯 CSS 即可表达
+ * `:active` 状态，不必为它引一段 JS 手势。 */
+[data-press] {
+	transition: scale var(--transition-fast);
+}
+
+[data-press]:active {
+	scale: 0.97;
+}
+
 /* 尊重减少动效偏好 */
 @media (prefers-reduced-motion: reduce) {
 	*,
@@ -318,5 +344,12 @@ hr {
 		animation-iteration-count: 1 !important;
 		transition-duration: 0.01ms !important;
 		scroll-behavior: auto !important;
+	}
+
+	/* 上面的兜底只杀过渡时长，位移本身还得单独关掉 */
+	[data-hover-lift]:hover,
+	[data-press]:active {
+		translate: none;
+		scale: none;
 	}
 }

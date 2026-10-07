@@ -9,6 +9,7 @@ import MainNav from "../components/MainNav.astro";
 import TopBar from "../components/TopBar.astro";
 import Footer from "../components/Footer.astro";
 import Lightbox from "@shared/Lightbox.astro";
+import MotionRuntime from "@shared/MotionRuntime.astro";
 import theme from "../theme.config";
 import "../../../styles/tokens.base.css";
 import "../../../styles/base.css";
@@ -118,6 +119,8 @@ const pageCtx = createPublicPageContext({
 		<Footer items={footerItems} siteTitle={siteTitle} />
 
 		<Lightbox />
+
+		<MotionRuntime />
 
 		<EmDashBodyEnd page={pageCtx} />
 	</body>
