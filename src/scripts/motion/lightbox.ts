@@ -10,7 +10,7 @@
  * 只动 `opacity` / `scale`（合成层），不碰布局属性。
  */
 import { animate } from "motion/mini";
-import { prefersReducedMotion } from "./index";
+import { prefersReducedMotion } from "./reduced-motion";
 import { durationSeconds, easing } from "./tokens";
 
 const OPEN_EVENT = "lightbox:open";

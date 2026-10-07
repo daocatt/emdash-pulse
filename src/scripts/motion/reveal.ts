@@ -5,8 +5,12 @@
  * 会缓存 HTML，所以**初始隐藏态只能由这里在运行时添加**，HTML 与 CSS 里绝不出现。
  * 于是：
  *   1. SSR 只输出静态 `data-reveal` 属性，元素正常可见；
- *   2. 首屏元素（含 LCP）直接跳过 —— 不隐藏、不注册观察器；
+ *   2. 任何已经落在视口内的元素（含 LCP）直接跳过 —— 不隐藏、不注册观察器；
  *   3. 其余元素先设 `opacity: 0`，同一 tick 内注册观察器，进入视口后播一次。
+ *
+ * 第 2 条判的是「顶部 < innerHeight」而不是「< innerHeight * 0.9」：运行时是
+ * **延迟加载**的（见 `boot.ts`），初始化时用户可能已经滚过一段，若把视口下缘那
+ * 10% 也算进「要隐藏」，这些元素会在用户眼前闪一下再动画。
  *
  * 只动 `opacity` 与 `y`（合成层），不碰布局属性，所以不产生 CLS。
  *
@@ -14,11 +18,8 @@
  * 支持 `(i, total) => number`，错峰不用额外引 `stagger`。
  */
 import { animate } from "motion/mini";
-import { prefersReducedMotion } from "./index";
+import { prefersReducedMotion } from "./reduced-motion";
 import { durationSeconds, easing, shift, staggerSeconds } from "./tokens";
-
-/** 首屏判定：元素顶部高于视口 90% 就算首屏，不进场。 */
-const ABOVE_FOLD_RATIO = 0.9;
 
 /** 进场目标：默认整块，带 `data-reveal-stagger` 时是逐个直接子元素。 */
 function targetsOf(container: HTMLElement): HTMLElement[] {
@@ -33,7 +34,8 @@ export function initReveal(): void {
 	const containers = document.querySelectorAll<HTMLElement>("[data-reveal]");
 	if (containers.length === 0) return;
 
-	const fold = window.innerHeight * ABOVE_FOLD_RATIO;
+	// 只藏「完全在视口下方」的：已在视口内（或已滚过）的一律不动，避免闪一下再进场。
+	const fold = window.innerHeight;
 
 	for (const container of containers) {
 		if (container.getBoundingClientRect().top < fold) continue;

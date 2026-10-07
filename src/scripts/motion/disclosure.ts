@@ -10,7 +10,7 @@
  * 键盘 Enter / Space 也会派发 click，因此键盘同样走这套。
  */
 import { animate } from "motion/mini";
-import { prefersReducedMotion } from "./index";
+import { prefersReducedMotion } from "./reduced-motion";
 import { durationSeconds, easing, shift } from "./tokens";
 
 const BOUND_FLAG = "motionBound";

@@ -1,12 +1,13 @@
 ---
 /**
- * 前台动效运行时（全局单例，只挂脚本，不渲染任何标记）。
+ * 前台动效运行时入口（全局单例，只挂脚本，不渲染任何标记）。
  *
- * 挂在两套 `layout/Base.astro` 的 `<Lightbox />` 旁；Astro 会按页面去重，
- * 具体动效由 `data-*` 属性驱动（见 `src/scripts/motion/index.ts` 的文件头）。
+ * 挂在两套 `layout/Base.astro` 的 `<Lightbox />` 旁；Astro 会按页面去重。
+ * 这里只引入 `boot.ts`（无 motion），真正的运行时 `runtime.ts` 由它在空闲 / 交互时
+ * 动态加载 —— 见 `src/scripts/motion/boot.ts` 的文件头。
  */
 ---
 
 <script>
-	import "../scripts/motion";
+	import "../scripts/motion/boot";
 </script>
