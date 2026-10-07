@@ -516,6 +516,8 @@ src/components/MotionRuntime.astro   # 只含一个 <script>，引 boot.ts，挂
 
 **触发范围**：图集（`Gallery.astro`）、文章 hero、期号封面。**卡片图不接** —— 它们包在 `<a href="/articles/…">` 里，接灯箱会与跳转冲突。
 
+**大图 URL 走 `@utils/media` 的 `resolveMediaUrl`**：它必须先看 `meta.storageKey` 再看 `id`。落库的图片字段**没有 `src`**，而媒体文件路由只认 storage key —— 只按 `id` 拼会得到 404 的 `data-lightbox-src`（`<Image>` 因为自己读 `meta.storageKey` 照常渲染，所以这个 bug 只在点开灯箱时暴露）。同一条规则也管着期号封面与 agent JSON 的 `image.url`。
+
 **上一张 / 下一张**的淡入是**本地 CSS keyframes**（`.lightbox__image--swap` + `@keyframes lightbox-fade-in`），组件不依赖 motion。开合（进场 / 退场）仍由运行时驱动 `figure`（`opacity` + `scale`），与前者是不同元素、不同属性，不违反「一条属性一个驱动源」。
 
 **降级**：运行时就绪前点开灯箱 → `lightbox:open` 无人监听 → 灯箱正常打开但没有进场动画；关闭时 `close-request` 返回 `true` → 组件走原生 `dialog.close()`。无 JS / 减动效走同一路径。
