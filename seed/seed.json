@@ -222,7 +222,17 @@
         { "type": "custom", "label": "要闻", "url": "/sections/top" },
         { "type": "custom", "label": "国际", "url": "/sections/world" },
         { "type": "custom", "label": "财经", "url": "/sections/business" },
-        { "type": "custom", "label": "科技", "url": "/sections/tech" },
+        {
+          "type": "custom",
+          "label": "科技",
+          "url": "/sections/tech",
+          "children": [
+            { "type": "custom", "label": "芯片", "url": "/tags/chip" },
+            { "type": "custom", "label": "云计算", "url": "/tags/cloud" },
+            { "type": "custom", "label": "开源", "url": "/tags/opensource" },
+            { "type": "custom", "label": "安全", "url": "/tags/security" }
+          ]
+        },
         { "type": "custom", "label": "体育", "url": "/sections/sports" },
         { "type": "custom", "label": "评论", "url": "/sections/opinion" },
         { "type": "custom", "label": "归档", "url": "/archive" }
@@ -238,7 +248,15 @@
         { "type": "custom", "label": "社会", "url": "/sections/society" },
         { "type": "custom", "label": "体育", "url": "/sections/sports" },
         { "type": "custom", "label": "评论", "url": "/sections/opinion" },
-        { "type": "custom", "label": "图片", "url": "/sections/photo" },
+        {
+          "type": "custom",
+          "label": "图片",
+          "url": "/sections/photo",
+          "children": [
+            { "type": "custom", "label": "第 42 期", "url": "/editions/2026-w42" },
+            { "type": "custom", "label": "第 41 期", "url": "/editions/2026-w41" }
+          ]
+        },
         { "type": "custom", "label": "归档", "url": "/archive" }
       ]
     }
