@@ -63,6 +63,7 @@ console.log(`  配置       ${ctx.configName}`);
 console.log(`  Worker     ${ctx.workerName ?? "(未读到 name)"}`);
 console.log(`  D1         ${ctx.databaseName ?? "(未读到 database_name)"}`);
 console.log(`  R2         ${ctx.bucketName ?? "(未读到 bucket_name)"}`);
+console.log(`  站点 URL   ${ctx.siteUrl ?? "(未读到 EMDASH_SITE_URL)"}`);
 console.log();
 
 // 1) 登录态自检（失败只警告：网络抖动很常见，真正失败会在后续步骤暴露）
@@ -179,8 +180,16 @@ if (hasFlag("--skip-build")) {
 	runOrDie("npm", ["run", "plugin:build"]);
 
 	console.log("\n→ 构建 Cloudflare 产物");
+	// 把站点 origin 传给构建：`astro.config.mjs` 用它给 image.remotePatterns 补上
+	// 生产域名（源码里不写死域名）。缺它时生产图片 srcset 会静默退回原图。
+	const buildEnv = { DEPLOY_TARGET: "cloudflare" };
+	if (ctx.siteUrl) {
+		buildEnv.EMDASH_SITE_URL = ctx.siteUrl;
+	} else {
+		console.warn("⚠ 配置里没有 EMDASH_SITE_URL，构建将不含生产域名的图片白名单。");
+	}
 	runOrDie(path.join(ctx.root, "node_modules/.bin/astro"), ["build"], {
-		env: { DEPLOY_TARGET: "cloudflare" },
+		env: buildEnv,
 	});
 	console.log();
 }

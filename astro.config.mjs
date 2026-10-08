@@ -156,6 +156,24 @@ if (isCloudflare) {
 	};
 }
 
+/**
+ * 从 `EMDASH_SITE_URL`（部署时由 `npm run deploy:cf` 从 `wrangler.prod.jsonc`
+ * 的 vars 传入构建）解析出生产 origin，加进 `image.remotePatterns`。
+ *
+ * 这样源码里**不写死任何站点域名**：换域名只改部署配置即可，无需动这里。
+ * 没设时只保留本地 origin（本地开发用）。
+ */
+function siteOriginPattern() {
+	const raw = process.env.EMDASH_SITE_URL || process.env.SITE_URL;
+	if (!raw) return [];
+	try {
+		const url = new URL(raw);
+		return [{ protocol: url.protocol.replace(":", ""), hostname: url.hostname }];
+	} catch {
+		return [];
+	}
+}
+
 export default defineConfig({
 	output: "server",
 	adapter,
@@ -169,7 +187,7 @@ export default defineConfig({
 		remotePatterns: [
 			{ protocol: "http", hostname: "localhost" },
 			{ protocol: "http", hostname: "127.0.0.1" },
-			{ protocol: "https", hostname: "ai.suda.im" },
+			...siteOriginPattern(),
 		],
 	},
 	integrations: [themeRoutes(), react(), emdash(emdashConfig)],

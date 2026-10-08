@@ -67,6 +67,7 @@ export function pickString(text, key) {
  *   workerName?: string,
  *   databaseName?: string,
  *   bucketName?: string,
+ *   siteUrl?: string,                 // wrangler 配置里的 EMDASH_SITE_URL
  *   wranglerBin: string,
  * }}
  */
@@ -98,6 +99,7 @@ export function loadCfContext() {
 		databaseName:
 			process.env.D1_DATABASE || deployEnv.D1_DATABASE || pickString(configText, "database_name"),
 		bucketName: pickString(configText, "bucket_name"),
+		siteUrl: pickString(configText, "EMDASH_SITE_URL"),
 		wranglerBin:
 			process.env.WRANGLER_BIN ||
 			deployEnv.WRANGLER_BIN ||
