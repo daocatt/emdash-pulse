@@ -15,14 +15,18 @@ npm run build:pulse-news          # 构建 pulse-news 主题
 npm run typecheck:all             # 两套默认主题各跑一次 astro check
 npm run perf                      # 移动端性能复核（Lighthouse：构建 + 两套主题 × 代表路由，超阈值退出码 1）
 npm run perf -- --no-build --runs=3 --theme=pulse-news   # 复用产物 / 取中位数 / 只测一套主题
-npm run plugin:build              # 构建全部沙箱插件（--workspaces：pulse-review/pulse-agent/pulse-editorial/pulse-subscriptions/pulse-seo/pulse-theme）
+npm run plugin:build              # 构建全部插件（--workspaces：pulse-review/pulse-agent/pulse-editorial/pulse-subscriptions/pulse-seo/pulse-theme）
 npm run plugin:test               # 全部插件单测
 node scripts/configure-search.mjs # 中文搜索：切 trigram 分词器并重建索引（重建库后需重跑）
-node scripts/seed-test-engagement.mjs # 灌入测试评论（已通过）+ 订阅者（混合状态），复核前台评论/后台订阅 UI
+npm run demo:data                 # Demo 互动数据：先清后灌（评论 + 订阅者 + 分组 + 事件）
+npm run demo:data:clean           # 只清理 Demo 互动数据
+npm run demo:data:remote          # 对远端 D1 执行（先清后灌；需 .env.deploy）
 npx emdash types                  # 从运行中的站点生成类型
 npx emdash secret                 # 生成加密密钥
-HOME=~/.wrangler-a npm run deploy # 构建并部署到 Cloudflare
+npm run deploy:cf                 # 构建并部署到 Cloudflare（账号目录来自本地 .env.deploy）
 ```
+
+**部署（Cloudflare）**：`npm run deploy:cf` 读取本地 `.env.deploy`（gitignored，模板见 `.env.deploy.example`）里的 `WRANGLER_HOME`，用该目录下已登录的 wrangler 凭据构建 + 部署。**仓库里不出现任何账号信息**（account id 在 gitignored 的 `wrangler.prod.jsonc`，模板见 `wrangler.prod.jsonc.example`）。首次部署后需在后台走一次 setup 向导（灌 seed 内容 + 注册管理员 passkey），并在「Resend」页填 API key / From。
 
 后台：`http://localhost:4321/_emdash/admin`
 
@@ -52,19 +56,26 @@ HOME=~/.wrangler-a npm run deploy # 构建并部署到 Cloudflare
 | `src/components/` | 主题无关共享组件（`@shared`） |
 | `src/utils/` | 主题无关数据层（`@utils`） |
 | `scripts/perf.mjs` | 移动端性能复核（Lighthouse + 运行期主题切换，`npm run perf`） |
+| `scripts/deploy-cf.mjs` | 账户无关部署（读 `.env.deploy` → 建 R2 桶 / 写密钥 / 构建 / `wrangler deploy`，`npm run deploy:cf`） |
+| `scripts/demo-data.mjs` | Demo 互动数据注入 / 清理（本地 `data.db` 或远端 D1，`npm run demo:data`） |
+| `scripts/lib/cf.mjs` | 部署上下文（`.env.deploy` / `wrangler.prod.jsonc` 解析），上面两个脚本共用 |
 | `src/live.config.ts` | EmDash loader 注册（样板，勿改） |
 | `src/worker.ts` | Cloudflare Worker 入口 + scheduled |
-| `wrangler.jsonc` | D1 / R2 / Workers AI 绑定 + cron |
+| `wrangler.jsonc` | D1 / R2 / Workers AI 绑定 + cron（**提交**，无账号信息） |
+| `wrangler.prod.jsonc` | 生产绑定（含 account_id / database_id，**gitignored**，模板见 `.example`） |
+| `.env.deploy` | 本地部署配置（`WRANGLER_HOME`，**gitignored**，模板见 `.example`） |
 | `seed/seed.json` | Schema + 示例内容 |
-| `plugins/pulse-review/` | 沙箱插件：发布门禁（`content:beforePublish`） |
-| `plugins/pulse-editorial/` | 沙箱插件：编辑台（选题分发 + 投稿审核发布，持有 `content:publish`） |
-| `plugins/pulse-agent/` | 沙箱插件：Agent 侧（注册/审批、选题领取、投稿、订阅意向） |
-| `plugins/pulse-theme/` | 沙箱插件：后台「前台主题」页（写插件设置，供 `src/middleware.ts` 读） |
+| `plugins/pulse-review/` | 标准格式插件：发布门禁（`content:beforePublish`） |
+| `plugins/pulse-editorial/` | 标准格式插件：编辑台（选题分发 + 投稿审核发布，持有 `content:publish`） |
+| `plugins/pulse-agent/` | 标准格式插件：Agent 侧（注册/审批、选题领取、投稿、订阅意向） |
+| `plugins/pulse-subscriptions/` | 标准格式插件：订阅者 / 分组 / 事件日志 + 确认退订邮件 |
+| `plugins/pulse-theme/` | 标准格式插件：后台「前台主题」页（写插件设置，供 `src/middleware.ts` 读） |
+| `plugins/pulse-seo/` | 标准格式插件：文章页 JSON-LD / sitemap / robots |
 | `emdash-env.d.ts` | 生成的集合类型（dev 启动时自动更新） |
 
 ## Rules
 
-- **Cloudflare 部署与远端操作必须使用 `wrangler-a` 账号环境**：`HOME=~/.wrangler-a npx wrangler ...` 或 `HOME=~/.wrangler-a npm run deploy`。
+- **Cloudflare 部署与远端操作一律走 `npm run deploy:cf` / `npm run demo:data:remote`**：账号目录由本地 `.env.deploy`（gitignored，模板 `.env.deploy.example`）的 `WRANGLER_HOME` 指定，脚本把它作为子进程 `HOME` 传给 wrangler。**仓库里不出现任何账号信息**（账号目录名、account id、token 都不进 git）——写提交的代码 / 文档时别把它们写死。
 - 所有内容页面服务端渲染（`output: "server"`）。CMS 内容**不要**用 `getStaticPaths()`。
 - **主题是运行期值**：默认主题注册在干净路径上，另一套在 `/_t/<theme>/…`，由 `src/middleware.ts` 用 `next(payload)` rewrite（**不能**用 `context.rewrite()`，它会重跑整条中间件链）。因此主题页面里取路径**一律用 `Astro.originPathname`**，不要用 `Astro.url.pathname`（会带上 `/_t/<theme>` 前缀，污染 canonical / JSON-LD / `isHome` / 导航高亮 / 语言切换链接）；`Astro.url.origin` 与 `Astro.url.searchParams` 不受影响。rewrite **不保留查询串**，中间件已显式拼上。
 - **前台客户端动效运行时放 `src/scripts/motion/`**（唯一导入者是 `src/components/MotionRuntime.astro`，用相对导入，不设别名）。`src/utils/` 只放主题无关数据层、`src/components/` 只放 Astro 共享组件，都不放浏览器 DOM 运行时。动效一律 **data 属性驱动 + document 级委托的单例运行时**（仿 `Lightbox.astro`）：组件里只加 `data-*`（`data-reveal[ data-reveal-stagger]` / `data-motion-disclosure` / `data-motion-panel` / `data-press` / `data-motion-lightbox` / `data-hover-lift`），命令式动画只写在 `src/scripts/motion/` 里。`<MotionRuntime />` 挂在两套 `layout/Base.astro`。
@@ -85,20 +96,20 @@ HOME=~/.wrangler-a npm run deploy # 构建并部署到 Cloudflare
 - **主题导航读的是 `theme.menuName`，不是 `primary`**：news-factory / pulse-news 各自读同名菜单（`src/themes/<t>/theme.config.ts`），`primary` 只是通用兜底、两套主题都不用它。所以改导航（含子菜单 `children`）必须改**对应主题**的菜单，改 `primary` 前台不会有任何变化。改完 seed 菜单要重跑 `npx emdash seed seed/seed.json`（菜单是「整段删除重建」，能生效），而 `astro dev` 不会自动重跑 seed。
 - Astro 路由缓存启用时，把查询返回的 `cacheHint` 传给 `Astro.cache.set()`；用 `*WithCacheHint` 变体。
 - 按月/周筛选：`where: { published_at: { gte, lt } }`（ISO 字符串，`lt` 为开区间）。
-- **沙箱插件改动后必须 `npm run plugin:build`**：沙箱 entry 内嵌的是**已构建的 `dist/*.mjs`**（读源码文本），指向 TS 会报错；插件 `exports` 需带 `default` 条件（`require.resolve` 解析）。
+- **插件改动后必须 `npm run plugin:build`**：`astro.config.mjs` 的 `plugins: []` 按 `descriptor.entrypoint`（如 `pulse-review/sandbox`）导入**已构建的 `dist/*.mjs`**；指向 TS 源码会报错，`exports` 需带 `default` 条件（`require.resolve` 解析）。
 - **插件通过 npm workspaces 管理**（根 `package.json` 的 `workspaces: ["plugins/*"]`）：根 `npm install` 会安装插件依赖并链接各插件。**不要**在插件目录单独 `npm install`（会被根安装当作 extraneous 清掉）。
 - **沙箱路由收不到 `Authorization` / `Cookie` / `X-EmDash-Request`**（宿主过滤，声明也会被拒）。Agent 凭证改用自定义头（本项目用 `X-Agent-Token`），并在路由 `request.headers` 显式声明。
 - **MCP 工具只能挂「私有 + POST + JSON」路由**：GET 路由或未声明 body 的路由无法作为 MCP 工具（构建期报错）。
 - **默认 JSON 路由一律 HTTP 200**（宿主包 `{success,data}`）。要真实状态码（如 401/429）需声明 `response: "raw"` 并返回 `pluginResponse({ status, headers, body: { kind: "text", value: JSON.stringify(...) } })`（`emdash/plugin`）。raw 路由**不能**作为 MCP 工具，响应头受白名单限制（`content-type`/`retry-after` 可用）。`pulse-agent` 公开路由即用此约定（400/401/404/409/429）。沙箱测试宿主会回传 `PluginResponse` 信封（`{__emdashPluginResponse,status,body}`），测试需解包。
 - 沙箱插件**没有** user/API token/byline 写能力（仅 `users:read`、`ctx.bylines` 只读）；需要建 user/token 只能走 trusted 代码（`UserRepository` 从 `emdash` 导出）。
 - **插件存储的 `uniqueIndexes` 是「整表」唯一索引**：声明后宿主建的是 `_plugin_storage(plugin_id, collection, json_extract(data,'$.field'))` 上的唯一索引，**覆盖该表所有行**。所以同一插件里**另一个集合复用同名字段就会互撞**（`pulse-subscriptions` 的 `events` 一度照抄 `subscribers` 的 `emailHash` → 同一订阅者第 2 条事件撞唯一约束 → `recordEvent` 吞异常 → 事件静默丢失）。跨集合复用的字段名要避开被声明为 unique 的字段。
-- **内存版测试宿主不校验索引 / 触发器**：唯一索引、字段规范化这类「只在真数据库生效」的约束，单测全绿也测不出来 —— 必须跑一次 `node scripts/seed-test-engagement.mjs` 或 dev 才能暴露。
+- **内存版测试宿主不校验索引 / 触发器**：唯一索引、字段规范化这类「只在真数据库生效」的约束，单测全绿也测不出来 —— 必须跑一次 `npm run demo:data` 或 dev 才能暴露。
 - `ctx.content.list` 的 `where.fieldFilters` **只支持 indexed 字段**；按字段筛选前需在 seed 里给该字段加 `"indexed": true` 并重建库。
 - **`ctx.content.update` 是 draft-aware**：集合支持 `revisions` 时改的是**草稿修订**，`ctx.content.get`/`list` 读的是**条目行**（要 `publish` 才更新）。审核类流程若只 `update`，队列会读到旧值 → 需用 `content:revisions:read` + `listRevisions` 读最新修订。
-- 本地沙箱 runner 用 `@emdash-cms/sandbox-workerd`（需 `workerd`），生产用 `@emdash-cms/cloudflare` 的 `sandbox()`。
+- **所有插件都在宿主进程内运行（`plugins: []`，不用 `sandboxed: []`）**：Cloudflare Workers 上唯一的沙箱后端是 Worker Loader（`LOADER` 绑定），需付费计划；免费计划下 `@emdash-cms/cloudflare` 的 `sandbox()` 读不到绑定会返回 `undefined`，沙箱插件会**静默全部不加载**（构建期只打一条 warn）。`sandbox: false` 这个本地逃生舱在 Workers 上被运行时显式禁用（emdash-runtime 抛错）。标准格式插件经 `adaptSandboxEntry` 在宿主进程内适配，`hooks` / `routes` / `storage`（含唯一索引）/ `adminPages` / `mcp.tools` / 能力门禁都保留，代价是失去 isolate 隔离。本地与生产走同一条路径，避免 dev/prod 分叉。
 - 调 REST API 时写请求需 `X-EmDash-Request: 1` 头（CSRF）；更新内容用 `PUT`；**PUT 只写 draft revision**，已发布文章需再 `POST /publish` 才生效。
 - **`select` 字段的选项必须写在 `validation.options`**，不是字段顶层 `options`：EmDash 只从 `validation.options` 读取（zod 写入校验、后台下拉选项、`emdash types` 生成的字面量联合类型都依赖它，见 `zod-generator.ts` 与 admin 序列化）。写错位置 → 后台下拉空白、校验退化为任意字符串、`emdash-env.d.ts` 退化成 `string`。
-- **改 `articles.article_type` 的枚举要三处同步**：seed 的 `validation.options`、`plugins/pulse-agent/src/plugin.ts` 的 `z.enum([...])`（投稿入参校验），然后 `npm run plugin:build`（沙箱 entry 内嵌已构建的 `dist/*.mjs`）。漏改会让 agent 投稿被 zod 拒绝。
+- **改 `articles.article_type` 的枚举要三处同步**：seed 的 `validation.options`、`plugins/pulse-agent/src/plugin.ts` 的 `z.enum([...])`（投稿入参校验），然后 `npm run plugin:build`（`plugins: []` 导入的是已构建的 `dist/*.mjs`）。漏改会让 agent 投稿被 zod 拒绝。
 - **改 seed 的字段定义不会同步到已建库**：`applySeed` 用 `onConflict: "skip"`，集合已存在时**整段跳过（含字段）**。改字段要么删库重建，要么手动更新 `_emdash_fields`（`validation` 列）。
 - **`where` 里的布尔字段必须传原生布尔值**：EmDash 把布尔字段存成 INTEGER（写入 0/1），loader 的 `bindableFilterValue` 会把 `true`/`false` 归一化成 `1`/`0`，所以运行时支持布尔过滤；但公共类型 `WhereValue` 只有 `string | string[] | WhereRange`，直接写 `where: { is_featured: true }` 会 ts(2322)。用 `@utils/query` 的 `whereClause({ is_featured: true })` 收窄。**别传字符串 `"true"`** —— SQLite 拿字符串去比 INTEGER 列，恒不命中。
 - **落库的图片字段是「无 `src`」的 `MediaValue`**：seed 的 `$media` 与媒体上传 API 落库后只剩 `{ provider, id, filename, mimeType, width, height, blurhash, dominantColor, alt, meta: { storageKey } }` —— **`src` 会被规范化掉**。公共文件路由 `/_emdash/api/media/file/{key}` **只认 storage key（带扩展名）**，传 `id`（媒体行 ULID）恒 404；`/_emdash/api/media/asset/{id}/{filename}` 那条是按 `id` 查的，但需登录（401），前台不可用。所以 `@utils/media` 的 `resolveMediaUrl` 必须**先看 `meta.storageKey` 再看 `id`**（顺序对齐 EmDash 的 `buildRenderMediaUrl`：storageKey → src → … → id）。漏了 storageKey 分支 → 灯箱大图 / 期号封面 / agent JSON 的 `image.url` 全是 404，而 `<Image>`（走 `meta.storageKey`）照常渲染，所以**只在点开灯箱或看 API 时才暴露**。

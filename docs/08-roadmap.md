@@ -151,9 +151,13 @@
 - [x] **性能：图片响应式 + LCP/CLS**：全站改用 `emdash/ui` 的 `<Image>`（`srcset` 640–3200w、`sizes` 按栅格给出、`width`/`height`、WebP、LQIP 占位），首屏图 `priority`；新增 `image.remotePatterns` 修复生产环境 srcset 退化为原图的问题。字体维持系统字体栈（无需子集，公开页 0 字体请求；产物里 944 KB 字体仅属后台编辑器 chunk）。详见 [04-frontend-themes.md §13](./04-frontend-themes.md)。
 - [x] 移动端 Lighthouse 实测：新增 `npm run perf`（Lighthouse + 运行期主题切换 + 阈值断言），两套主题 × 代表路由实测 LCP 1373–1607ms / CLS 0.000 / TBT 0ms / Perf 0.98–1.00。详见 [04-frontend-themes.md §13](./04-frontend-themes.md)。
 - [ ] 分析插件接入（可选）。
-- [ ] Cloudflare 资源：D1 + R2 + Workers AI；`wrangler.prod.jsonc` 配置。
-- [ ] `HOME=~/.wrangler-a npm run deploy` 部署；cron 生效。
-- [ ] 关闭 dev-bypass；配置 `EMDASH_SITE_URL=https://ai.suda.im`；备份 `EMDASH_ENCRYPTION_KEY`。
+- [x] **Cloudflare 资源配置模板 + 账户无关部署**：`wrangler.prod.jsonc`（account_id / database_id / routes / vars，gitignored）+ `.env.deploy`（`WRANGLER_HOME`，gitignored），模板 `.example` 提交；`npm run deploy:cf` 幂等跑通「whoami → 建 R2 桶 → 补 `EMDASH_ENCRYPTION_KEY` → `plugin:build` → CF 构建 → `wrangler deploy`」。详见 [10-phase0-report.md § Phase 5e](./10-phase0-report.md)。
+- [x] **全部插件 in-process**（`plugins: []`，弃用 `sandboxed`）：Workers 免费计划无 Worker Loader 绑定 → 沙箱插件静默全部不加载；标准格式经 `adaptSandboxEntry` 适配，hooks/routes/storage/adminPages/mcp.tools/能力门禁保留。详见 [02-architecture.md §9](./02-architecture.md)。
+- [x] **邮件传输接入 `emdash-plugin-resend@0.2.0`**（独占 `email:deliver`）：magic link / 订阅确认信依赖它，API key / From 在后台「Resend」页填写。
+- [x] **Demo 互动数据脚本** `scripts/demo-data.mjs`（`demo:data` / `:clean` / `:remote`）：评论 + 订阅者/分组/事件，本地 `node:sqlite` 与远端 D1 共用同一份 SQL。
+- [~] `npm run deploy:cf` 实际部署；cron 生效。**待 CF 账号/凭证**。
+- [ ] 关闭 dev-bypass；`EMDASH_SITE_URL` 已写进 `wrangler.prod.jsonc` 的 `vars`；**备份 `EMDASH_ENCRYPTION_KEY`**。
+- [ ] 首次部署后走 setup 向导（灌 seed + 注册管理员 passkey）。
 - [ ] 备份策略：`npx emdash site export` 定期导出。
 - [ ] 监控告警（observability）。
 - [x] **运营文档**：新增 [12-operations.md](./12-operations.md) —— 角色职责与红线、每日/周/月巡检清单、编辑流程 SOP（选题分发→跟稿→审稿→发布→更正）、Agent 投稿规范（字段约束、正文格式、图片、来源、禁则、审稿通过清单）、评论审核规范、订阅规范、异常处理速查、入口与 MCP 工具速查。
@@ -192,7 +196,7 @@ Phase0 ─▶ Phase1 ─▶ Phase2 ─▶ Phase3 ─▶ Phase4 ─▶ Phase5
 | R2 图片大/慢 | 体验差 | Astro 响应式 + 可选图片优化插件 + CDN 缓存 |
 | MCP 端点/scope 假设错误 | 集成返工 | 实施前 `search_docs` 核对 |
 | 插件授权变更需重批 | 升级摩擦 | 能力声明一次规划完整 |
-| Cloudflare 账号环境用错 | 部署错账号 | 严格 `HOME=~/.wrangler-a` |
+| Cloudflare 账号环境用错 | 部署错账号 | 账号目录由 `.env.deploy` 的 `WRANGLER_HOME` 提供（gitignored），脚本固定子进程 `HOME`；`wrangler.prod.jsonc` 显式钉住 `account_id` |
 
 ---
 

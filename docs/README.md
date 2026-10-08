@@ -30,7 +30,7 @@
 
 ## 当前进度
 
-- **Phase 0**：脚手架 ✅、Spike 1（月/周查询）✅、Spike 5（沙箱插件 + 发布门禁）✅；Spike 2/3/4/6 待外部凭证。
+- **Phase 0**：脚手架 ✅、Spike 1（月/周查询）✅、Spike 5（插件注册 + 发布门禁）✅、Spike 2（订阅）✅、Spike 3（Resend 插件已接入，真实发信待 API key）；Spike 4（CF Workers AI）/ Spike 6（R2）待 CF 账号。
 - **Phase 1**：内容模型 ✅、类型 ✅、搜索 ✅、本地媒体管线 ✅、角色/RBAC ✅、发布门禁 ✅、`audit-log` ✅；评论/订阅已由 Phase 3 的自研插件承担，Resend 待凭证。
 - **Phase 2**：报纸前台 ✅ —— 主题/布局/组件、头版、文章页、版块/标签/期号/静态页、月/周归档、搜索、RSS + JSON Feed；`npm run build` 通过。
 - **Phase 2b（双主题重构）**：前台重做为**两套可切换主题**（`news-factory` 报纸头版 / `pulse-news` 杂志式），构建期 `SITE_THEME` 二选一、`injectRoute` 注入 14 条人类路由；抽出**共享层**（`@shared` 组件 + `@utils` 数据层 + 令牌契约 `tokens.base.css`）与 **UI 文案 i18n**（`zh-CN` 默认 + `en`，cookie 运行期切换，内容不翻译）；内容模型扩展**播客 / 视频 / 热度**（`article_type` 加 `podcast`，新增 `audio_*` / `video_*` / `trending_rank`）；两套主题各 14 页全部实现，`typecheck:all` 两套 0 error、`build:*` 均通过。详见 [04-frontend-themes.md](./04-frontend-themes.md)。
@@ -45,6 +45,7 @@
 - **Phase 5b（性能）**：全站图片改用 `emdash/ui` 的 `<Image>`（`srcset` 640–3200w、按栅格给出 `sizes`、`width`/`height`、WebP、LQIP），首屏图 `priority` ✅；新增 `image.remotePatterns` 修复**生产环境** srcset 退化为原图 ✅；字体维持系统栈（公开页 0 字体请求）✅；顺带修 `seed-local-media.mjs`（PUT 覆盖导致图片进不了 live）与 dev watcher（`uploads/` 触发重启）。
 - **Phase 5c（运营文档）**：新增 [12-operations.md](./12-operations.md) —— 角色职责、每日/周/月巡检清单、编辑流程 SOP（选题→跟稿→审稿→发布→更正）、Agent 投稿规范（字段约束/正文/图片/来源/禁则/审稿清单）、评论与订阅规范、异常处理、权限红线与工具速查。
 - **Phase 5d（后台缺陷修复）**：① `select` 选项改到 `validation.options` —— 原先写在字段顶层，导致后台「稿件类型」下拉空白、写入校验退化为任意字符串、生成类型退化为 `string`（影响 6 个字段）✅；② `@emdash-cms/plugin-audit-log@0.2.3` 的 `/history` 页 Block Kit 字段名打补丁（camelCase → snake_case），修掉整页 502 `INVALID_BLOCK_RESPONSE`，由根 `postinstall` 固化 ✅。
+- **Phase 5e（上线准备）**：① **账户无关部署** `npm run deploy:cf`（`scripts/deploy-cf.mjs` + `scripts/lib/cf.mjs`）—— 账号目录 / account id 全落在 gitignored 的 `.env.deploy` 与 `wrangler.prod.jsonc`（模板 `.example` 提交），流程为 whoami 自检 → 幂等建 R2 桶 → 缺 `EMDASH_ENCRYPTION_KEY` 时写入 secret → `plugin:build` → CF 构建 → `wrangler deploy` ✅；② **Demo 互动数据** `scripts/demo-data.mjs`（`demo:data` / `:clean` / `:remote`，取代 `seed-test-engagement.mjs`）—— 评论 + 订阅者/分组/事件，本地 `node:sqlite` 与远端 D1 共用同一份 SQL ✅；③ **全部插件改为 in-process**（`plugins: []`，弃用 `sandboxed`）—— Workers 免费计划没有 Worker Loader 绑定，沙箱插件会静默全部不加载 ✅；④ **接入 `emdash-plugin-resend@0.2.0`**（独占 `email:deliver`，magic link / 订阅确认信依赖它）✅。
 - 详见 [10-phase0-report.md](./10-phase0-report.md) 与 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)（含每阶段关键发现与踩坑）。
 
 ---
@@ -111,6 +112,6 @@ Reader agent ──MCP/HTTP JSON──▶ Agent Read API ─┘
 
 ## 约定
 
-- **Cloudflare 部署/远端操作统一用 `HOME=~/.wrangler-a`**。
+- **Cloudflare 部署/远端操作统一走 `npm run deploy:cf` / `npm run demo:data:remote`**：账号目录由本地 `.env.deploy`（gitignored，模板 `.env.deploy.example`）的 `WRANGLER_HOME` 指定，脚本把它作为子进程 `HOME` 传给 wrangler。**仓库里不出现任何账号信息**（账号目录名、account id、token 都不进 git）。
 - 内容页面全部服务端渲染（`output: "server"`），CMS 内容不用 `getStaticPaths()`。
 - 遵循 EmDash 已知约束（见 [02-architecture.md §7](./02-architecture.md#7-核心约束与陷阱)）。

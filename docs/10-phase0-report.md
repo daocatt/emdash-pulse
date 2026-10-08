@@ -13,7 +13,7 @@
 | **Spike 1** | 按月/周范围查询（`where.published_at` gte/lt） | ✅ **通过** |
 | **Spike 5** | 沙箱插件注册（`pulse-review`）+ 发布门禁策略 | ✅ **通过** |
 | Spike 2 | ~~`bulletin` 订阅~~ → 自研 `pulse-subscriptions`（D4 修订） | ✅ 本地双确认/退订端到端；真实发信待 Resend |
-| Spike 3 | Resend 传输插件 | ⏳ 待凭证 |
+| Spike 3 | Resend 传输插件（`emdash-plugin-resend@0.2.0`，独占 `email:deliver`） | ✅ 插件已接入（Phase 5e）；真实发信待后台填 API key |
 | Spike 4 | Cloudflare Workers AI 评论审核 | ⏳ 待 CF 账号/绑定 |
 | Spike 6 | R2 媒体上传/读取 | ⏳ 待 CF 账号（本地用 local storage，媒体管线已通） |
 | **Phase 2** | 报纸前台（主题/组件/页面/归档/搜索/Feed） | ✅ **完成**（见下） |
@@ -27,6 +27,7 @@
 | **Phase 5b** | 性能（全站响应式图片 + LCP/CLS；字体维持系统栈） | ✅ **完成**（见下） |
 | **Phase 5c** | 运营文档（[12-operations.md](./12-operations.md)：编辑流程 / 投稿规范 / 评论与订阅规范） | ✅ **完成** |
 | **Phase 5d** | 后台缺陷修复（select 选项位置 → 下拉空白；audit-log Block Kit → 502） | ✅ **完成**（见下） |
+| **Phase 5e** | 上线准备（账户无关部署 + Demo 互动数据 + 全部插件 in-process + Resend） | ✅ **完成**（见下） |
 
 ## Phase 1 结果（内容模型与后台）
 
@@ -286,6 +287,70 @@ node scripts/agent-e2e.mjs   # 需 dev server 运行中；BASE_URL 可覆盖
 4. **沙箱插件源码在 dev 启动时读入并被 Vite 缓存**（Vite 不监听 `node_modules`）→ 改完插件**必须重启 dev** 才生效；`emdash-env.d.ts` 同理，只在 dev 启动时重新生成。
 5. **schema 改动可以热生效**：改 `_emdash_fields` 后 `/_emdash/api/schema/...` 立即返回新值，无需重启。
 
+## Phase 5e 结果（上线准备：账户无关部署 + 全部插件 in-process + Resend）
+
+把「能本地跑」推进到「能部署上线」，同时把散落的账号相关配置收进 gitignored 文件，让仓库本身不含任何 Cloudflare 账号信息。
+
+### 1. 账户无关部署（`npm run deploy:cf`）
+
+| 文件 | 作用 |
+| --- | --- |
+| `scripts/lib/cf.mjs` | 部署上下文（读 `.env.deploy` / `wrangler.prod.jsonc`、展开 `~`、按 key 抓字符串值），并造一个固定 `HOME`（目标账号目录）+ 显式 `-c <config>` 的 wrangler 调用器；`deploy-cf` 与 `demo-data` 共用 |
+| `scripts/deploy-cf.mjs` | `npm run deploy:cf` 主流程 |
+| `.env.deploy.example` | 模板（`WRANGLER_HOME` 等），真实 `.env.deploy` gitignored |
+| `wrangler.prod.jsonc.example` | 模板（`account_id` / `database_id` / `routes` / `vars`），真实 `wrangler.prod.jsonc` gitignored |
+
+`npm run deploy:cf` 的流程（幂等，可反复跑）：
+
+```
+whoami 自检（失败仅警告）→ 建 R2 桶（已存在则跳过）→ 缺 EMDASH_ENCRYPTION_KEY 时从 .env 写入 secret
+→ npm run plugin:build → DEPLOY_TARGET=cloudflare astro build → wrangler deploy
+```
+
+开关：`--skip-build`（复用 dist 只部署）、`--no-secrets`、`--no-buckets`。
+
+**两个刻意的不对称**：
+- 建桶 / 写 secret **必须显式 `-c wrangler.prod.jsonc`** —— 否则 wrangler 可能被 `.wrangler/deploy/config.json` 重定向到 `dist/server/wrangler.json`。
+- 最后的 `wrangler deploy` **刻意不传 `-c`** —— adapter 已把产物配置写到 `dist/server/wrangler.json` 并由重定向文件指向它；传 `-c` 反而会去读 `main: ./src/worker.ts`（未构建的源码）。
+- 加密密钥**只在缺失时写入**：覆盖成新值会让已加密落库的插件设置再也解不开。
+
+**首次部署后仍需人工**：① 打开 `/_emdash/admin` 走 **setup 向导**（灌 seed 内容 + 注册管理员 passkey）——超级管理员**无法用配置/env 预指定**，首个用户由向导的 WebAuthn 注册写入；② 后台「Resend」页填 API key / From（否则 magic link 503）；③ `npm run demo:data:remote` 灌 Demo 互动数据。
+
+### 2. Demo 互动数据（`scripts/demo-data.mjs`，取代 `scripts/seed-test-engagement.mjs`）
+
+seed 只覆盖**内容**（`SeedFile` 类型内的集合/分类/菜单/文章/期号/页面/媒体），评论与订阅者/分组/事件都不在其内 → 单独脚本负责：
+
+| 数据 | 落点 |
+| --- | --- |
+| 评论（含嵌套回复） | 核心表 `_emdash_comments`（`content_id` 用文章 ULID） |
+| 订阅者 / 分组 / 事件 | `_plugin_storage`（`plugin_id = "pulse-subscriptions"`） |
+
+- 两种目标：`--target local`（默认，`node:sqlite` 直开 `data.db`，dev server 可保持运行）/ `--target remote`（`wrangler d1 execute --remote`，账号取自 `.env.deploy`）。
+- 三种模式：默认先清后灌（幂等）/ `--clean` 只清 / `--keep` 只灌；另有 `--dry-run` 只打印 SQL。
+- 本地与远端**共用同一份 SQL 文本**（远端写临时 `.sql` 交给 `--file`），避免转义 / 语义分叉。
+- 清理标记：评论按 `author_email LIKE '%@test.suda.im'`、订阅者按 `data.email LIKE ...`、分组只清脚本声明的 slug、事件整集合清空。
+- 覆盖后台各态：`confirmed` / `pending`（含 `pendingEmail` 未投递快照）/ `paused`（后台主动暂停）/ `unsubscribed`（带原因），分组含一个停用的。
+
+### 3. 全部插件改为 in-process（`plugins: []`，弃用 `sandboxed`）
+
+Cloudflare Workers 上唯一的沙箱后端是 **Worker Loader**（`LOADER` 绑定），需要 Workers **付费计划**；免费计划下 `@emdash-cms/cloudflare` 的 `sandbox()` 读不到绑定会返回 `undefined` → **沙箱插件全部静默不加载**（构建期只打一条 warn）。本地逃生舱 `sandbox: false` 在 Workers 上被运行时**显式禁用**（emdash-runtime 抛错）。
+
+因此把全部自研插件（`pulse-review` / `pulse-editorial` / `pulse-agent` / `pulse-subscriptions` / `pulse-theme`）、`@emdash-cms/plugin-audit-log`、`pulse-seo` 与 `emdash-plugin-resend` 都放进 `plugins: []`，经 `adaptSandboxEntry` 在宿主进程内适配：`hooks` / `routes` / `storage`（含唯一索引）/ `adminPages` / `mcp.tools` / 能力门禁全部保留，代价是失去 isolate 隔离（本项目插件全部自研，风险可控）。**本地与生产走同一条路径**，避免 dev/prod 分叉。
+
+### 4. 接入 `emdash-plugin-resend@0.2.0`
+
+独占 `email:deliver` 的邮件 provider。**没有它，生产环境的邮箱链接登录（magic link）会直接 503 `EMAIL_NOT_CONFIGURED`**，`pulse-subscriptions` 的确认/欢迎信也只能落 `pendingEmail`。API key 与 From 地址在后台「Resend」页填写（不是 env）。`package.json` 的 `overrides` 把它的 `emdash` 依赖钉到根版本，避免装出第二份 emdash。
+
+### Phase 5e 新增关键发现
+
+1. **Workers 免费计划的沙箱后端不可用** → 所有插件必须 in-process；`sandboxed: []` 在免费计划上表现为「插件全静默不加载」（只有一条构建期 warn），症状极易误判为「代码没写对」。
+2. **`wrangler deploy` 与建桶/写 secret 的 `-c` 用法相反**：deploy 靠 adapter 产物 + `.wrangler/deploy/config.json` 重定向自动找配置，显式 `-c` 会指回未构建的源码；其余子命令必须显式 `-c` 才不会同样被重定向。
+3. **`EMDASH_ENCRYPTION_KEY` 只能补、不能换**：脚本只在 Worker 侧缺失时写入，换值会使已加密落库的插件设置永久无法解密 → 必须备份。
+4. **超级管理员只能由 setup 向导创建**：无法用配置 / env 预指定，首个用户由向导的 WebAuthn 注册写入（`role: ADMIN`）。所以「部署完成」≠「站点可用」，首次部署后必须人工走一遍向导。
+5. **Demo 互动数据与 seed 是两套机制**：seed 走 `applySeed`（集合/字段/内容），评论与插件存储不在其类型内 → 需要直接写 `_emdash_comments` / `_plugin_storage` 的脚本，且要按标记幂等清理。
+
+**验证**：`npm run typecheck:all` 两套主题各 0 error；`npm run plugin:test` 全绿（review 40 + agent 36 + editorial 9 + subscriptions 55 + seo 4 + theme 5 = **149**）；`npm run build:news-factory` 通过（in-process 插件注册 + resend 接入无回归）。实际 `npm run deploy:cf` 与 setup 向导待 CF 账号。
+
 ## Phase 3 结果（评论与邮件订阅）
 
 | 项 | 状态 | 证据 |
@@ -394,11 +459,11 @@ emdashConfig = {
 ## 环境
 
 - Node v24.11.1（建议 24.15+），npm 11.7.0
-- Astro 7.3.5 · EmDash 1.1.0
+- Astro 7.3.5 · EmDash 1.2.0 · emdash-plugin-resend 0.2.0
 - 本地：SQLite `data.db` + `./uploads`；后台 `/_emdash/admin`（首次重定向 `/setup`）
 
 ## 待凭证/账号事项
 
-- **Resend**：需要 API Key 才能验证发信（Spike 2/3，以及 Phase 3 订阅确认/欢迎邮件）。
-- **Cloudflare**：需要账号 + `HOME=~/.wrangler-a` 登录，创建 D1/R2 并启用 Workers AI（Spike 4/6，以及 Phase 3 的 AI 评论审核）。
+- **Resend**：插件已接入（Phase 5e），还需 API Key / From 才能验证真实发信（Spike 3，以及 Phase 3 订阅确认/欢迎邮件）。
+- **Cloudflare**：需要账号（`wrangler login` 到本地某凭据目录，路径填进 `.env.deploy` 的 `WRANGLER_HOME`）创建 D1/R2 并启用 Workers AI，然后 `npm run deploy:cf`（Spike 4/6，以及 Phase 3 的 AI 评论审核）。
 - 反垃圾 / 评论通知插件（注册表安装）依赖 DoH 可达网络。

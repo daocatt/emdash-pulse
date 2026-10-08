@@ -40,14 +40,11 @@
 │  │ admin      │ │ api        │ │                                  │   │
 │  └────────────┘ └────────────┘ └──────────────────────────────────┘   │
 │  ┌──────────────────────────────────────────────────────────────────┐ │
-│  │ Plugin Runtime (sandboxed)                                       │ │
+│  │ Plugin Runtime (in-process，`plugins: []`)                        │ │
 │  │  pulse-agent(投稿/阅读) · pulse-review(策略/评论审核) ·          │ │
 │  │  pulse-editorial(选题分发) · pulse-subscriptions(订阅) ·          │ │
-│  │  audit-log(审计)                                                 │ │
-│  └──────────────────────────────────────────────────────────────────┘ │
-│  ┌──────────────────────────────────────────────────────────────────┐ │
-│  │ Trusted Plugin (in-process)                                      │ │
-│  │  pulse-seo(JSON-LD 结构化数据)                                    │ │
+│  │  pulse-theme(主题切换) · audit-log(审计) ·                        │ │
+│  │  pulse-seo(JSON-LD) · resend(邮件传输)                            │ │
 │  └──────────────────────────────────────────────────────────────────┘ │
 └───────┬───────────────────────────┬──────────────────────┬────────────┘
         │                           │                      │
@@ -120,24 +117,39 @@ npx emdash types     # 生成 emdash-env.d.ts
 ```
 
 ### 生产（Cloudflare）
+
+**仓库里不出现任何账号信息**：account id 在 gitignored 的 `wrangler.prod.jsonc`（模板 `wrangler.prod.jsonc.example`），账号目录在 gitignored 的 `.env.deploy`（模板 `.env.deploy.example`）。提交的 `wrangler.jsonc` 只保留绑定结构（`database_id` 为占位符），供本地工具读取。
+
 ```bash
-HOME=~/.wrangler-a npx wrangler login
-HOME=~/.wrangler-a npx wrangler d1 create suda-pulse-db
-HOME=~/.wrangler-a npx wrangler r2 bucket create suda-pulse-media
-# 填写 wrangler.prod.jsonc 的 database_id
-HOME=~/.wrangler-a npm run deploy
+# 一次性准备
+cp .env.deploy.example .env.deploy                    # 填 WRANGLER_HOME=<已 wrangler login 的账号目录>
+cp wrangler.prod.jsonc.example wrangler.prod.jsonc   # 填 account_id
+npx wrangler d1 create suda-pulse-db                  # 记下 database_id 填进 wrangler.prod.jsonc
+
+# 部署（幂等：建 R2 桶 → 写密钥 → 构建 → deploy）
+npm run deploy:cf
 ```
 
-`wrangler.jsonc` 关键绑定：
+`npm run deploy:cf` 的流程：校验 `WRANGLER_HOME` / `wrangler.prod.jsonc` → `whoami` 自检 → 幂等创建 `suda-pulse-media` R2 桶 → 缺 `EMDASH_ENCRYPTION_KEY` 时从 `.env` 写入 secret → `npm run plugin:build` → `DEPLOY_TARGET=cloudflare astro build` → `wrangler deploy`。
+
+**首次部署后**：
+1. 打开 `https://ai.suda.im/_emdash/admin`，走一次 **setup 向导**（站点信息 → 管理员邮箱/姓名 → **注册 passkey**）。向导会把 `seed/seed.json` 的内容（含媒体）灌入库。**超级管理员无法用配置 / env 预指定** —— 首个用户由向导的 WebAuthn 注册写入（`role: ADMIN`）。
+2. 后台「Resend」页填 API key 与 From 地址 —— 否则邮箱链接登录（magic link）会 503 `EMAIL_NOT_CONFIGURED`，订阅确认信也只能落 `pendingEmail`。
+3. `npm run demo:data:remote` 灌入 Demo 互动数据（评论 / 订阅者 / 分组 / 事件）；`npm run demo:data:remote -- --clean` 只清理。
+
+`wrangler.prod.jsonc` 关键绑定（gitignored）：
 ```jsonc
 {
   "name": "suda-pulse",
   "main": "./src/worker.ts",
   "compatibility_date": "2026-02-24",
   "compatibility_flags": ["nodejs_compat"],
-  "d1_databases": [{ "binding": "DB", "database_name": "suda-pulse-db", "database_id": "..." }],
+  "account_id": "…",
+  "routes": [{ "pattern": "ai.suda.im", "custom_domain": true }],
+  "d1_databases": [{ "binding": "DB", "database_name": "suda-pulse-db", "database_id": "…" }],
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "suda-pulse-media" }],
   "ai": { "binding": "AI" },              // Cloudflare Workers AI
+  "vars": { "EMDASH_SITE_URL": "https://ai.suda.im" },
   "triggers": { "crons": ["* * * * *"] }, // 定时发布
   "observability": { "enabled": true }
 }
@@ -146,8 +158,8 @@ HOME=~/.wrangler-a npm run deploy
 `src/worker.ts`：导出 EmDash handler + `createScheduledHandler()`（定时发布）；插件 cron 复用同一部署。
 
 ### 环境变量
-- `EMDASH_ENCRYPTION_KEY`：加密插件密钥（`npx emdash secret`），**必须备份**。
-- `EMDASH_SITE_URL=https://ai.suda.im`：影响 Passkey/CSRF/MCP 发现/sitemap。
+- `EMDASH_ENCRYPTION_KEY`：加密插件密钥（`npx emdash secret`），**必须备份**；`deploy:cf` 首次会从 `.env` 写入 Worker secret。
+- `EMDASH_SITE_URL=https://ai.suda.im`：影响 Passkey/CSRF/MCP 发现/sitemap（写进 `wrangler.prod.jsonc` 的 `vars`）。
 
 ## 7. 核心约束与陷阱
 
@@ -164,7 +176,7 @@ HOME=~/.wrangler-a npm run deploy
 11. **保留字段名**：`id`/`slug`/`status`/`author_id`/`*_at`/`version`/`terms`/`bylines` 等不可用作 field slug（清单见 `03-content-model.md` §14）。保留集合名：`content`/`media`/`users`/`revisions`/`taxonomies`/`options`/`audit_logs`/`reorder`/`relations`。
 12. **写 API 需 CSRF 头** `X-EmDash-Request: 1`；内容更新用 `PUT`（非 PATCH）。
 13. **PUT 只写 draft revision**：已发布条目改字段后需再 `POST /publish` 才生效到 live。
-14. **沙箱插件 entry 必须是已构建 JS**：先 `npm run plugin:build`；插件用 npm **workspaces** 管理，勿在插件目录单独 install。
+14. **插件 entry 必须是已构建 JS**：先 `npm run plugin:build`（`plugins: []` 按 `descriptor.entrypoint` 导入 `dist/*.mjs`）；插件用 npm **workspaces** 管理，勿在插件目录单独 install。
 15. **媒体读取被「使用索引」门控**：上传/写字段后若索引 stale，读回可能为 null；`POST /_emdash/api/admin/media-usage/repair {"scope":"all"}` 修复。
 16. **`$media` 与注册表安装依赖 Cloudflare DoH**（`cloudflare-dns.com`）：受限网络下会失败（媒体静默跳过 / `DID_RESOLUTION_FAILED`）。
 
@@ -197,7 +209,8 @@ suda-pulse/
 │   ├── pulse-review/         # 发布门禁 + 评论审核（规则 + AI）
 │   ├── pulse-editorial/      # 选题分发 + 投稿审核发布
 │   ├── pulse-subscriptions/  # 读者订阅（双确认 / 退订 / 订阅者管理）
-│   ├── pulse-seo/            # JSON-LD 结构化数据（可信 / in-process）
+│   ├── pulse-theme/          # 后台「前台主题」切换
+│   ├── pulse-seo/            # JSON-LD 结构化数据
 │   └── pulse-digest/         # 摘要邮件 cron（按需）
 ├── seed/seed.json
 └── docs/
@@ -205,23 +218,35 @@ suda-pulse/
 
 ## 9. 插件注册
 
-插件经 npm **workspaces** 链接，以包名（而非相对路径）导入；`sandboxed: []` 走 isolate，`plugins: []` 在宿主进程内执行。
+插件经 npm **workspaces** 链接，以包名（而非相对路径）导入。
+
+**全部插件都走 `plugins: []`（宿主进程内执行）**：标准格式插件由 EmDash 的 `adaptSandboxEntry` 适配，`hooks` / `routes` / `storage`（含唯一索引）/ `adminPages` / `mcp.tools` / 能力门禁都保留，代价是失去 isolate 隔离。
+
+为什么不用 `sandboxed: []`（沙箱）：
+- Cloudflare Workers 上唯一的沙箱后端是 **Worker Loader**（`LOADER` 绑定），需要 Workers 付费计划；免费计划下 `@emdash-cms/cloudflare` 的 `sandbox()` 读不到绑定会返回 `undefined`，沙箱插件会**静默全部不加载**（构建期只打一条 warn）。
+- `sandbox: false` 这个本地逃生舱在 Workers 上被运行时显式禁用（emdash-runtime 抛 `sandbox: false is not supported in Cloudflare Workers`）。
+- 本地与生产走同一条路径，避免 dev/prod 行为分叉。
 
 ```javascript
 import emdash, { local } from "emdash/astro";
 import { sqlite } from "emdash/db";
+import resend from "emdash-plugin-resend";
 import pulseAgent from "pulse-agent";
 import pulseReview from "pulse-review";
 import pulseEditorial from "pulse-editorial";
 import pulseSubscriptions from "pulse-subscriptions";
+import pulseTheme from "pulse-theme";
 import pulseSeo from "pulse-seo";
+import auditLog from "@emdash-cms/plugin-audit-log";
 
 emdash({
   database: sqlite({ url: "file:./data.db" }),
   storage: local({ directory: "./uploads", baseUrl: "/_emdash/api/media/file" }),
-  sandboxed: [pulseReview, pulseEditorial, pulseAgent, pulseSubscriptions, auditLog],
-  sandboxRunner: "@emdash-cms/sandbox-workerd/sandbox",
-  plugins: [pulseSeo], // 可信：每页渲染都跑的轻量 hook
+  plugins: [
+    pulseReview, pulseEditorial, pulseAgent, pulseSubscriptions, pulseTheme, auditLog,
+    pulseSeo,
+    resend(), // 独占 email:deliver 的邮件 provider（magic link + 订阅确认信）
+  ],
 });
 ```
 

@@ -2,10 +2,12 @@
 
 EmDash 插件分两类：
 
-- **沙箱插件（Sandboxed）**：独立运行时，仅能使用声明的能力，可从注册表安装。**优先**。
-- **原生插件（Native）**：与站点同进程，可用 React admin、Portable Text 渲染组件、注入 HTML。需部署，仅信任依赖。
+- **沙箱插件（Sandboxed）**：独立运行时（Workers 上需 Worker Loader 绑定 = 付费计划），仅能使用声明的能力，可从注册表安装。
+- **标准 / 原生插件（in-process）**：与站点同进程，经 `plugins: []` 加载；标准格式由 `adaptSandboxEntry` 适配，能力门禁照旧。
 
-> 原则：能用官方/社区插件就不自研；自研一律**沙箱**，除非确需 React admin / PT 组件 / 页面片段。
+> 原则：能用官方/社区插件就不自研；自研一律**标准格式**。
+>
+> **本项目实际选择**：全部插件都放 `plugins: []`（宿主进程内）。原因是 Cloudflare Workers 上唯一的沙箱后端 Worker Loader 需要付费计划 —— 免费计划下 `sandbox()` 返回 `undefined`，沙箱插件会静默全部不加载（详见 [02-architecture.md](./02-architecture.md) §9）。代价是失去 isolate 隔离；本项目插件全部自研，风险可控。
 
 ---
 
@@ -15,7 +17,7 @@ EmDash 插件分两类：
 
 | 需求 | 插件 | 来源 | 状态 | 说明 |
 | --- | --- | --- | :-: | --- |
-| **邮件传输** | `emdash-plugin-resend` | 官方 | ✅ **选定** | Resend，独占 `email:deliver` |
+| **邮件传输** | `emdash-plugin-resend@0.2.0` | 官方 npm | ✅ **已接入** | Resend，独占 `email:deliver`；后台「Resend」页填 API key / From。**缺它则 magic link 503、订阅确认信只落 `pendingEmail`** |
 | 邮件传输（备选） | `@msale.com/resend` / `@masonjames.com/emdash-smtp` / `@numoteq.com/forward-email` / `@cfreear.bsky.social/emdash-cf-email-sending` | 社区 | 备选 | 如需切换 |
 | **邮件订阅 / newsletter** | ~~`@meekmedia.bsky.social/bulletin`~~ → **自研 `pulse-subscriptions`** | 社区 → 自研 | 🔁 **D4 修订** | 需要自有订阅表与 Agent 订阅意向对齐；双确认 + 退订 + 订阅者管理，邮件发送抽象为「有 provider 就发，没有就落库待发」 |
 | **评论 AI 审核** | `@emdash-cms/plugin-ai-moderation` | 官方 | ✅ **选定** | Cloudflare Workers AI / Llama Guard |
@@ -149,14 +151,14 @@ pnpm run build
 
 - 从注册表安装会展示**声明的能力与 MCP 工具**，需管理员**逐项批准**。
 - 新增能力 / 路由转公开 / 新增 MCP 工具 → **需重新授权**。
-- 沙箱插件无环境变量、文件系统、其他插件存储、未声明主机的访问权。
+- **能力门禁在 in-process 下仍然生效**（`adaptSandboxEntry` 保留 `capabilities` 校验、路由头白名单、storage 隔离），但**不再有 isolate 级隔离**：插件与宿主同进程，理论上可触及环境变量 / 文件系统。本项目插件全部自研（见 §1 的选型说明），故风险可控。
 - 邮件类插件为独占传输，切换需重新配置并验证。
 
 ---
 
 ## 5.1 Phase 1 安装实测（本地）
 
-**官方插件（npm，沙箱描述符，直接加入 `sandboxed: []`）**
+**官方插件（npm，标准描述符，加入 `plugins: []`；Phase 5e 前曾用 `sandboxed: []`，见 §1）**
 
 | 插件 | 状态 | 说明 |
 | --- | :-: | --- |
@@ -185,7 +187,7 @@ audit-log 写入证据（建一篇草稿后 `_plugin_storage` 出现一条 `entr
 | `@peachfinthemes.com/comment-spam-protection` | ⏸️ 暂缓 | 注册表 `POST /_emdash/api/admin/plugins/registry/install` 返回 `DID_RESOLUTION_FAILED`（见下） |
 | `@lasymphonieagency.com/comment-notify` | ⏸️ 暂缓 | 同上；且依赖邮件传输（Resend） |
 | `@meekmedia.bsky.social/bulletin` | ❌ 不再需要 | 原 Spike 2 计划；**D4 修订**后改自研 `pulse-subscriptions` |
-| `@msale.com/resend` | ⏳ 待凭证 | Spike 3；`did:plc:53aijmlljtpzteewxptwa2xm` |
+| `@msale.com/resend` | ❌ 改用官方 | Spike 3 社区备选；实际接入官方 `emdash-plugin-resend@0.2.0`（npm，见 §2） |
 
 **注册表安装失败根因**：`emdash/src/registry/publisher-handle.ts` 的 `boundedFetch` 对非 `DIRECTORY_ORIGINS`（`plc.directory`、`cloudflare-dns.com`）的请求走 SSRF 校验（`resolveAndValidateExternalUrl`），其 DNS 解析用 **Cloudflare DoH**。本环境 `cloudflare-dns.com` 不可达（TLS 被断），故发布者校验失败。
 > 直接在 Node 用 `@atcute/identity-resolver` 的 `PlcDidDocumentResolver` 解析同一 DID **成功** —— 说明 `plc.directory` 可达，问题在 DoH 依赖。
@@ -197,7 +199,7 @@ audit-log 写入证据（建一篇草稿后 `_plugin_storage` 出现一条 `entr
 
 ## 5.2 Phase 4b 自研插件实测（本地）
 
-四个自研沙箱插件经 npm workspaces 链接，`npm run plugin:build`（`--workspaces`）与 `npm run plugin:test` 全绿。
+自研插件经 npm workspaces 链接（Phase 5e 起统一 in-process，见 §1），`npm run plugin:build`（`--workspaces`）与 `npm run plugin:test` 全绿。
 
 | 插件 | 路由数 | MCP 工具 | 测试 |
 | --- | :-: | :-: | :-: |
