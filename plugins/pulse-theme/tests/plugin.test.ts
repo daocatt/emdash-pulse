@@ -119,7 +119,7 @@ let user: Awaited<ReturnType<PluginRuntimeTestHost["fixtures"]["user"]>>;
 
 beforeAll(async () => {
 	host = await createPluginRuntimeTestHost();
-	user = await host.fixtures.user({ email: "editor@suda.im", role: "admin" });
+	user = await host.fixtures.user({ email: "dev@suda.im", role: "admin" });
 });
 
 afterAll(async () => {

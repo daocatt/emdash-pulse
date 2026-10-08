@@ -1600,7 +1600,7 @@
         "data": {
           "title": "联系我们",
           "content": [
-            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "编辑部邮箱：desk@suda.im。安全与勘误请注明稿件链接。" }] }
+            { "_type": "block", "style": "normal", "children": [{ "_type": "span", "text": "编辑部邮箱：dev@suda.im。安全与勘误请注明稿件链接。" }] }
           ]
         }
       }

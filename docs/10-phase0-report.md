@@ -329,7 +329,7 @@ seed 只覆盖**内容**（`SeedFile` 类型内的集合/分类/菜单/文章/�
 - 两种目标：`--target local`（默认，`node:sqlite` 直开 `data.db`，dev server 可保持运行）/ `--target remote`（`wrangler d1 execute --remote`，账号取自 `.env.deploy`）。
 - 三种模式：默认先清后灌（幂等）/ `--clean` 只清 / `--keep` 只灌；另有 `--dry-run` 只打印 SQL。
 - 本地与远端**共用同一份 SQL 文本**（远端写临时 `.sql` 交给 `--file`），避免转义 / 语义分叉。
-- 清理标记：评论按 `author_email LIKE '%@test.suda.im'`、订阅者按 `data.email LIKE ...`、分组只清脚本声明的 slug、事件整集合清空。
+- 清理标记：评论按 `author_email LIKE '%@dev.suda.im'`、订阅者按 `data.email LIKE ...`、分组只清脚本声明的 slug、事件整集合清空。
 - 覆盖后台各态：`confirmed` / `pending`（含 `pendingEmail` 未投递快照）/ `paused`（后台主动暂停）/ `unsubscribed`（带原因），分组含一个停用的。
 
 ### 3. 全部插件改为 in-process（`plugins: []`，弃用 `sandboxed`）

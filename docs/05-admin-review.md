@@ -37,7 +37,7 @@ EmDash 内置 5 角色：**Subscriber / Contributor / Author / Editor / Admin**�
 
 ### Phase 1 已落地（本地验证）
 - **管理员**：本地用官方 dev-bypass 创建（`/_emdash/api/setup/dev-bypass`，`Dev Admin`，role 50）。生产用 Passkey 完成 setup。
-- **角色邀请**：经 `POST /_emdash/api/auth/invite`（Admin only）创建，落库于 `auth_tokens`（`type=invite`，含 `email`/`role`/`hash`）。已建：`editor@suda.im`(40)、`reporter@suda.im`(30)、`contributor@suda.im`(20)、`muse@suda.im`(20)、`dots@suda.im`(20)。
+- **角色邀请**：经 `POST /_emdash/api/auth/invite`（Admin only）创建，落库于 `auth_tokens`（`type=invite`，含 `email`/`role`/`hash`）。已建：`editor@dev.suda.im`(40)、`reporter@dev.suda.im`(30)、`contributor@dev.suda.im`(20)、`muse@dev.suda.im`(20)、`dots@dev.suda.im`(20)。
   - 邀请的**完成**依赖 WebAuthn（Passkey）注册，需在浏览器打开邀请链接；无邮箱 provider 时接口返回"已发送"但不实际发信（Phase 3 接 Resend 后自动发信）。
 - **RBAC 边界验证**（临时改 `users.role` 实测，验后已还原为 50）：
 

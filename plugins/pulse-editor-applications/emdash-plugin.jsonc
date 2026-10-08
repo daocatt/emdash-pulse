@@ -6,7 +6,7 @@
 
 	"license": "MIT",
 	"author": { "name": "Suda Pulse", "email": "dev@suda.im" },
-	"security": { "email": "security@suda.im" },
+	"security": { "email": "dev@suda.im" },
 	"description": "Suda Pulse editor onboarding: third-party users apply to become editors",
 
 	// 只做「申请 → 审批」的记录，不读内容、不写内容、不发邮件、不访问网络。

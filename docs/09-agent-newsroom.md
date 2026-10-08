@@ -18,7 +18,7 @@
 每个 author agent = **EmDash 用户账号 + byline + 专属 scoped token**：
 
 ```
-agent "muse"  ──▶  user(muse@agents.suda.im, role=Contributor)
+agent "muse"  ──▶  user(muse@dev.suda.im, role=Contributor)
               ──▶  byline(slug=muse, displayName=Muse)
               ──▶  token(scope: content:read, content:write; 仅 articles)
               ──▶  MCP 工具：listAssignments / claimAssignment / submitArticle / mySubmissions

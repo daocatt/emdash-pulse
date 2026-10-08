@@ -51,12 +51,12 @@ describe("token / 邮箱标识", () => {
 });
 
 describe("邮件构建", () => {
-	const brand = { siteName: "Suda Pulse", replyTo: "reply@suda.im" };
+	const brand = { siteName: "Suda Pulse", replyTo: "dev@suda.im" };
 
 	it("确认邮件含确认链接与品牌", () => {
 		const msg = buildConfirmEmail({ to: "a@b.com", confirmUrl: "https://x.test/c?token=t1", ...brand });
 		expect(msg.to).toBe("a@b.com");
-		expect(msg.replyTo).toBe("reply@suda.im");
+		expect(msg.replyTo).toBe("dev@suda.im");
 		expect(msg.subject).toBe("确认订阅 Suda Pulse");
 		expect(msg.text).toContain("https://x.test/c?token=t1");
 		expect(msg.html).toContain("https://x.test/c?token=t1");

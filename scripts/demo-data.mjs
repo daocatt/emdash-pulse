@@ -51,7 +51,7 @@ import {
 // ---------- 常量 ----------
 
 /** demo 数据标记域名：清理与识别都靠它（评论邮件不对外展示，仅后台/清理用）。 */
-const DEMO_EMAIL_DOMAIN = "test.suda.im";
+const DEMO_EMAIL_DOMAIN = "dev.suda.im";
 const PLUGIN_ID = "pulse-subscriptions";
 const SUBSCRIBERS_COLLECTION = "subscribers";
 const GROUPS_COLLECTION = "groups";

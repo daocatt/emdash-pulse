@@ -6,7 +6,7 @@
 
 	"license": "MIT",
 	"author": { "name": "Suda Pulse", "email": "dev@suda.im" },
-	"security": { "email": "security@suda.im" },
+	"security": { "email": "dev@suda.im" },
 	"description": "Suda Pulse editorial review policy (publish gating + comment moderation)",
 
 	// Trust contract — what runtime APIs the plugin asks for.

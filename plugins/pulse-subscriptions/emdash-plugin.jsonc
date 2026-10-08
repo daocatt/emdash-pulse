@@ -6,7 +6,7 @@
 
 	"license": "MIT",
 	"author": { "name": "Suda Pulse", "email": "dev@suda.im" },
-	"security": { "email": "security@suda.im" },
+	"security": { "email": "dev@suda.im" },
 	"description": "Suda Pulse reader subscriptions: double opt-in, unsubscribe, subscriber list",
 
 	// Trust contract — what runtime APIs the plugin asks for.

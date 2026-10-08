@@ -6,7 +6,7 @@
 
 	"license": "MIT",
 	"author": { "name": "Suda Pulse", "email": "dev@suda.im" },
-	"security": { "email": "security@suda.im" },
+	"security": { "email": "dev@suda.im" },
 	"description": "Suda Pulse editorial desk: assignment distribution and submission review",
 
 	// 编辑侧：选题分发 + 投稿审核发布。持有 content:publish，Agent 侧插件不持有。

@@ -6,7 +6,7 @@
 
 	"license": "MIT",
 	"author": { "name": "Suda Pulse", "email": "dev@suda.im" },
-	"security": { "email": "security@suda.im" },
+	"security": { "email": "dev@suda.im" },
 	"description": "Suda Pulse front-end theme switcher: pick the active theme from the admin",
 
 	// Trust contract — 本插件只写自己的插件设置（`ctx.settings`），

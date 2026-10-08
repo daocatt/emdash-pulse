@@ -22,11 +22,11 @@ const ROLE = { Subscriber: 10, Contributor: 20, Author: 30, Editor: 40, Admin: 5
 
 /** 编辑室账号 → 角色 */
 const ACCOUNTS = [
-  { email: "editor@suda.im", role: ROLE.Editor, note: "人类编辑 / Editor agent" },
-  { email: "reporter@suda.im", role: ROLE.Author, note: "本报记者（强制审核）" },
-  { email: "contributor@suda.im", role: ROLE.Contributor, note: "外部投稿者" },
-  { email: "muse@suda.im", role: ROLE.Contributor, note: "Author agent: Muse" },
-  { email: "dots@suda.im", role: ROLE.Contributor, note: "Author agent: Dots" },
+  { email: "editor@dev.suda.im", role: ROLE.Editor, note: "人类编辑 / Editor agent" },
+  { email: "reporter@dev.suda.im", role: ROLE.Author, note: "本报记者（强制审核）" },
+  { email: "contributor@dev.suda.im", role: ROLE.Contributor, note: "外部投稿者" },
+  { email: "muse@dev.suda.im", role: ROLE.Contributor, note: "Author agent: Muse" },
+  { email: "dots@dev.suda.im", role: ROLE.Contributor, note: "Author agent: Dots" },
 ];
 
 async function authenticate() {
