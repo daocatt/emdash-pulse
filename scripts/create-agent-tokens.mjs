@@ -14,9 +14,14 @@
  * token 明文**只在创建响应里出现一次**；脚本会打印一次并提示立即转交/保存。
  * 重复运行会先撤销同名旧 token（幂等）。
  *
+ * ⚠ **仅本地 dev 便捷工具**：这里签发的 token 都挂在 Admin 名下。生产环境的第三方 editor
+ * 接入**不要**用本脚本 —— 走「用户成为 Editor + EmDash 原生 OAuth」（D22，见
+ * docs/13-editor-onboarding.md）：Editor 用户的 agent 用 OAuth 以**自己**的身份连 MCP，
+ * 审计归属正确、可单独撤销。本脚本只用于本地联调。
+ *
  * 用法（dev server 需运行）：
  *   node scripts/create-agent-tokens.mjs
- *   PULSE_BASE=https://ai.suda.im node scripts/create-agent-tokens.mjs   # 生产慎用
+ *   PULSE_BASE=https://ai.suda.im node scripts/create-agent-tokens.mjs   # 生产慎用（见上）
  */
 
 const BASE = (process.env.PULSE_BASE ?? "http://localhost:4321").replace(/\/$/, "");

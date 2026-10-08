@@ -167,10 +167,27 @@
 
 ---
 
+## Phase 6 · 第三方 Editor 接入（Editor Onboarding）
+
+**目标**：让站外的人/组织成为 editor，其 agent 凭 EmDash 原生 OAuth 自动继承编辑能力。详见 [13-editor-onboarding.md](./13-editor-onboarding.md)。
+
+- [x] **决策 D22**：Editor 是**用户级角色**；agent 只是该用户的 MCP 客户端，凭 OAuth 以该用户身份操作（token = scope ∩ 用户角色）。**不给 agent 单独类型**。
+- [x] **GitHub 登录**（`authProviders: [github()]`，与 passkey 并存）：`astro.config.mjs` 配置 + `deploy:cf` 支持写 `EMDASH_OAUTH_GITHUB_CLIENT_ID/_SECRET`（可选 secret，缺则跳过）。
+- [x] **申请页** `/editor/apply`（两套主题各一份 + `THEME_ROUTES` 注册 + 共享 `EditorApplyForm` + i18n）：SSR 门禁（未登录 → 引导登录；已是 Editor → 提示无需申请），表单客户端直连私有路由提交。
+- [x] **插件 `pulse-editor-applications`**（in-process）：`applications/submit` / `mine`（`content:read`）+ `list` / `approve` / `reject`（`plugins:manage`）+ Block Kit 后台队列 `/editor-applications` + 3 个 MCP 工具；storage `applications`（`uniqueIndexes: ["userId"]`）。单测 15 例。
+- [x] **批准只改申请状态**（插件无 user 写能力）→ 提示管理员到 Users 页把角色改为 Editor(40)。
+- [x] **运营 SOP**：[12-operations.md §3.6](./12-operations.md)（申请 → 审批 → 改角色 → 配 OAuth → 撤销）。
+- [ ] **运行时配置（部署后）**：GitHub OAuth app 回调；`allowed-domains` 邮箱域名白名单（`defaultRole=10`）——**必配**，否则 GitHub 登录等于对全网开放建号。
+- [ ] **端到端实测**：第三方 GitHub 登录 → 提交申请 → 后台批准 → 改角色 → agent OAuth 连 MCP → 调 `pulse-editorial__*`。
+
+**验收**：第三方用户可自助登录并申请；管理员在后台审批并改角色；该用户的 agent 经 OAuth 获得编辑能力且审计归属正确；可单独撤销。
+
+---
+
 ## 任务依赖
 
 ```
-Phase0 ─▶ Phase1 ─▶ Phase2 ─▶ Phase3 ─▶ Phase4 ─▶ Phase5
+Phase0 ─▶ Phase1 ─▶ Phase2 ─▶ Phase3 ─▶ Phase4 ─▶ Phase5 ─▶ Phase6
              │          │          │          │
              │          │          │          └─ 依赖 pulse-review(Phase1) + 内容模型
              │          │          └─ 规则/AI 审核 + pulse-subscriptions + 邮件传输（Resend 待凭证）
@@ -180,6 +197,7 @@ Phase0 ─▶ Phase1 ─▶ Phase2 ─▶ Phase3 ─▶ Phase4 ─▶ Phase5
 
 - Phase 0 的 spike 可并行推进。
 - Phase 4 的 agent 身份与 token 依赖 Phase 1 的用户体系。
+- Phase 6 依赖 Phase 1 的角色体系 + Phase 4 的 `pulse-editorial`（复用其 MCP 工具）。
 
 ---
 
@@ -210,3 +228,4 @@ Phase0 ─▶ Phase1 ─▶ Phase2 ─▶ Phase3 ─▶ Phase4 ─▶ Phase5
 | M3 互动闭环 | Phase 3 | 评论(规则+AI 审核) + 邮件订阅 ✅ |
 | M4 Agent 接入 | Phase 4 | Author/Editor/Reader agent 全链路可用 ✅（`scripts/agent-e2e.mjs` 22/22） |
 | M5 上线 | Phase 5 | CF 生产部署 + 备份监控 |
+| M6 开放接入 | Phase 6 | 第三方可自助登录申请成为 Editor，其 agent 经 OAuth 获得编辑能力 ✅（代码就绪；运行时配置待部署） |

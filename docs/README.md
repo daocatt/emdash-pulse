@@ -25,6 +25,7 @@
 | [10-phase0-report.md](./10-phase0-report.md) | **实施报告**：Spike 结论、Phase 1/2/3/4 进展、关键发现（含踩坑） |
 | [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md) | **Phase 3 报告**：评论审核（规则 + AI）与读者订阅（`pulse-subscriptions`） |
 | [12-operations.md](./12-operations.md) | **运营手册**：角色职责、巡检清单、编辑流程 SOP、Agent 投稿规范、评论/订阅规范、异常处理 |
+| [13-editor-onboarding.md](./13-editor-onboarding.md) | **第三方 Editor 接入**（已实现）：用户成为 editor + GitHub 登录 + EmDash OAuth；申请页 `/editor/apply` + `pulse-editor-applications` 后台审批队列 |
 
 ---
 
@@ -46,6 +47,7 @@
 - **Phase 5c（运营文档）**：新增 [12-operations.md](./12-operations.md) —— 角色职责、每日/周/月巡检清单、编辑流程 SOP（选题→跟稿→审稿→发布→更正）、Agent 投稿规范（字段约束/正文/图片/来源/禁则/审稿清单）、评论与订阅规范、异常处理、权限红线与工具速查。
 - **Phase 5d（后台缺陷修复）**：① `select` 选项改到 `validation.options` —— 原先写在字段顶层，导致后台「稿件类型」下拉空白、写入校验退化为任意字符串、生成类型退化为 `string`（影响 6 个字段）✅；② `@emdash-cms/plugin-audit-log@0.2.3` 的 `/history` 页 Block Kit 字段名打补丁（camelCase → snake_case），修掉整页 502 `INVALID_BLOCK_RESPONSE`，由根 `postinstall` 固化 ✅。
 - **Phase 5e（上线准备）**：① **账户无关部署** `npm run deploy:cf`（`scripts/deploy-cf.mjs` + `scripts/lib/cf.mjs`）—— 账号目录 / account id 全落在 gitignored 的 `.env.deploy` 与 `wrangler.prod.jsonc`（模板 `.example` 提交），流程为 whoami 自检 → 幂等建 R2 桶 → 缺 `EMDASH_ENCRYPTION_KEY` 时写入 secret → `plugin:build` → CF 构建 → `wrangler deploy` ✅；② **Demo 互动数据** `scripts/demo-data.mjs`（`demo:data` / `:clean` / `:remote`，取代 `seed-test-engagement.mjs`）—— 评论 + 订阅者/分组/事件，本地 `node:sqlite` 与远端 D1 共用同一份 SQL ✅；③ **全部插件改为 in-process**（`plugins: []`，弃用 `sandboxed`）—— Workers 免费计划没有 Worker Loader 绑定，沙箱插件会静默全部不加载 ✅；④ **接入 `emdash-plugin-resend@0.2.0`**（独占 `email:deliver`，magic link / 订阅确认信依赖它）✅。
+- **Phase 6（第三方 Editor 接入）** ✅：让站外的人/组织成为 editor、其 agent 自动获得编辑能力。方案 = **EmDash Editor 用户 + GitHub 登录（`authProviders: [github()]`）+ 原生 OAuth**（不自研 token）；自建部分 = 申请页 `/editor/apply`（两套主题）+ 插件 `pulse-editor-applications`（申请/审批 + Block Kit 后台队列 + 3 个 MCP 工具）；`deploy:cf` 支持写 GitHub OAuth secret；批准后管理员在 Users 页改角色为 Editor(40)。`plugin:test` / `typecheck:all` / 生产构建均通过。**运行时配置（GitHub OAuth app、邮箱域名白名单）与审批 SOP 见 [13-editor-onboarding.md](./13-editor-onboarding.md) §5 与 [12-operations.md](./12-operations.md) §3.6**。
 - 详见 [10-phase0-report.md](./10-phase0-report.md) 与 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)（含每阶段关键发现与踩坑）。
 
 ---
@@ -71,6 +73,7 @@ Reader agent ──MCP/HTTP JSON──▶ Agent Read API ─┘
 | 多用户 | EmDash 5 角色 RBAC + Passkey | 复用 + 配置 |
 | 内容审核 | 草稿 + `review_status` + `pulse-review` 发布策略 | 自研 |
 | **Author agent 投稿 / Editor agent 审核** | `pulse-editorial` + `pulse-agent` + 独立 agent 身份/token | 自研 |
+| **第三方 Editor 接入** | GitHub 登录（原生）+ 申请页 + `pulse-editor-applications` + 原生 OAuth | 复用 + 自研 |
 | **Agent 阅读 API** | MCP + HTTP JSON（`/agent/*`、JSON Feed、`llms.txt`） | 自研 |
 | **图片新闻** | `article_type`/`gallery` 字段 + 图集布局 + **R2** | 自研 + R2 |
 | 期号 | `editions` collection + `/editions/[slug]` | 自研 |
@@ -88,7 +91,7 @@ Reader agent ──MCP/HTTP JSON──▶ Agent Read API ─┘
 
 ---
 
-## 已确认决策（D1–D21）
+## 已确认决策（D1–D22）
 
 - **D4（修订）** 邮件订阅**自研 `pulse-subscriptions`**（原定社区 `bulletin`）；**D5** 传输用 Resend
 - **D11** Author（人类 + agent）稿件**强制审核**
@@ -98,6 +101,7 @@ Reader agent ──MCP/HTTP JSON──▶ Agent Read API ─┘
 - **D15/D18** 每个 author agent 独立身份 + scoped token，**自助注册 + 审批**
 - **D16** 选题分发用 **`assignments` collection**
 - **D17** Editor agent **AI 审核建议 + 人工/一键确认**（可配置全自动）
+- **D22** 第三方 editor 接入 = **EmDash Editor 用户 + OAuth**（**用户**成为 editor，其 agent 自动继承能力，**不给 agent 单独类型**）；**GitHub 登录** + 邮箱域名白名单；新用户默认 **Subscriber**；登录后**申请页 + 后台审批队列**，批准后管理员在 Users 页改角色。
 - 站点：Suda Pulse / ai.suda.im / Asia/Shanghai；部署 Cloudflare + D1 + R2 + Workers AI
 
 > 全部关键决策已确认，无剩余阻塞项。次要选择（分析/SEO 插件、限流阈值、月报）在对应 Phase 内决策。

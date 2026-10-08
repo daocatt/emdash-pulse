@@ -50,17 +50,23 @@ EmDash MCP Server
 | 通道 | token | 存哪 | 给谁 |
 | --- | --- | --- | --- |
 | 插件公开路由（HTTP + `X-Agent-Token`） | `sp_<slug>_<random>`（只存 SHA-256） | `pulse-agent` 插件存储 | Author agent（Muse/Dots…） |
-| 内置 MCP（Bearer `ec_pat_…`） | EmDash API token | `_emdash_api_tokens` | Editor agent / Reader agent / 自动化 |
+| 内置 MCP（Bearer） | **OAuth token**（D22，生产）或 EmDash API token `ec_pat_…`（dev / 自动化） | EmDash | Editor agent（**OAuth，绑 Editor 用户**）/ Reader agent / 自动化 |
 
 Author agent **不签发 EmDash token**：其 `sp_` token 走公开路由，投稿强制
 `pending_review`，路由再按 scope（`submit`/`claim`/`subscribe`）校验，**物理上无发布权**。
 （EmDash API token 只能挂在 Admin 名下，若发给 author 反而会带 `content:write` → 可发布。）
 
-MCP 侧令牌矩阵（`scripts/create-agent-tokens.mjs` 幂等生成）：
+**Editor agent 生产走 OAuth（D22）**：editor 是**用户级角色**，agent 只是该用户的一个 MCP
+客户端。第三方用 GitHub 登录 → 申请成为 editor → 管理员在 Users 页改角色为 Editor →
+agent 对 `/_emdash/api/mcp` 走 OAuth（授权码+PKCE 或 Device Grant）拿到
+「Editor 角色 ∩ scope」的 token。**不再给 editor 手工签发 Admin 名下的 `ec_pat_`**。
+详见 [13-editor-onboarding.md](./13-editor-onboarding.md)。
+
+MCP 侧 `ec_pat_` 令牌矩阵（`scripts/create-agent-tokens.mjs`，**仅本地 dev 便捷**；生产改走 OAuth）：
 
 | 名称 | scopes | 给谁 / 能做什么 |
 | --- | --- | --- |
-| `pulse-editor-agent` | `mcp:tools:pulse-editorial`、`content:read`、`content:write` | Editor agent：`pulse-editorial__*`（`reviewQueue` / `approveArticle`（即发布）/ `rejectArticle` / `requestArticleChanges` / `createAssignment` / `closeAssignment` / `listAssignments`） |
+| `pulse-editor-agent` | `mcp:tools:pulse-editorial`、`content:read`、`content:write` | 本地验证 `pulse-editorial__*`（`reviewQueue` / `approveArticle`（即发布）/ `rejectArticle` / `requestArticleChanges` / `createAssignment` / `closeAssignment` / `listAssignments`）；**生产用 OAuth 取代** |
 | `pulse-reader-agent` | `content:read` | Reader agent：内置只读工具（`content_list` / `search`）；公开 Agent Read API 无需 token |
 
 > 用 `mcp:tools:<pluginId>` 而非 `mcp:tools`：后者需 ADMIN 角色且等于放开全部插件；

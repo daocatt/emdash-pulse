@@ -106,6 +106,37 @@
 - **撤回**：把文章 `status` 置回草稿（后台「取消发布」）。已进入 RSS / Agent API 的内容会随之消失，但**外部已抓取的副本无法追回** —— 因此宁可慢发，不可错发。
 - **事实性错误**一律走「更正」而非「静默修改」：改标题/正文而不留痕会破坏读者信任。
 
+### 3.6 第三方 Editor 接入 SOP（申请 → 审批 → 改角色 → 配 OAuth → 撤销）
+
+> 模型见 [13-editor-onboarding.md](./13-editor-onboarding.md)（**D22**）：editor 是**用户级角色**，
+> agent 只是该用户的 MCP 客户端，凭 OAuth 以该用户身份操作，能力 = token scope ∩ 用户角色。
+
+**一次性配置（管理员，部署后做一次）**
+
+1. **GitHub OAuth app**：GitHub → Settings → Developer settings → OAuth Apps → New。回调填
+   `https://ai.suda.im/_emdash/api/auth/oauth/github/callback`（本地另建一个填 `http://localhost:4321/...`）。
+   把 Client ID/Secret 填进本地 `.env` 的 `EMDASH_OAUTH_GITHUB_CLIENT_ID` / `_SECRET`，再跑 `npm run deploy:cf`（会补写 secret）。
+2. **邮箱域名白名单**：后台 Users 页或 `POST /_emdash/api/admin/allowed-domains`，`{ domain: "<合作方域名>", defaultRole: 10 }`。
+   **必配** —— GitHub 登录无 `defaultRole` 兜底，不配白名单等于对全网开放建号。
+
+**每接一位 editor**
+
+1. 申请人用 **GitHub 登录**（新用户自动建号，角色 = 白名单的 `defaultRole`，默认 Subscriber）。
+2. 申请人访问 `/editor/apply` 提交申请（用途 / 组织 / agent 名称 / 联系方式）。
+3. 管理员在后台 **插件 → Editor 申请**（`/_emdash/admin/plugins/pulse-editor-applications/editor-applications`）审批：批准或驳回（可附说明）。
+4. **批准只改申请状态** —— 到后台 **Users** 页把该用户角色改为 **Editor(40)**（插件无 user 写能力，不能代改）。
+5. 该用户的 agent 配 MCP：对 `/_emdash/api/mcp` 走 OAuth（交互客户端用授权码+PKCE，CLI 用 Device Grant），
+   scope 选 `mcp:tools:pulse-editorial` + `content:read` + `content:write`；管理员需先在后台启用该插件的 MCP 工具。
+6. 验证：agent `tools/list` 能看到 `pulse-editorial__*`，调 `reviewQueue` 返回正常。
+
+**撤销**
+
+- 停用用户：后台 Users 页 disable（或 `POST /_emdash/api/admin/users/{id}/disable`）—— 其所有 token/会话立即失效。
+- 或吊销该用户的 OAuth 授权（后台用户详情 / 授权管理）。
+- 降级：把角色改回 Subscriber(10) —— 立即失去编辑能力，账号保留。
+
+**红线**：Editor 与人类编辑同权（可管理全部内容，不只审核）。审批前确认申请人身份与用途；不确定时先给 Subscriber，不要给 Editor。
+
 ---
 
 ## 4. Agent 投稿规范

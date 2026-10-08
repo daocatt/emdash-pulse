@@ -28,6 +28,7 @@
 | **Phase 5c** | 运营文档（[12-operations.md](./12-operations.md)：编辑流程 / 投稿规范 / 评论与订阅规范） | ✅ **完成** |
 | **Phase 5d** | 后台缺陷修复（select 选项位置 → 下拉空白；audit-log Block Kit → 502） | ✅ **完成**（见下） |
 | **Phase 5e** | 上线准备（账户无关部署 + Demo 互动数据 + 全部插件 in-process + Resend） | ✅ **完成**（见下） |
+| **Phase 6** | 第三方 Editor 接入（GitHub 登录 + 申请页 + `pulse-editor-applications` + 原生 OAuth） | ✅ **完成**（见下） |
 
 ## Phase 1 结果（内容模型与后台）
 
@@ -350,6 +351,29 @@ Cloudflare Workers 上唯一的沙箱后端是 **Worker Loader**（`LOADER` 绑�
 5. **Demo 互动数据与 seed 是两套机制**：seed 走 `applySeed`（集合/字段/内容），评论与插件存储不在其类型内 → 需要直接写 `_emdash_comments` / `_plugin_storage` 的脚本，且要按标记幂等清理。
 
 **验证**：`npm run typecheck:all` 两套主题各 0 error；`npm run plugin:test` 全绿（review 40 + agent 36 + editorial 9 + subscriptions 55 + seo 4 + theme 5 = **149**）；`npm run build:news-factory` 通过（in-process 插件注册 + resend 接入无回归）。实际 `npm run deploy:cf` 与 setup 向导待 CF 账号。
+> ⚠ **本阶段的验证缺口**：只跑了 build/typecheck/单测，**没跑生产 server** → 漏掉了 resend 的运行期不兼容（整站 500）。已在 Phase 6 发现并修复（见下「Phase 6 新增关键发现」第 7 条）。
+
+## Phase 6 结果（第三方 Editor 接入）
+
+| 项 | 状态 | 证据 |
+| --- | :-: | --- |
+| 决策 D22 | ✅ | 用户成为 editor + 原生 OAuth；`docs/13-editor-onboarding.md`、`docs/README.md` 决策表 |
+| GitHub 登录 | ✅ | `astro.config.mjs` 的 `authProviders: [github()]`（Node 与 CF 两个 config）；`deploy-cf.mjs` 多 key secret |
+| 新插件 `pulse-editor-applications` | ✅ | 5 路由 + Block Kit 后台队列 + 3 MCP 工具；15 用例 |
+| 申请页 `/editor/apply` | ✅ | `THEME_ROUTES` + 两套主题各一份 + `@shared/EditorApplyForm` + i18n |
+| 运营 SOP | ✅ | `docs/12-operations.md` §3.6 |
+
+**验证**：`npm run typecheck:all` 两套主题各 0 error；`npm run plugin:test` 全绿（review 40 + agent 36 + editorial 9 + subscriptions 55 + seo 4 + theme 5 + editor-applications 15 = **164**）；`npm run build:news-factory` 通过（新增主题路由 + 新插件注册无回归）；**生产产物实跑**（`PORT=4399 node dist/server/entry.mjs`）：`/`、`/editor/apply`、`/subscribe`、`/archive`、`/rss.xml` 全 200，`/editor/apply` 未登录时渲染登录门禁（回跳链接 `/_emdash/admin/login?redirect=%2Feditor%2Fapply`），匿名调 `applications/mine` 返回 401，日志 0 error。运行时配置（GitHub OAuth app 回调、`allowed-domains` 白名单）待部署后做。
+
+### Phase 6 新增关键发现
+
+1. **SSR 拿不到私有插件路由** —— `getPublicPluginApiRouteHandler`（`emdash/plugin-utils`）只派发 `public` 路由（读 `handlePublicPluginApiRoute`）。因此「读本人申请状态」只能由浏览器带会话 cookie 直连私有路由；页面 SSR 只做 `Astro.locals.user` 门禁（公开路由有软鉴权）。
+2. **私有路由的会话请求必须带 `X-EmDash-Request: 1`** —— `dispatchPluginApiRequest` 在 `!tokenScopes`（会话认证）时强制该 CSRF 头，否则 403 `CSRF_REJECTED`；`requireScope` 对会话请求（`tokenScopes === undefined`）直接放行（会话 = 隐式全 scope）。注意鉴权顺序：**先 `requirePerm`（匿名 → 401）再 CSRF 检查**，所以匿名请求看到的是 401 而非 403。
+3. **`content:read` 即「任意登录用户」** —— `@emdash-cms/auth` 的 `Permissions["content:read"] = Role.SUBSCRIBER`，正好用作申请路由的门槛；匿名会话在宿主鉴权阶段即 401。
+4. **JSON 插件路由响应是 `{success, data}` 信封** —— handler 的返回值落在 `data` 里，前端要解包（区别于 `response: "raw"` 路由的 `__emdashPluginResponse` 信封）。
+5. **`github()` provider 无 `defaultRole`** —— 只有 atproto 有该 option；新用户角色必须靠 `allowed-domains.defaultRole` 兜底 → 邮箱域名白名单是必配项。
+6. **登录回跳 URL 形态** —— `/_emdash/admin/login?redirect=<path>`（EmDash 认证中间件生成）。
+7. **`emdash-plugin-resend@0.2.0` 与 emdash 1.2.0 不兼容 → 生产整站 500**（**上线阻断级，Phase 5e 遗留**）：resend 的 sandbox 入口用 `definePlugin({ hooks, routes })` 不传 `id`（旧版 `emdash@^0.5.0` 写法），而 emdash 1.2.0 的 `definePlugin()` 要求 `id` → 产物里该入口**静态导入**，加载即抛错 → 任意路由 500（Node 与 Workers 同样中招）。`node -e "import('emdash-plugin-resend/sandbox')"` 可独立复现。**Phase 5e 只验证了 build/typecheck/单测，没跑生产 server，所以漏了**。修法：新增 `scripts/patch-resend.mjs`（`postinstall`，去掉 `definePlugin()` 包装 → `{ hooks, routes }` 直出），修复后全路由 200、0 error。教训：**涉及「插件在宿主进程内加载」的改动必须实跑一次生产 server**（build 通过 ≠ 运行正常）。
 
 ## Phase 3 结果（评论与邮件订阅）
 
