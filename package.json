@@ -15,7 +15,7 @@
     "plugins/pulse-theme"
   ],
   "scripts": {
-    "postinstall": "node scripts/patch-audit-log.mjs",
+    "postinstall": "node scripts/patch-audit-log.mjs && node scripts/patch-resend.mjs",
     "plugin:build": "npm run build --workspaces",
     "plugin:test": "npm run test --workspaces",
     "dev": "npm run plugin:build && astro dev",
