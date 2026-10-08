@@ -149,7 +149,12 @@ if (isCloudflare) {
 	const configPath = existsSync("wrangler.prod.jsonc") ? "wrangler.prod.jsonc" : "wrangler.jsonc";
 	adapter = cloudflare({ configPath });
 	emdashConfig = {
-		database: d1({ binding: "DB", session: "auto" }),
+		// `session: "auto"` 让读走 D1 附近的副本；`coalesce: true` 把同一事件循环
+		// 里的并发读合并成更少的 D1 往返（首页用 `Promise.all` 一次发 9+ 个查询，
+		// 每个往返都有网络延迟）。coalesce 要求 session 非 "disabled"。
+		// 注意：若改用 Targeted Placement 把 Worker 钉在 D1 primary 附近，官方建议
+		// 反过来把 session 设回 "disabled"（两者不可兼得，见 docs/14）。
+		database: d1({ binding: "DB", session: "auto", coalesce: true }),
 		storage: r2({ binding: "MEDIA" }),
 		plugins,
 		authProviders,
