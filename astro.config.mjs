@@ -6,6 +6,7 @@ import { defineConfig } from "astro/config";
 import auditLog from "@emdash-cms/plugin-audit-log";
 import emdash, { local } from "emdash/astro";
 import { sqlite } from "emdash/db";
+import resend from "emdash-plugin-resend";
 import pulseAgent from "pulse-agent";
 import pulseEditorial from "pulse-editorial";
 import pulseReview from "pulse-review";
@@ -88,19 +89,36 @@ const isCloudflare =
 	Boolean(process.env.CF_PAGES) ||
 	Boolean(process.env.CLOUDFLARE);
 
-// 沙箱插件清单（本地与 Cloudflare 共用）
-const sandboxedPlugins = [
+// 插件一律在宿主进程内运行（`plugins: []`；标准格式插件由 emdash 的
+// `adaptSandboxEntry` 适配，保留 hooks / routes / storage（含唯一索引）/
+// adminPages / mcp.tools / 能力门禁）。
+//
+// 为什么不用沙箱（`sandboxed: []` + sandboxRunner）：
+// - Cloudflare Workers 上唯一的沙箱后端是 Worker Loader（`LOADER` 绑定），需要
+//   Workers 付费计划。免费计划下 `@emdash-cms/cloudflare` 的 `sandbox()` 读不到
+//   绑定会返回 `undefined`，沙箱插件全部静默不加载（订阅 / 审核 / 投稿 / 主题切换
+//   全失效，且构建期只打一条 warn）。
+// - `sandbox: false` 这个本地逃生舱在 Workers 上被运行时显式禁用（emdash-runtime
+//   抛 `sandbox: false is not supported in Cloudflare Workers`）。
+// - 本项目插件全部自研，同进程运行的唯一代价是失去 isolate 隔离。
+//
+// 本地与生产走同一条路径（都 in-process），避免 dev/prod 行为分叉。
+const plugins = [
 	pulseReview,
 	pulseEditorial,
 	pulseAgent,
 	pulseSubscriptions,
 	pulseTheme,
 	auditLog,
+	// pulse-seo 只贡献 head 元数据，放宿主进程内可避免每个公开页面渲染都起一次 isolate。
+	pulseSeo,
+	// emdash-plugin-resend 是独占 `email:deliver` 的邮件 provider：没有它，生产环境的
+	// 邮箱链接登录（magic link）会直接 503 `EMAIL_NOT_CONFIGURED`，`pulse-subscriptions`
+	// 的确认/欢迎信也只能落 `pendingEmail`。它只需要出网到 `api.resend.com`，同进程即可，
+	// 不必为一个 provider 起 isolate（唯一 active provider 会被自动选中，见
+	// resolveExclusiveHooks）。API key 与 From 地址在后台「Resend」页填写。
+	resend(),
 ];
-
-// 可信插件（in-process）。pulse-seo 只贡献 head 元数据，放宿主进程内可避免
-// 每个公开页面渲染都起一次 isolate。
-const trustedPlugins = [pulseSeo];
 
 let adapter = node({ mode: "standalone" });
 let emdashConfig = {
@@ -109,23 +127,18 @@ let emdashConfig = {
 		directory: "./uploads",
 		baseUrl: "/_emdash/api/media/file",
 	}),
-	// 沙箱插件：本地 Node 用 workerd runner，Cloudflare 用 CF 的 sandbox runner。
-	sandboxed: sandboxedPlugins,
-	sandboxRunner: "@emdash-cms/sandbox-workerd/sandbox",
-	plugins: trustedPlugins,
+	plugins,
 };
 
 if (isCloudflare) {
 	const { default: cloudflare } = await import("@astrojs/cloudflare");
-	const { d1, r2, sandbox } = await import("@emdash-cms/cloudflare");
+	const { d1, r2 } = await import("@emdash-cms/cloudflare");
 	const configPath = existsSync("wrangler.prod.jsonc") ? "wrangler.prod.jsonc" : "wrangler.jsonc";
 	adapter = cloudflare({ configPath });
 	emdashConfig = {
 		database: d1({ binding: "DB", session: "auto" }),
 		storage: r2({ binding: "MEDIA" }),
-		sandboxed: sandboxedPlugins,
-		sandboxRunner: sandbox(),
-		plugins: trustedPlugins,
+		plugins,
 	};
 }
 

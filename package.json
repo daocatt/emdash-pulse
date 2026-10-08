@@ -39,6 +39,7 @@
     "@emdash-cms/plugin-audit-log": "^0.2.3",
     "astro": "^7.3.2",
     "emdash": "^1.2.0",
+    "emdash-plugin-resend": "^0.2.0",
     "motion": "^12.43.0",
     "react": "19.2.4",
     "react-dom": "19.2.4"
@@ -49,5 +50,10 @@
     "chrome-launcher": "^1.2.2",
     "lighthouse": "^13.5.0",
     "wrangler": "^4.145.0"
+  },
+  "overrides": {
+    "emdash-plugin-resend": {
+      "emdash": "$emdash"
+    }
   }
 }
