@@ -1,0 +1,44 @@
+{
+	// 生产（Cloudflare）wrangler 配置模板。
+	//
+	// 用法：复制为 `wrangler.prod.jsonc` 并填入真实值。
+	// `wrangler.*.jsonc` 已被 .gitignore 忽略，**真实配置永不入库**；
+	// `astro.config.mjs` 在 `DEPLOY_TARGET=cloudflare` 时优先读 `wrangler.prod.jsonc`，
+	// 读不到才回退到占位版的 `wrangler.jsonc`。
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "suda-pulse",
+	"main": "./src/worker.ts",
+	"compatibility_date": "2026-02-24",
+	"compatibility_flags": ["nodejs_compat"],
+
+	// 显式钉住账号：不写时 wrangler 可能把 API 请求打到错误的 account id
+	// （报 Authentication error 10000）。account_id 不是密钥，但本项目连它也不入库。
+	"account_id": "REPLACE_WITH_YOUR_ACCOUNT_ID",
+
+	// 自定义域。需要该 zone 已在同一账号下托管；换成临时验证时先注释掉，
+	// 用 `suda-pulse.<subdomain>.workers.dev` 访问。
+	"routes": [{ "pattern": "ai.suda.im", "custom_domain": true }],
+
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "suda-pulse-db",
+			"database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+		}
+	],
+	"r2_buckets": [{ "binding": "MEDIA", "bucket_name": "suda-pulse-media" }],
+	"ai": { "binding": "AI" },
+
+	// 生产站点 URL：影响 Passkey / CSRF / MCP 发现 / sitemap / JSON-LD。
+	// **必填** —— 生产环境跑 setup 向导时缺它直接 500 SITE_URL_REQUIRED。
+	"vars": {
+		"EMDASH_SITE_URL": "https://ai.suda.im"
+	},
+
+	"triggers": {
+		"crons": ["* * * * *"]
+	},
+	"observability": {
+		"enabled": true
+	}
+}
