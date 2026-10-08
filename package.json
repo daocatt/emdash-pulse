@@ -23,12 +23,10 @@
     "build": "npm run plugin:build && astro build",
     "build:news-factory": "npm run plugin:build && SITE_THEME=news-factory astro build",
     "build:pulse-news": "npm run plugin:build && SITE_THEME=pulse-news astro build",
-    "build:cf": "npm run plugin:build && DEPLOY_TARGET=cloudflare astro build",
-    "deploy": "npm run plugin:build && DEPLOY_TARGET=cloudflare astro build && wrangler deploy",
-    "deploy:cf": "node scripts/deploy-cf.mjs",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down",
     "demo:data": "node --disable-warning=ExperimentalWarning scripts/demo-data.mjs",
     "demo:data:clean": "node --disable-warning=ExperimentalWarning scripts/demo-data.mjs --clean",
-    "demo:data:remote": "node --disable-warning=ExperimentalWarning scripts/demo-data.mjs --target remote",
     "preview": "astro preview",
     "start": "node ./dist/server/entry.mjs",
     "perf": "node --disable-warning=ExperimentalWarning scripts/perf.mjs",
@@ -36,16 +34,18 @@
     "typecheck:all": "SITE_THEME=news-factory astro check && SITE_THEME=pulse-news astro check"
   },
   "dependencies": {
-    "@astrojs/cloudflare": "^14.3.3",
     "@astrojs/node": "^11.1.5",
     "@astrojs/react": "^6.0.5",
-    "@emdash-cms/cloudflare": "^1.2.0",
+    "@aws-sdk/client-s3": "^3.700.0",
+    "@aws-sdk/s3-request-presigner": "^3.700.0",
     "@emdash-cms/plugin-ai-moderation": "^0.2.2",
     "@emdash-cms/plugin-audit-log": "^0.2.3",
     "astro": "^7.3.2",
     "emdash": "^1.2.0",
     "emdash-plugin-resend": "^0.2.0",
+    "ioredis": "^5.4.2",
     "motion": "^12.43.0",
+    "pg": "^8.13.0",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
@@ -53,8 +53,7 @@
     "@astrojs/check": "^0.9.10",
     "@emdash-cms/sandbox-workerd": "^0.9.3",
     "chrome-launcher": "^1.2.2",
-    "lighthouse": "^13.5.0",
-    "wrangler": "^4.145.0"
+    "lighthouse": "^13.5.0"
   },
   "overrides": {
     "emdash-plugin-resend": {

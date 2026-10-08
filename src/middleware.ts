@@ -90,10 +90,9 @@ function withStatus(response: Response, status: number): Response {
 /**
  * 必须显式 `private, no-store` 的路径。
  *
- * 启用 Workers Cache（`astro.config.mjs` 的 `cache` provider + `routeRules`）后，
- * **没有 `Cache-Control` 的 200 响应会被 Cloudflare 按启发式规则缓存 2 小时**。
- * 以下页面依赖会话 / token / 查询串，且都不调用 `Astro.cache.set`（不参与路由缓存），
- * 必须显式关掉共享缓存 —— 否则「未登录」提示会被缓存并发给已登录用户、确认/退订页
+ * 这些页面依赖会话 / token / 查询串，绝不能进任何共享缓存 —— 宿主反向代理
+ * （Caddy / nginx）或 CDN 会按启发式规则缓存没有 `Cache-Control` 的 200 响应。
+ * 显式关掉共享缓存，否则「未登录」提示会被缓存并发给已登录用户、确认/退订页
  * 会带着过期状态被反复命中。
  */
 const NO_STORE_PREFIXES = ["/search", "/subscribe", "/editor", "/spike"];
@@ -106,7 +105,7 @@ function needsNoStore(pathname: string): boolean {
 	);
 }
 
-/** 按需给响应加 `private, no-store`（其余路径不动，交给 `routeRules` 或 EmDash 自身的头）。 */
+/** 按需给响应加 `private, no-store`（其余路径不动，交给 EmDash 自身或反代的缓存策略）。 */
 function finalize(response: Response, pathname: string): Response {
 	if (needsNoStore(pathname)) response.headers.set("Cache-Control", "private, no-store");
 	return response;

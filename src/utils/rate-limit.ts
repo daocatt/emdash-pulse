@@ -2,8 +2,8 @@
  * 轻量限流（Agent Read API 公开端点用）。
  *
  * 实现为模块级滑动窗口计数：进程内、按 key（通常为 IP）。这是**尽力而为**的
- * 限流 —— 在 Cloudflare Workers 上每个 isolate 各持一份计数，无法全局精确。
- * 生产环境如需精确配额，应替换为 KV / Durable Object 或 Cloudflare Rate Limiting。
+ * 限流 —— 单实例部署下即全局计数；水平扩展（多进程）时每个进程各持一份，
+ * 无法全局精确。需要跨实例精确配额时可换成 Redis（`REDIS_URL` 已就绪）。
  *
  * 预留 API key 升级路径：调用方可传 `key`（如 token 前缀）以获得独立配额。
  */
@@ -50,7 +50,7 @@ export function checkRateLimit(key: string, options: RateLimitOptions = {}): Rat
 	return { ok: true, remaining: limit - bucket.count, retryAfterSeconds: 0 };
 }
 
-/** 从请求头推断客户端标识（Cloudflare 用 `cf-connecting-ip`）。 */
+/** 从请求头推断客户端标识（反代下用 `x-forwarded-for`；保留 `cf-connecting-ip` 兼容）。 */
 export function clientKey(request: Request): string {
 	const headers = request.headers;
 	return (

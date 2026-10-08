@@ -1,0 +1,90 @@
+# Suda Pulse —— 三容器栈：pulse-app / pulse-db / pulse-redis
+#
+# TLS 由**宿主**上的反向代理终止（样例见 deploy/Caddyfile.example）；本栈只把
+# pulse-app 绑到回环地址，不直接暴露到公网。
+#
+# 准备：
+#   cp .env.example .env      # 填 POSTGRES_*、EMDASH_ENCRYPTION_KEY、（可选）S3_*
+#   npm run docker:up         # = docker compose up -d --build
+#
+# 说明：适配器「种类」在构建期决定（args），凭据一律运行期注入（environment）。
+# 这样镜像里不含任何连接串 / S3 key。
+
+services:
+  pulse-app:
+    build:
+      context: .
+      args:
+        # S3_ENDPOINT 非空 → 构建期选 s3()；为空 → local()（媒体落 ./data/uploads 卷）。
+        S3_ENDPOINT: ${S3_ENDPOINT:-}
+        # 本地存储时构建期需要它来启用图片优化（用 S3 时仅运行期需要）。
+        EMDASH_SITE_URL: ${EMDASH_SITE_URL:-}
+        SITE_THEME: ${SITE_THEME:-news-factory}
+    container_name: pulse-app
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # PostgreSQL：运行期连接池读标准 libpq 变量；DATABASE_URL 供 `emdash migrate`。
+      # 两者指向同一库（见 astro.config.mjs 的说明）。
+      DATABASE_URL: postgres://${POSTGRES_USER:-pulse}:${POSTGRES_PASSWORD:-pulse}@pulse-db:5432/${POSTGRES_DB:-pulse}
+      PGHOST: pulse-db
+      PGPORT: "5432"
+      PGDATABASE: ${POSTGRES_DB:-pulse}
+      PGUSER: ${POSTGRES_USER:-pulse}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-pulse}
+      # Redis：EmDash 对象缓存后端（src/server/redis-object-cache.ts）。
+      REDIS_URL: redis://pulse-redis:6379
+      # 反代终止 TLS：EmDash 需要公开 origin（canonical / Passkey / sitemap）。
+      EMDASH_SITE_URL: ${EMDASH_SITE_URL:-http://localhost:4321}
+      # 反代下取真实客户端 IP（限流 / 订阅按 IP 计数），否则会按代理 IP 计。
+      EMDASH_TRUSTED_PROXY_HEADERS: ${EMDASH_TRUSTED_PROXY_HEADERS:-x-forwarded-for}
+    ports:
+      # 只绑回环：TLS 由宿主 Caddy/nginx 终止后转发到这里。
+      - "127.0.0.1:4321:4321"
+    volumes:
+      # 本地媒体（local 存储）与会话（fsLite）都在 /app/data 下。
+      - pulse-data:/app/data
+    depends_on:
+      pulse-db:
+        condition: service_healthy
+      pulse-redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  pulse-db:
+    image: postgres:17-alpine
+    container_name: pulse-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pulse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pulse}
+      POSTGRES_DB: ${POSTGRES_DB:-pulse}
+    volumes:
+      - pulse-db-data:/var/lib/postgresql/data
+      # 首次初始化建扩展（pg_trgm，供自建搜索用）。
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pulse} -d ${POSTGRES_DB:-pulse}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  pulse-redis:
+    image: redis:7-alpine
+    container_name: pulse-redis
+    # 轻量持久化：RDB 快照（缓存丢得起，但重启后热起来更快）。
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "no"]
+    volumes:
+      - pulse-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pulse-data:
+  pulse-db-data:
+  pulse-redis-data:

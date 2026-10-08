@@ -2,23 +2,23 @@ node_modules
 dist
 .astro
 .emdash/
+
+# 运行期数据：本地媒体（local 存储）/ 会话（fsLite）/ 遗留的 SQLite 库
 uploads
+data/
 data.db*
 
 # Environment
 .env
 .env.*
 !.env.example
-# 部署配置模板（真实值放 .env.deploy，永不提交）
-!.env.deploy.example
 
 # Local tooling config
 .codebuddy/
 .wrangler/
 
-# Production Cloudflare config & private vars (never commit)
+# 遗留的 Cloudflare 本地配置（部署已迁到 VPS，保留忽略以免误提交真实账号信息）
 wrangler.prod.jsonc
 wrangler.*.jsonc
-!wrangler.jsonc
 .dev.vars
 .dev.vars.*

@@ -1,0 +1,18 @@
+# Suda Pulse —— 宿主反向代理 + 自动 HTTPS（Caddy 样例）
+#
+# 三容器栈只把 pulse-app 绑在 127.0.0.1:4321；TLS 在这里终止。
+# 用法：
+#   1. 在宿主装好 Caddy；
+#   2. 把下面站点块并入 /etc/caddy/Caddyfile（改域名）；
+#   3. `sudo caddy reload --config /etc/caddy/Caddyfile`。
+#
+# 若用 nginx，等价配置要点：
+#   proxy_set_header Host $host;
+#   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#   proxy_set_header X-Forwarded-Proto $scheme;
+# 并在 .env 里保持 EMDASH_TRUSTED_PROXY_HEADERS=x-forwarded-for。
+
+pulse.example.com {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:4321
+}

@@ -9,9 +9,8 @@
  *   node scripts/dev-invites.mjs
  *
  * 注意：EmDash 无「列出邀请」的公开 API，本脚本无法判重——重复运行会为同一邮箱
- * 新建邀请（旧的仍有效，直到过期）。如需清理：
- *   sqlite3 data.db "delete from auth_tokens where type='invite' and rowid not in
- *     (select max(rowid) from auth_tokens where type='invite' group by email);"
+ * 新建邀请（旧的仍有效，直到过期）。如需清理（PostgreSQL）：
+ *   psql "$DATABASE_URL" -c "delete from auth_tokens where type='invite';"
  */
 
 const BASE = process.env.PULSE_BASE ?? "http://localhost:4321";

@@ -9,10 +9,9 @@
  *   评论落在核心表 `_emdash_comments`，订阅者 / 分组 / 事件落在插件存储
  *   `_plugin_storage`（`plugin_id = "pulse-subscriptions"`）。
  *
- * 两种目标：
- * - `--target local`（默认）：直接开 `data.db`（`node:sqlite`），dev server 可保持运行；
- * - `--target remote`：走 `wrangler d1 execute --remote`，需要本地 `.env.deploy` 里的
- *   `WRANGLER_HOME`（账号目录刻意不进 git，见 scripts/lib/cf.mjs）。
+ * 目标数据库：**PostgreSQL**（本项目的唯一数据库，见 docs/16-vps-deployment.md）。
+ * 连接串取 `--database-url`，其次 `DATABASE_URL`，都没有时回退标准 libpq 变量
+ * （PGHOST / PGPORT / PGDATABASE / PGUSER / PGPASSWORD）。
  *
  * 三种模式：
  * - 默认：先按标记清理上一次的 demo 数据，再写入（幂等，可反复跑）；
@@ -20,33 +19,19 @@
  * - `--keep`：只写入，不清理（追加）。
  *
  * 清理标记：评论按 `author_email LIKE '%@<DEMO_EMAIL_DOMAIN>'`、订阅者按
- * `data.email LIKE '%@<DEMO_EMAIL_DOMAIN>'`；分组只清本脚本声明的 slug（后台可能
- * 手工建过别的分组）；事件按插件整集合清空（事件只由这些 demo 订阅者产生）。
- *
- * 本地与远端走**同一份 SQL 文本**（本地用 `node:sqlite` 执行、远端写临时 `.sql`
- * 交给 `wrangler d1 execute --file`），避免两条路径的转义 / 语义分叉。
+ * `data ->> 'email' LIKE '%@<DEMO_EMAIL_DOMAIN>'`；分组只清本脚本声明的 slug
+ * （后台可能手工建过别的分组）；事件按插件整集合清空（事件只由这些 demo 订阅者产生）。
  *
  * 用法：
- *   node scripts/demo-data.mjs                    # 本地：清 + 灌
- *   node scripts/demo-data.mjs --clean            # 本地：只清
- *   node scripts/demo-data.mjs --keep             # 本地：只灌
- *   node scripts/demo-data.mjs --target remote    # 远端：清 + 灌
- *   node scripts/demo-data.mjs --target remote --clean
+ *   node scripts/demo-data.mjs                    # 清 + 灌
+ *   node scripts/demo-data.mjs --clean            # 只清
+ *   node scripts/demo-data.mjs --keep             # 只灌
  *   node scripts/demo-data.mjs --dry-run          # 只打印将执行的 SQL
+ *   node scripts/demo-data.mjs --database-url postgres://…@host:5432/pulse
  */
 
 import { createHash, randomBytes } from "node:crypto";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
-import {
-	createWrangler,
-	loadCfContext,
-	MISSING_WRANGLER_HOME,
-	ROOT,
-	runCommand,
-} from "./lib/cf.mjs";
+import { Client } from "pg";
 
 // ---------- 常量 ----------
 
@@ -70,14 +55,10 @@ const argValue = (name, fallback) => {
 	return i >= 0 && argv[i + 1] ? argv[i + 1] : fallback;
 };
 
-const TARGET = argValue("--target", "local");
-const DB_PATH = argValue("--db", "data.db");
+/** 连接串优先级：`--database-url` → `DATABASE_URL` → 标准 libpq 变量（PG*）。 */
+const DATABASE_URL = argValue("--database-url", process.env.DATABASE_URL);
 const DRY_RUN = hasFlag("--dry-run");
 
-if (!["local", "remote"].includes(TARGET)) {
-	console.error(`未知 --target="${TARGET}"（可选：local / remote）`);
-	process.exit(1);
-}
 if (hasFlag("--clean") && hasFlag("--keep")) {
 	console.error("--clean 与 --keep 互斥：--clean 只清、--keep 只灌。");
 	process.exit(1);
@@ -399,7 +380,7 @@ function cleanStatements() {
 	const like = `%@${DEMO_EMAIL_DOMAIN}`;
 	return [
 		`DELETE FROM _emdash_comments WHERE author_email LIKE ${sqlStr(like)};`,
-		`DELETE FROM _plugin_storage WHERE plugin_id = ${sqlStr(PLUGIN_ID)} AND collection = ${sqlStr(SUBSCRIBERS_COLLECTION)} AND json_extract(data, '$.email') LIKE ${sqlStr(like)};`,
+		`DELETE FROM _plugin_storage WHERE plugin_id = ${sqlStr(PLUGIN_ID)} AND collection = ${sqlStr(SUBSCRIBERS_COLLECTION)} AND (data::jsonb ->> 'email') LIKE ${sqlStr(like)};`,
 		`DELETE FROM _plugin_storage WHERE plugin_id = ${sqlStr(PLUGIN_ID)} AND collection = ${sqlStr(GROUPS_COLLECTION)} AND id IN (${GROUPS.map((g) => sqlStr(g.slug)).join(", ")});`,
 		`DELETE FROM _plugin_storage WHERE plugin_id = ${sqlStr(PLUGIN_ID)} AND collection = ${sqlStr(EVENTS_COLLECTION)};`,
 	];
@@ -412,7 +393,7 @@ function countStatements() {
 		{ label: "评论", sql: `SELECT count(*) AS n FROM _emdash_comments WHERE author_email LIKE ${sqlStr(like)};` },
 		{
 			label: "订阅者",
-			sql: `SELECT count(*) AS n FROM _plugin_storage WHERE plugin_id = ${sqlStr(PLUGIN_ID)} AND collection = ${sqlStr(SUBSCRIBERS_COLLECTION)} AND json_extract(data, '$.email') LIKE ${sqlStr(like)};`,
+			sql: `SELECT count(*) AS n FROM _plugin_storage WHERE plugin_id = ${sqlStr(PLUGIN_ID)} AND collection = ${sqlStr(SUBSCRIBERS_COLLECTION)} AND (data::jsonb ->> 'email') LIKE ${sqlStr(like)};`,
 		},
 		{
 			label: "分组",
@@ -513,121 +494,81 @@ function insertStatements(idBySlug) {
 	return { statements, stats, skipped };
 }
 
-// ---------- 适配器 ----------
+// ---------- 适配器（PostgreSQL） ----------
 
-/** 本地：直接开 dev 用的 SQLite 文件。 */
-function localAdapter(dbPath) {
-	const resolved = path.isAbsolute(dbPath) ? dbPath : path.join(ROOT, dbPath);
-	if (!existsSync(resolved)) {
-		throw new Error(`找不到本地数据库 ${resolved}（先跑一次 \`npm run dev\` 建库）`);
-	}
-	const db = new DatabaseSync(resolved);
-	db.exec("PRAGMA busy_timeout = 5000;");
-	return {
-		label: `本地 ${path.relative(ROOT, resolved)}`,
-		queryBatch(sqls) {
-			return sqls.map((sql) => db.prepare(sql.replace(/;\s*$/, "")).all());
-		},
-		exec(sqlText) {
-			db.exec(sqlText);
-		},
-		close() {
-			db.close();
-		},
-	};
+/** 脱敏连接串里的口令，避免日志 / 报错外泄。 */
+function redact(url) {
+	return url.replace(/:\/\/([^:/@]+):[^@]*@/, "://$1:***@");
 }
 
-/** 解析 `wrangler d1 execute --json` 的输出（数组，逐语句一个 { results }）。 */
-function parseD1Json(stdout) {
-	const text = stdout.trim();
-	const parse = (s) => JSON.parse(s);
-	try {
-		return parse(text);
-	} catch {
-		const start = text.indexOf("[");
-		const end = text.lastIndexOf("]");
-		if (start < 0 || end < 0) {
-			throw new Error(`无法解析 wrangler --json 输出：\n${stdout}`);
-		}
-		return parse(text.slice(start, end + 1));
-	}
-}
-
-/** 远端：走 wrangler d1（`--remote`），账号取自 .env.deploy 的 WRANGLER_HOME。 */
-function remoteAdapter() {
-	const ctx = loadCfContext();
-	if (!ctx.wranglerHome) throw new Error(MISSING_WRANGLER_HOME);
-	if (!ctx.databaseName) {
-		throw new Error(`在 ${ctx.configName} 里找不到 database_name（或设 D1_DATABASE）。`);
-	}
-	const wrangler = createWrangler(ctx);
-	const dbName = ctx.databaseName;
-	const run = (args, options) => {
-		const result = runCommand(
-			ctx.wranglerBin,
-			[...(ctx.wranglerBin === "npx" ? ["wrangler"] : []), "-c", ctx.configName, ...args],
-			{ env: { HOME: ctx.wranglerHome }, ...options },
-		);
-		if (!result.ok) {
-			throw new Error(
-				`wrangler ${args.join(" ")} 失败（退出码 ${result.status}）\n${`${result.stderr}${result.stdout}`.trim()}`,
-			);
-		}
-		return result;
-	};
+/**
+ * 单个 PG 连接执行 demo SQL。
+ * - `queryBatch`：逐条执行 SELECT 并收集 `rows`（清理前计数 / 取已发布文章）；
+ * - `exec`：一次性执行多语句脚本（simple query 协议允许分号分隔）。
+ */
+function postgresAdapter() {
+	const client = new Client(DATABASE_URL ? { connectionString: DATABASE_URL } : {});
 	return {
-		label: `远端 D1 ${dbName}`,
-		queryBatch(sqls) {
-			const out = run(
-				["d1", "execute", dbName, "--remote", "--json", "-y", "--command", sqls.join(" ")],
-				{ capture: true },
-			);
-			return parseD1Json(out.stdout).map((entry) => entry.results ?? []);
-		},
-		exec(sqlText) {
-			const dir = mkdtempSync(path.join(tmpdir(), "suda-demo-"));
-			const file = path.join(dir, "demo.sql");
-			writeFileSync(file, sqlText, "utf8");
+		label: DATABASE_URL
+			? `PostgreSQL ${redact(DATABASE_URL)}`
+			: "PostgreSQL（libpq PG* 环境变量）",
+		async connect() {
 			try {
-				run(["d1", "execute", dbName, "--remote", "-y", "--file", file]);
-			} finally {
-				rmSync(dir, { recursive: true, force: true });
+				await client.connect();
+			} catch (error) {
+				throw new Error(
+					`无法连接 PostgreSQL：${error instanceof Error ? error.message : String(error)}\n` +
+						"请设置 DATABASE_URL（或 PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD）。",
+				);
 			}
 		},
-		close() {},
+		async queryBatch(sqls) {
+			const out = [];
+			for (const sql of sqls) out.push((await client.query(sql)).rows);
+			return out;
+		},
+		async exec(sqlText) {
+			await client.query(sqlText);
+		},
+		async close() {
+			await client.end();
+		},
 	};
 }
 
 // ---------- 主流程 ----------
 
 async function main() {
-	const adapter = TARGET === "remote" ? remoteAdapter() : localAdapter(DB_PATH);
+	const adapter = postgresAdapter();
+	await adapter.connect();
 	console.log(`目标：${adapter.label}｜模式：${MODE}${DRY_RUN ? "｜dry-run" : ""}`);
 
 	const counts = countStatements();
 
 	// 1) 清理（replace / clean）
 	if (MODE !== "inject") {
-		const before = adapter.queryBatch(counts.map((c) => c.sql)).map((rows) => rows[0]?.n ?? 0);
+		const before = (await adapter.queryBatch(counts.map((c) => c.sql))).map((rows) =>
+			Number(rows[0]?.n ?? 0),
+		);
 		const summary = counts
 			.map((c, i) => `${c.label} ${before[i]}`)
 			.join("，");
 		if (DRY_RUN) {
 			console.log(`\n-- 将清理：${summary}\n${cleanStatements().join("\n")}`);
 		} else {
-			adapter.exec(cleanStatements().join("\n"));
+			await adapter.exec(cleanStatements().join("\n"));
 			console.log(`清理旧 demo 数据：${summary}`);
 		}
 	}
 
 	if (MODE === "clean") {
 		console.log("\n仅清理，未写入。");
-		adapter.close();
+		await adapter.close();
 		return;
 	}
 
 	// 2) 取已发布文章，建立 slug → ULID 映射（评论的 content_id 用 ULID）
-	const published = adapter.queryBatch([PUBLISHED_ARTICLES_SQL])[0] ?? [];
+	const published = (await adapter.queryBatch([PUBLISHED_ARTICLES_SQL]))[0] ?? [];
 	const idBySlug = new Map(published.map((row) => [row.slug, row.id]));
 
 	const { statements, stats, skipped } = insertStatements(idBySlug);
@@ -637,12 +578,12 @@ async function main() {
 
 	if (DRY_RUN) {
 		console.log(`\n-- 将写入 ${statements.length} 条语句：\n${statements.join("\n")}`);
-		adapter.close();
+		await adapter.close();
 		return;
 	}
 
-	adapter.exec(statements.join("\n"));
-	adapter.close();
+	await adapter.exec(statements.join("\n"));
+	await adapter.close();
 
 	const byStatus = stats.byStatus;
 	console.log("\n写入完成：");

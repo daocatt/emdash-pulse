@@ -3,8 +3,8 @@
  * 移动端性能复核（Lighthouse，本地构建 + 运行期主题切换）。
  *
  * 为什么不用 `astro preview`：本地 adapter 是 `@astrojs/node` standalone，
- * 构建产物 `dist/server/entry.mjs` 可直接跑，DB 是文件 SQLite、存储是 `./uploads`，
- * 不依赖 Cloudflare 绑定。一次构建即含两套主题（`themeRoutes()` 都注入了），
+ * 构建产物 `dist/server/entry.mjs` 可直接跑，DB 是 PostgreSQL、存储是 `./uploads`，
+ * 不依赖任何平台绑定。一次构建即含两套主题（`themeRoutes()` 都注入了），
  * 所以切主题只需改运行期设置（`options` 表的 `plugin:pulse-theme:settings:theme`），
  * 不必为每套主题各构建一次。
  *
@@ -17,6 +17,7 @@
  *
  * 环境变量：
  *   CHROME_PATH   自定义 Chrome 可执行文件（默认 macOS 系统 Chrome）
+ *   DATABASE_URL  目标 PostgreSQL（或标准 libpq 变量 PG*）
  *
  * 退出码：任一指标超阈值 → 1。
  */
@@ -24,14 +25,13 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { createServer } from "node:net";
 import { dirname, resolve } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { launch } from "chrome-launcher";
 import lighthouse from "lighthouse";
+import { Client } from "pg";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const DB_PATH = resolve(ROOT, "data.db");
 const ENTRY = resolve(ROOT, "dist/server/entry.mjs");
 const THEME_KEY = "plugin:pulse-theme:settings:theme";
 const THEMES = ["news-factory", "pulse-news"];
@@ -194,8 +194,9 @@ async function warmup(origin, routes) {
 	}
 }
 
-function readTheme(db) {
-	const row = db.prepare("SELECT value FROM options WHERE name = ?").get(THEME_KEY);
+async function readTheme(db) {
+	const { rows } = await db.query("SELECT value FROM options WHERE name = $1", [THEME_KEY]);
+	const row = rows[0];
 	if (!row) return null;
 	try {
 		return JSON.parse(row.value);
@@ -204,16 +205,17 @@ function readTheme(db) {
 	}
 }
 
-function setTheme(db, theme) {
-	db.prepare(
-		`INSERT INTO options (name, value, revision) VALUES (?, ?, '0')
+async function setTheme(db, theme) {
+	await db.query(
+		`INSERT INTO options (name, value, revision) VALUES ($1, $2, '0')
 		 ON CONFLICT(name) DO UPDATE SET value = excluded.value, revision = '0'`,
-	).run(THEME_KEY, JSON.stringify(theme));
+		[THEME_KEY, JSON.stringify(theme)],
+	);
 }
 
 /** 写入后回读页面确认生效（`getPluginSetting` 无跨请求缓存，通常下一次请求即生效）。 */
 async function applyTheme(db, origin, theme) {
-	setTheme(db, theme);
+	await setTheme(db, theme);
 	const deadline = Date.now() + 5000;
 	while (Date.now() < deadline) {
 		const html = await fetchText(`${origin}/`);
@@ -338,9 +340,11 @@ async function main() {
 			chromeFlags: ["--headless=new", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"],
 		});
 		log(`Chrome 就绪（调试端口 ${chrome.port}）`);
-		db = new DatabaseSync(DB_PATH);
-		db.exec("PRAGMA busy_timeout = 5000");
-		originalTheme = readTheme(db);
+		db = new Client(
+			process.env.DATABASE_URL ? { connectionString: process.env.DATABASE_URL } : {},
+		);
+		await db.connect();
+		originalTheme = await readTheme(db);
 
 		await waitForReady(origin);
 		log("服务器就绪");
@@ -365,8 +369,8 @@ async function main() {
 		}
 	} finally {
 		if (db) {
-			if (originalTheme != null) setTheme(db, originalTheme);
-			db.close();
+			if (originalTheme != null) await setTheme(db, originalTheme);
+			await db.end();
 		}
 		if (chrome) await chrome.kill();
 		await stopServer(server);

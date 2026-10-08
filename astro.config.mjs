@@ -2,11 +2,11 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import node from "@astrojs/node";
 import react from "@astrojs/react";
-import { defineConfig } from "astro/config";
+import { defineConfig, sessionDrivers } from "astro/config";
 import auditLog from "@emdash-cms/plugin-audit-log";
-import emdash, { local } from "emdash/astro";
+import emdash, { local, s3 } from "emdash/astro";
 import { github } from "emdash/auth/providers/github";
-import { sqlite } from "emdash/db";
+import { postgres } from "emdash/db";
 import resend from "emdash-plugin-resend";
 import pulseAgent from "pulse-agent";
 import pulseEditorApplications from "pulse-editor-applications";
@@ -87,25 +87,14 @@ function themeRoutes() {
 	};
 }
 
-const isCloudflare =
-	process.env.DEPLOY_TARGET === "cloudflare" ||
-	Boolean(process.env.CF_PAGES) ||
-	Boolean(process.env.CLOUDFLARE);
-
 // 插件一律在宿主进程内运行（`plugins: []`；标准格式插件由 emdash 的
 // `adaptSandboxEntry` 适配，保留 hooks / routes / storage（含唯一索引）/
 // adminPages / mcp.tools / 能力门禁）。
 //
 // 为什么不用沙箱（`sandboxed: []` + sandboxRunner）：
-// - Cloudflare Workers 上唯一的沙箱后端是 Worker Loader（`LOADER` 绑定），需要
-//   Workers 付费计划。免费计划下 `@emdash-cms/cloudflare` 的 `sandbox()` 读不到
-//   绑定会返回 `undefined`，沙箱插件全部静默不加载（订阅 / 审核 / 投稿 / 主题切换
-//   全失效，且构建期只打一条 warn）。
-// - `sandbox: false` 这个本地逃生舱在 Workers 上被运行时显式禁用（emdash-runtime
-//   抛 `sandbox: false is not supported in Cloudflare Workers`）。
+// - Node 部署下沙箱后端是 `@emdash-cms/sandbox-workerd`（workerd 子进程），
+//   对一套全部自研的插件没有收益，反而引入子进程启动与失败模式。
 // - 本项目插件全部自研，同进程运行的唯一代价是失去 isolate 隔离。
-//
-// 本地与生产走同一条路径（都 in-process），避免 dev/prod 行为分叉。
 const plugins = [
 	pulseReview,
 	pulseEditorial,
@@ -129,72 +118,57 @@ const plugins = [
 // plugins/pulse-editor-applications）。凭证走环境变量，EmDash 优先读带前缀的名字：
 //   EMDASH_OAUTH_GITHUB_CLIENT_ID / EMDASH_OAUTH_GITHUB_CLIENT_SECRET
 // GitHub OAuth App 的回调地址填：https://<站点域名>/_emdash/api/auth/oauth/github/callback
-// 本地 dev 放 `.env`；生产由 `scripts/deploy-cf.mjs` 用 `wrangler secret put` 写入。
+// 本地 dev 放 `.env`；生产由容器 / 宿主的进程环境注入（见 docker-compose.yml）。
 const authProviders = [github()];
 
-let adapter = node({ mode: "standalone" });
-// Workers Cache：`cache` provider + `routeRules`（仅 CF 部署注入；Node 部署不引入 CF 包）。
-// 命中时请求在 Worker 之前就被 Cloudflare 边缘返回 —— 完全不跑 SSR、不查 D1。
-// 内容页已调用 `Astro.cache.set(cacheHint)`，响应会与集合 tag 关联，发布时由 EmDash purge。
-// 注意：**只有** `astro.config` 配了 provider，`Astro.cache.enabled` 才为 true，页面里的
-// `Astro.cache.set(...)` 才不是空操作。
-let cacheConfig = {};
-let emdashConfig = {
-	database: sqlite({ url: "file:./data.db" }),
-	storage: local({
-		directory: "./uploads",
-		baseUrl: "/_emdash/api/media/file",
-	}),
+const adapter = node({ mode: "standalone" });
+
+// ---------------------------------------------------------------------------
+// 数据库 / 存储 / 缓存
+//
+// EmDash 把 `database`/`storage` 描述符 JSON 序列化进 `virtual:emdash/config`，
+// **构建期就固化进产物**。所以这里绝不写 `process.env.DATABASE_URL` 这类字面值
+// —— 否则连接串会被烘进镜像。正确做法是「构建期只选种类，凭据运行期读 env」：
+//
+//   - PostgreSQL：`postgres()` 不带 connectionString，运行期由 `pg` 连接池读标准
+//     libpq 变量（PGHOST / PGPORT / PGDATABASE / PGUSER / PGPASSWORD）；迁移工具
+//     另读 `DATABASE_URL`（两者指向同一库，见 docker-compose.yml）。
+//   - 存储：构建期只决定 `s3()` 还是 `local()`；s3() 的凭据运行期由
+//     `resolveS3Config` 从 `S3_ENDPOINT / S3_BUCKET / S3_ACCESS_KEY_ID / ...` 补齐。
+//   - 对象缓存：Redis 后端运行期读 `REDIS_URL`；未设置时降级为 no-op（缓存直通）。
+// ---------------------------------------------------------------------------
+const database = postgres({
+	// 连接信息全部走运行期 env（见上）。连接池大小可单独调。
+	pool: { min: 2, max: 10, connectionTimeoutMillis: 5000 },
+});
+
+// 构建期开关：`S3_ENDPOINT` 存在即用 s3()（R2 / MinIO / 任意 S3 兼容），
+// 否则回退本地磁盘（本地开发 / 单机无对象存储）。只决定种类，不读凭据。
+const storage = process.env.S3_ENDPOINT
+	? s3()
+	: local({ directory: "./uploads", baseUrl: "/_emdash/api/media/file" });
+
+// Redis 对象缓存后端（自研，`src/server/redis-object-cache.ts`）。
+// entrypoint 用**绝对路径**：它会被原样内联进虚拟模块的静态 import，
+// 绝对路径可被 Vite / Rollup 直接解析，避免相对路径在虚拟模块里解析错位。
+const objectCacheEntrypoint = fileURLToPath(
+	new URL("./src/server/redis-object-cache.ts", import.meta.url),
+);
+
+const emdashConfig = {
+	database,
+	storage,
+	objectCache: {
+		entrypoint: objectCacheEntrypoint,
+		// 只放可序列化的默认值；`REDIS_URL` 由后端在运行期读取。
+		config: { defaultTtl: 3600, keyPrefix: "pulse" },
+	},
 	plugins,
 	authProviders,
 };
 
-if (isCloudflare) {
-	const { default: cloudflare } = await import("@astrojs/cloudflare");
-	const { cacheCloudflare } = await import("@astrojs/cloudflare/cache");
-	const { d1, r2 } = await import("@emdash-cms/cloudflare");
-	const configPath = existsSync("wrangler.prod.jsonc") ? "wrangler.prod.jsonc" : "wrangler.jsonc";
-	adapter = cloudflare({ configPath });
-	cacheConfig = {
-		cache: { provider: cacheCloudflare() },
-		routeRules: {
-			// 内容页（页面已调用 `Astro.cache.set`，与集合 tag 关联 → 发布时 purge）
-			"/": { maxAge: 300, swr: 86400 },
-			"/articles/[...path]": { maxAge: 300, swr: 86400 },
-			"/sections/[...path]": { maxAge: 300, swr: 86400 },
-			"/tags/[...path]": { maxAge: 300, swr: 86400 },
-			"/editions/[...path]": { maxAge: 300, swr: 86400 },
-			"/pages/[...path]": { maxAge: 600, swr: 86400 },
-			"/archive": { maxAge: 600, swr: 86400 },
-			"/archive/[...path]": { maxAge: 600, swr: 86400 },
-			// 机器端点
-			"/rss.xml": { maxAge: 300, swr: 86400 },
-			"/feed.json": { maxAge: 300, swr: 86400 },
-			"/llms.txt": { maxAge: 3600, swr: 86400 },
-			"/robots.txt": { maxAge: 3600, swr: 86400 },
-			"/sitemap.xml": { maxAge: 3600, swr: 86400 },
-			"/sitemap-sections.xml": { maxAge: 3600, swr: 86400 },
-			"/sitemap-tags.xml": { maxAge: 3600, swr: 86400 },
-			// 会话 / 表单 / 错误页不在此列：`RouteRule` 不支持 headers，这些页面也不调用
-			// `Astro.cache.set`，由 `src/middleware.ts` 统一设 `private, no-store`。
-		},
-	};
-	emdashConfig = {
-		// `session: "auto"` 让读走 D1 附近的副本；`coalesce: true` 把同一事件循环
-		// 里的并发读合并成更少的 D1 往返（首页用 `Promise.all` 一次发 9+ 个查询，
-		// 每个往返都有网络延迟）。coalesce 要求 session 非 "disabled"。
-		// 注意：若改用 Targeted Placement 把 Worker 钉在 D1 primary 附近，官方建议
-		// 反过来把 session 设回 "disabled"（两者不可兼得，见 docs/14）。
-		database: d1({ binding: "DB", session: "auto", coalesce: true }),
-		storage: r2({ binding: "MEDIA" }),
-		plugins,
-		authProviders,
-	};
-}
-
 /**
- * 从 `EMDASH_SITE_URL`（部署时由 `npm run deploy:cf` 从 `wrangler.prod.jsonc`
- * 的 vars 传入构建）解析出生产 origin，加进 `image.remotePatterns`。
+ * 从 `EMDASH_SITE_URL`（部署时注入）解析出站点 origin，加进 `image.remotePatterns`。
  *
  * 这样源码里**不写死任何站点域名**：换域名只改部署配置即可，无需动这里。
  * 没设时只保留本地 origin（本地开发用）。
@@ -210,10 +184,29 @@ function siteOriginPattern() {
 	}
 }
 
+/**
+ * S3 / R2 的公开域（`S3_PUBLIC_URL`）也要进 `remotePatterns`：配了 publicUrl 时
+ * 媒体 URL 直接指向它（CDN / R2 自定义域），`<Image>` 会对该 origin 取图做变换，
+ * 未授权则生产构建静默退回原图。构建期读一次即可（域名不是秘密）。
+ */
+function s3PublicOriginPattern() {
+	const raw = process.env.S3_PUBLIC_URL;
+	if (!raw) return [];
+	try {
+		const url = new URL(raw);
+		return [{ protocol: url.protocol.replace(":", ""), hostname: url.hostname }];
+	} catch {
+		return [];
+	}
+}
+
 export default defineConfig({
 	output: "server",
 	adapter,
-	...cacheConfig,
+	// 会话：Node 默认是 fsLite（写在 cacheDir 下）。显式指到 `./data/sessions`，
+	// 这样容器里挂 `./data` 卷即可持久化会话（单实例足够；多实例再换 Redis driver）。
+	// 这里只写路径（不是秘密），不涉及构建期固化凭据的问题。
+	session: { driver: sessionDrivers.fsLite({ base: "./data/sessions" }) },
 	image: {
 		layout: "constrained",
 		responsiveStyles: true,
@@ -225,12 +218,13 @@ export default defineConfig({
 			{ protocol: "http", hostname: "localhost" },
 			{ protocol: "http", hostname: "127.0.0.1" },
 			...siteOriginPattern(),
+			...s3PublicOriginPattern(),
 		],
 	},
 	integrations: [themeRoutes(), react(), emdash(emdashConfig)],
 	devToolbar: { enabled: false },
 	vite: {
-		// 把构建期的默认主题烘进产物：中间件在 Node / Workers 两种运行时都能读到，
+		// 把构建期的默认主题烘进产物：中间件在 Node 运行时读到，
 		// 不依赖 process.env（Workers 上 process.env 只映射 wrangler 的 vars）。
 		define: {
 			__DEFAULT_SITE_THEME__: JSON.stringify(DEFAULT_SITE_THEME),
