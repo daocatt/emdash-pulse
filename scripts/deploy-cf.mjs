@@ -92,7 +92,10 @@ if (!hasFlag("--no-buckets")) {
 	}
 }
 
-// 3) 加密密钥。只在缺失时写入 —— 覆盖成新值会让已加密落库的插件设置再也解不开。
+// 3) Secrets。只在缺失时写入 —— 覆盖已有值会让已加密落库的插件设置再也解不开，
+//    也可能把线上已配好的 OAuth 凭据换掉。区分两类：
+//    - 必需：缺了直接退出（EMDASH_ENCRYPTION_KEY）。
+//    - 可选：本地没配就跳过、不阻断部署（GitHub OAuth 登录）。
 if (!hasFlag("--no-secrets")) {
 	const listed = wrangler(["secret", "list", "--format", "json"], {
 		capture: true,
@@ -107,24 +110,49 @@ if (!hasFlag("--no-secrets")) {
 		}
 	}
 
-	if (names.includes("EMDASH_ENCRYPTION_KEY")) {
-		console.log("✔ EMDASH_ENCRYPTION_KEY 已存在，跳过\n");
-	} else {
-		const key = ctx.localEnv.EMDASH_ENCRYPTION_KEY || process.env.EMDASH_ENCRYPTION_KEY;
-		if (!key) {
-			console.error(
-				[
-					"",
-					"✘ Worker 缺少 EMDASH_ENCRYPTION_KEY，且本地 .env 里也没有。",
-					"",
-					"  生成：npx emdash secrets generate",
-					"  写入：把结果填进 .env 的 EMDASH_ENCRYPTION_KEY",
-					"",
-					"⚠ 该密钥必须备份：换值后，之前加密落库的插件设置将无法解密。",
-					"",
-				].join("\n"),
-			);
-			process.exit(1);
+	const specs = [
+		{
+			name: "EMDASH_ENCRYPTION_KEY",
+			required: true,
+			missing: [
+				"",
+				"✘ Worker 缺少 EMDASH_ENCRYPTION_KEY，且本地 .env 里也没有。",
+				"",
+				"  生成：npx emdash secrets generate",
+				"  写入：把结果填进 .env 的 EMDASH_ENCRYPTION_KEY",
+				"",
+				"⚠ 该密钥必须备份：换值后，之前加密落库的插件设置将无法解密。",
+				"",
+			].join("\n"),
+		},
+		{
+			// GitHub 登录 provider 的凭证（见 astro.config.mjs 的 authProviders）。
+			name: "EMDASH_OAUTH_GITHUB_CLIENT_ID",
+			required: false,
+			missing:
+				"⚠ 未配置 EMDASH_OAUTH_GITHUB_CLIENT_ID，跳过 GitHub 登录（其余部署不受影响）。",
+		},
+		{
+			name: "EMDASH_OAUTH_GITHUB_CLIENT_SECRET",
+			required: false,
+			missing:
+				"⚠ 未配置 EMDASH_OAUTH_GITHUB_CLIENT_SECRET，跳过 GitHub 登录（其余部署不受影响）。",
+		},
+	];
+
+	for (const spec of specs) {
+		if (names.includes(spec.name)) {
+			console.log(`✔ ${spec.name} 已存在，跳过`);
+			continue;
+		}
+		const value = ctx.localEnv[spec.name] || process.env[spec.name];
+		if (!value) {
+			if (spec.required) {
+				console.error(spec.missing);
+				process.exit(1);
+			}
+			console.warn(spec.missing);
+			continue;
 		}
 		runOrDie(
 			ctx.wranglerBin,
@@ -134,12 +162,13 @@ if (!hasFlag("--no-secrets")) {
 				ctx.configName,
 				"secret",
 				"put",
-				"EMDASH_ENCRYPTION_KEY",
+				spec.name,
 			],
-			{ env: { HOME: ctx.wranglerHome }, input: `${key}\n` },
+			{ env: { HOME: ctx.wranglerHome }, input: `${value}\n` },
 		);
-		console.log("✔ 已写入 EMDASH_ENCRYPTION_KEY\n");
+		console.log(`✔ 已写入 ${spec.name}`);
 	}
+	console.log();
 }
 
 // 4) 构建
@@ -178,3 +207,7 @@ console.log("     —— 填站点标题/副标题 + 管理员邮箱 + 注册 Pa
 console.log("        向导会自动灌入 seed 内容与媒体（分批续跑，需要几分钟）。");
 console.log("  2. 后台 → Resend 页 → 填 API key 与 From 地址（邮箱链接登录与订阅邮件依赖它）。");
 console.log("  3. 灌 Demo 互动数据：npm run demo:data:remote");
+console.log("  4. GitHub 登录（可选）：在 GitHub 新建 OAuth App，回调填");
+console.log("     https://<域名>/_emdash/api/auth/oauth/github/callback，");
+console.log("     把 Client ID/Secret 填进 .env 的 EMDASH_OAUTH_GITHUB_CLIENT_ID/_SECRET，");
+console.log("     再跑一次 npm run deploy:cf（会补写这两个 secret）。");

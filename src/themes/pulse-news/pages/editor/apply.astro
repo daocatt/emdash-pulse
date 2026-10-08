@@ -1,0 +1,165 @@
+---
+/**
+ * Editor 申请页（pulse-news）：居中刊头 + 申请卡 + 四步说明。
+ *
+ * 门禁在 SSR：未登录 → 引导登录；已是 Editor → 无需申请。其余状态（是否已有申请）
+ * 交给 `EditorApplyForm` 在客户端读插件私有路由 —— SSR 拿不到私有路由（见组件注释）。
+ * 登录地址用 EmDash 的 `/_emdash/admin/login?redirect=…`，登录后回到本页。
+ */
+import { getSiteSettings } from "emdash";
+import Base from "../../layout/Base.astro";
+import EditorApplyForm from "@shared/EditorApplyForm.astro";
+import { getTranslations } from "../../../../i18n";
+import { resolveSiteIdentity } from "@utils/site-identity";
+import { isEditorRole } from "@utils/editor-applications";
+
+const { t } = getTranslations(Astro);
+const { siteTitle } = resolveSiteIdentity(await getSiteSettings());
+const siteUrl = Astro.url.origin;
+
+const user = Astro.locals.user;
+const isEditor = isEditorRole(user?.role);
+const loginHref = `/_emdash/admin/login?redirect=${encodeURIComponent("/editor/apply")}`;
+---
+
+<Base
+	title={t("editorApplyPage.title")}
+	pageTitle={t("editorApplyPage.title")}
+	description={t("editorApplyPage.description", { siteTitle })}
+	canonical={`${siteUrl}/editor/apply`}
+>
+	<div class="container editor-apply">
+		<header class="editor-apply__header">
+			<p class="editor-apply__kicker">{t("editorApplyPage.kicker")}</p>
+			<h1 class="editor-apply__title">{t("editorApplyPage.heading", { siteTitle })}</h1>
+			<p class="editor-apply__lede">{t("editorApplyPage.lede")}</p>
+		</header>
+
+		{!user && (
+			<section class="editor-apply__gate">
+				<h2 class="editor-apply__gate-title">{t("editorApplyPage.loginTitle")}</h2>
+				<p class="editor-apply__gate-text">{t("editorApplyPage.loginText")}</p>
+				<a class="editor-apply__cta" href={loginHref} data-press>
+					{t("editorApplyPage.loginCta")}
+				</a>
+				<p class="editor-apply__gate-hint">{t("editorApplyPage.loginHint")}</p>
+			</section>
+		)}
+
+		{user && isEditor && (
+			<section class="editor-apply__gate editor-apply__gate--done">
+				<h2 class="editor-apply__gate-title">{t("editorApplyPage.alreadyEditorTitle")}</h2>
+				<p class="editor-apply__gate-text">{t("editorApplyPage.alreadyEditorText")}</p>
+			</section>
+		)}
+
+		{user && !isEditor && (
+			<div class="editor-apply__form">
+				<EditorApplyForm />
+			</div>
+		)}
+
+		<div class="editor-apply__flow prose">
+			<h2>{t("editorApplyPage.flowHeading")}</h2>
+			<ol>
+				<li>{t("editorApplyPage.step1")}</li>
+				<li>{t("editorApplyPage.step2")}</li>
+				<li>{t("editorApplyPage.step3")}</li>
+				<li>{t("editorApplyPage.step4")}</li>
+			</ol>
+		</div>
+	</div>
+</Base>
+
+<style>
+	.editor-apply {
+		padding-top: var(--spacing-12);
+		max-width: 720px;
+	}
+
+	.editor-apply__header {
+		text-align: center;
+	}
+
+	.editor-apply__kicker {
+		margin: 0 0 var(--spacing-2);
+		font-family: var(--font-heading);
+		font-size: var(--font-size-sm);
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide, 0.08em);
+		color: var(--color-brand);
+	}
+
+	.editor-apply__title {
+		margin: 0;
+		font-family: var(--font-heading);
+		font-style: italic;
+		font-weight: var(--font-weight-heading);
+		font-size: var(--font-size-4xl);
+		letter-spacing: var(--tracking-snug);
+		line-height: var(--leading-tight);
+	}
+
+	.editor-apply__lede {
+		margin: var(--spacing-5) auto 0;
+		max-width: 52ch;
+		font-size: var(--font-size-lg);
+		line-height: var(--leading-relaxed);
+		color: var(--color-text-secondary);
+	}
+
+	.editor-apply__gate {
+		margin-top: var(--spacing-10);
+		padding: var(--spacing-6);
+		background: var(--color-surface);
+		border: var(--rule-hairline);
+		text-align: center;
+	}
+
+	.editor-apply__gate--done {
+		border-top: 3px solid var(--color-brand);
+	}
+
+	.editor-apply__gate-title {
+		margin: 0 0 var(--spacing-2);
+		font-size: var(--font-size-2xl);
+	}
+
+	.editor-apply__gate-text {
+		margin: 0 auto var(--spacing-5);
+		max-width: 46ch;
+		color: var(--color-text-secondary);
+		line-height: var(--leading-relaxed);
+	}
+
+	.editor-apply__cta {
+		display: inline-block;
+		font-family: var(--font-heading);
+		font-weight: 700;
+		padding: var(--spacing-3) var(--spacing-6);
+		background: var(--color-brand);
+		color: var(--color-on-brand);
+		text-decoration: none;
+	}
+
+	.editor-apply__cta:hover {
+		background: var(--color-brand-hover);
+	}
+
+	.editor-apply__gate-hint {
+		margin: var(--spacing-3) 0 0;
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+
+	.editor-apply__form {
+		margin-top: var(--spacing-10);
+		padding: var(--spacing-6);
+		background: var(--color-surface);
+		border: var(--rule-hairline);
+	}
+
+	.editor-apply__flow {
+		margin-top: var(--spacing-12);
+	}
+</style>

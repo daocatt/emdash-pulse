@@ -1,0 +1,499 @@
+---
+/**
+ * Editor 申请表单（渐进增强）。
+ *
+ * 提交由浏览器直接 POST 到 pulse-editor-applications 的**私有**路由 —— 私有路由按会话
+ * 鉴权（`routeCtx.user`），必须携带 cookie 发起，并带 `X-EmDash-Request: 1` CSRF 头。
+ * 页面 SSR 只在「未登录 / 已是 Editor」时做门禁，其余状态（是否已有申请）由本组件在
+ * 挂载后读 `applications/mine` 决定 —— SSR 拿不到私有路由。
+ *
+ * 状态文案走 data-* 传给脚本：脚本是模块级、整页只加载一次，不能按组件实例内联语言，
+ * 所以在渲染期把当前语言的文案挂到根元素上（与 SubscribeForm 同一模式）。
+ */
+import { getTranslations } from "../i18n";
+import { EDITOR_APPLICATIONS_API_BASE } from "../utils/editor-applications";
+
+interface Props {
+	/** 申请来源标记（预留，写入插件记录时可扩展）。 */
+	source?: string;
+}
+
+const { source = "editor-apply-page" } = Astro.props;
+const { t } = getTranslations(Astro);
+
+const uid = Math.random().toString(36).slice(2, 8);
+const ids = {
+	purpose: `editor-apply-purpose-${uid}`,
+	organization: `editor-apply-org-${uid}`,
+	agentName: `editor-apply-agent-${uid}`,
+	links: `editor-apply-links-${uid}`,
+	contact: `editor-apply-contact-${uid}`,
+};
+
+const messages = {
+	required: t("editorApply.required"),
+	submitting: t("editorApply.submitting"),
+	submitted: t("editorApply.submitted"),
+	invalid: t("editorApply.invalid"),
+	unauthorized: t("editorApply.unauthorized"),
+	failed: t("editorApply.failed"),
+	network: t("editorApply.network"),
+	statusHeading: t("editorApply.statusHeading"),
+	statusPending: t("editorApply.statusPending"),
+	statusPendingHint: t("editorApply.statusPendingHint"),
+	statusApproved: t("editorApply.statusApproved"),
+	statusApprovedHint: t("editorApply.statusApprovedHint"),
+	statusRejected: t("editorApply.statusRejected"),
+	statusRejectedHint: t("editorApply.statusRejectedHint"),
+	resubmit: t("editorApply.resubmit"),
+	submittedAt: t("editorApply.statusSubmittedAt"),
+};
+---
+
+<div
+	class="editor-apply"
+	data-editor-apply
+	data-endpoint-base={EDITOR_APPLICATIONS_API_BASE}
+	data-source={source}
+	data-msg-required={messages.required}
+	data-msg-submitting={messages.submitting}
+	data-msg-submitted={messages.submitted}
+	data-msg-invalid={messages.invalid}
+	data-msg-unauthorized={messages.unauthorized}
+	data-msg-failed={messages.failed}
+	data-msg-network={messages.network}
+	data-msg-status-heading={messages.statusHeading}
+	data-msg-status-pending={messages.statusPending}
+	data-msg-status-pending-hint={messages.statusPendingHint}
+	data-msg-status-approved={messages.statusApproved}
+	data-msg-status-approved-hint={messages.statusApprovedHint}
+	data-msg-status-rejected={messages.statusRejected}
+	data-msg-status-rejected-hint={messages.statusRejectedHint}
+	data-msg-resubmit={messages.resubmit}
+	data-msg-submitted-at={messages.submittedAt}
+>
+	<section class="editor-apply__status" data-apply-status hidden aria-live="polite">
+		<p class="editor-apply__status-kicker" data-apply-status-kicker></p>
+		<h2 class="editor-apply__status-title" data-apply-status-title></h2>
+		<p class="editor-apply__status-hint" data-apply-status-hint></p>
+		<p class="editor-apply__status-meta" data-apply-status-meta hidden></p>
+		<p class="editor-apply__status-note" data-apply-status-note hidden></p>
+		<button
+			type="button"
+			class="editor-apply__status-resubmit"
+			data-apply-resubmit
+			data-press
+			hidden
+		>
+			{messages.resubmit}
+		</button>
+	</section>
+
+	<form class="editor-apply__form" data-apply-form novalidate>
+		<h2 class="editor-apply__form-heading">{t("editorApply.formHeading")}</h2>
+		<p class="editor-apply__form-hint">{t("editorApply.formHint")}</p>
+
+		<div class="editor-apply__field">
+			<label class="editor-apply__label" for={ids.purpose}>
+				{t("editorApply.fieldPurpose")} <span class="editor-apply__required">*</span>
+			</label>
+			<textarea
+				id={ids.purpose}
+				class="editor-apply__textarea"
+				name="purpose"
+				rows="4"
+				required
+				placeholder={t("editorApply.fieldPurposePlaceholder")}></textarea>
+		</div>
+
+		<div class="editor-apply__grid">
+			<div class="editor-apply__field">
+				<label class="editor-apply__label" for={ids.organization}>
+					{t("editorApply.fieldOrganization")}
+					<span class="editor-apply__optional">{t("editorApply.optional")}</span>
+				</label>
+				<input
+					id={ids.organization}
+					class="editor-apply__input"
+					type="text"
+					name="organization"
+					autocomplete="organization"
+					placeholder={t("editorApply.fieldOrganizationPlaceholder")}
+				/>
+			</div>
+
+			<div class="editor-apply__field">
+				<label class="editor-apply__label" for={ids.agentName}>
+					{t("editorApply.fieldAgentName")}
+					<span class="editor-apply__optional">{t("editorApply.optional")}</span>
+				</label>
+				<input
+					id={ids.agentName}
+					class="editor-apply__input"
+					type="text"
+					name="agentName"
+					placeholder={t("editorApply.fieldAgentNamePlaceholder")}
+				/>
+			</div>
+
+			<div class="editor-apply__field">
+				<label class="editor-apply__label" for={ids.links}>
+					{t("editorApply.fieldLinks")}
+					<span class="editor-apply__optional">{t("editorApply.optional")}</span>
+				</label>
+				<input
+					id={ids.links}
+					class="editor-apply__input"
+					type="text"
+					name="links"
+					placeholder={t("editorApply.fieldLinksPlaceholder")}
+				/>
+			</div>
+
+			<div class="editor-apply__field">
+				<label class="editor-apply__label" for={ids.contact}>
+					{t("editorApply.fieldContact")}
+					<span class="editor-apply__optional">{t("editorApply.optional")}</span>
+				</label>
+				<input
+					id={ids.contact}
+					class="editor-apply__input"
+					type="text"
+					name="contact"
+					placeholder={t("editorApply.fieldContactPlaceholder")}
+				/>
+			</div>
+		</div>
+
+		<p class="editor-apply__message" data-apply-message role="status" aria-live="polite"></p>
+
+		<button class="editor-apply__submit" type="submit" data-press>
+			{t("editorApply.submit")}
+		</button>
+
+		<noscript>
+			<p class="editor-apply__message">{t("editorApply.needsJs")}</p>
+		</noscript>
+	</form>
+</div>
+
+<script>
+	type Status = "pending" | "approved" | "rejected";
+
+	interface ApplicationView {
+		status: Status;
+		submitted_at?: string;
+		note?: string | null;
+	}
+
+	const roots = document.querySelectorAll<HTMLElement>("[data-editor-apply]");
+
+	for (const root of roots) {
+		const base = root.dataset.endpointBase ?? "";
+		const form = root.querySelector<HTMLFormElement>("[data-apply-form]");
+		const panel = root.querySelector<HTMLElement>("[data-apply-status]");
+		const kicker = root.querySelector<HTMLElement>("[data-apply-status-kicker]");
+		const title = root.querySelector<HTMLElement>("[data-apply-status-title]");
+		const hint = root.querySelector<HTMLElement>("[data-apply-status-hint]");
+		const meta = root.querySelector<HTMLElement>("[data-apply-status-meta]");
+		const note = root.querySelector<HTMLElement>("[data-apply-status-note]");
+		const resubmit = root.querySelector<HTMLButtonElement>("[data-apply-resubmit]");
+		const message = root.querySelector<HTMLElement>("[data-apply-message]");
+		const submit = form?.querySelector<HTMLButtonElement>("button[type=submit]");
+		const purpose = form?.querySelector<HTMLTextAreaElement>("[name=purpose]");
+
+		if (!form || !base) continue;
+
+		const msg = (key: string): string => root.dataset[`msg${key}`] ?? "";
+
+		const setMessage = (text: string, kind: "pending" | "success" | "error" | "none"): void => {
+			if (!message) return;
+			message.textContent = text;
+			message.dataset.state = kind;
+		};
+
+		const fieldValue = (name: string): string =>
+			(form.querySelector<HTMLInputElement>(`[name=${name}]`)?.value ?? "").trim();
+
+		/** POST 私有路由：必须带 cookie（same-origin）+ CSRF 头，响应是 `{ success, data }` 信封。 */
+		const post = async (
+			route: string,
+			body: Record<string, unknown>,
+		): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> => {
+			const response = await fetch(`${base}/${route}`, {
+				method: "POST",
+				credentials: "same-origin",
+				headers: { "content-type": "application/json", "X-EmDash-Request": "1" },
+				body: JSON.stringify(body),
+			});
+			const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+			const data =
+				payload && typeof payload.data === "object" && payload.data !== null
+					? (payload.data as Record<string, unknown>)
+					: (payload ?? {});
+			const ok = response.ok && payload?.success !== false && data.ok !== false;
+			return { ok, status: response.status, data };
+		};
+
+		const showStatus = (application: ApplicationView): void => {
+			if (!panel) return;
+			form.hidden = true;
+			panel.hidden = false;
+
+			if (kicker) kicker.textContent = msg("StatusHeading");
+
+			if (application.status === "approved") {
+				if (title) title.textContent = msg("StatusApproved");
+				if (hint) hint.textContent = msg("StatusApprovedHint");
+				if (resubmit) resubmit.hidden = true;
+			} else if (application.status === "rejected") {
+				if (title) title.textContent = msg("StatusRejected");
+				if (hint) hint.textContent = msg("StatusRejectedHint");
+				if (resubmit) resubmit.hidden = false;
+			} else {
+				if (title) title.textContent = msg("StatusPending");
+				if (hint) hint.textContent = msg("StatusPendingHint");
+				if (resubmit) resubmit.hidden = true;
+			}
+
+			if (meta) {
+				const stamp = application.submitted_at
+					? msg("SubmittedAt").replace("{date}", new Date(application.submitted_at).toLocaleString())
+					: "";
+				meta.textContent = stamp;
+				meta.hidden = !stamp;
+			}
+
+			if (note) {
+				const value = typeof application.note === "string" ? application.note.trim() : "";
+				note.textContent = value ? `“${value}”` : "";
+				note.hidden = !value;
+			}
+		};
+
+		resubmit?.addEventListener("click", () => {
+			if (panel) panel.hidden = true;
+			form.hidden = false;
+			setMessage("", "none");
+			purpose?.focus();
+		});
+
+		form.addEventListener("submit", async (event) => {
+			event.preventDefault();
+			const value = purpose?.value.trim() ?? "";
+			if (!value) {
+				setMessage(msg("Required"), "error");
+				purpose?.focus();
+				return;
+			}
+
+			if (submit) submit.disabled = true;
+			setMessage(msg("Submitting"), "pending");
+
+			try {
+				const { ok, data } = await post("applications/submit", {
+					purpose: value,
+					...(fieldValue("organization") ? { organization: fieldValue("organization") } : {}),
+					...(fieldValue("agentName") ? { agentName: fieldValue("agentName") } : {}),
+					...(fieldValue("links") ? { links: fieldValue("links") } : {}),
+					...(fieldValue("contact") ? { contact: fieldValue("contact") } : {}),
+				});
+
+				if (ok && typeof data.status === "string") {
+					setMessage(msg("Submitted"), "success");
+					showStatus({
+						status: data.status === "approved" ? "approved" : "pending",
+						submitted_at: typeof data.submitted_at === "string" ? data.submitted_at : undefined,
+					});
+				} else if (data.error === "UNAUTHORIZED") {
+					setMessage(msg("Unauthorized"), "error");
+				} else if (data.error === "INVALID_INPUT") {
+					setMessage(msg("Invalid"), "error");
+				} else {
+					setMessage(msg("Failed"), "error");
+				}
+			} catch {
+				setMessage(msg("Network"), "error");
+			} finally {
+				if (submit) submit.disabled = false;
+			}
+		});
+
+		// 初始化：读当前申请状态，有记录则直接展示（无则保持表单）。
+		void (async () => {
+			try {
+				const { ok, data } = await post("applications/mine", {});
+				if (!ok) return;
+				const application = data.application;
+				if (application && typeof application === "object") {
+					showStatus(application as ApplicationView);
+				}
+			} catch {
+				// 读失败就保持表单可见，用户仍可提交。
+			}
+		})();
+	}
+</script>
+
+<style>
+	.editor-apply {
+		display: block;
+	}
+
+	.editor-apply__form-heading {
+		font-size: var(--font-size-2xl);
+		margin: 0 0 var(--spacing-2);
+	}
+
+	.editor-apply__form-hint {
+		margin: 0 0 var(--spacing-6);
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+		line-height: var(--leading-normal);
+	}
+
+	.editor-apply__field {
+		display: block;
+		margin-bottom: var(--spacing-4);
+	}
+
+	.editor-apply__grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0 var(--spacing-4);
+	}
+
+	.editor-apply__label {
+		display: block;
+		font-family: var(--font-heading);
+		font-weight: 700;
+		font-size: var(--font-size-sm);
+		margin-bottom: var(--spacing-1);
+	}
+
+	.editor-apply__required {
+		color: var(--color-brand);
+	}
+
+	.editor-apply__optional {
+		margin-left: var(--spacing-1);
+		font-weight: 400;
+		font-size: var(--font-size-xs, 0.75rem);
+		color: var(--color-muted);
+	}
+
+	.editor-apply__input,
+	.editor-apply__textarea {
+		width: 100%;
+		font: inherit;
+		padding: var(--spacing-3) var(--spacing-4);
+		background: var(--color-surface);
+		color: var(--color-text);
+		border: 2px solid var(--color-border-strong);
+		resize: vertical;
+	}
+
+	.editor-apply__input:focus,
+	.editor-apply__textarea:focus {
+		outline: none;
+		border-color: var(--color-brand);
+	}
+
+	.editor-apply__message {
+		margin: var(--spacing-3) 0;
+		font-size: var(--font-size-sm);
+		min-height: 1.2em;
+		color: var(--color-muted);
+	}
+
+	.editor-apply__message[data-state="success"] {
+		color: var(--color-brand);
+	}
+
+	.editor-apply__message[data-state="error"] {
+		color: var(--color-text);
+		font-weight: 600;
+	}
+
+	.editor-apply__submit {
+		font-family: var(--font-heading);
+		font-weight: 700;
+		padding: var(--spacing-3) var(--spacing-6);
+		background: var(--color-brand);
+		color: var(--color-on-brand);
+		border: none;
+		cursor: pointer;
+	}
+
+	.editor-apply__submit:hover {
+		background: var(--color-brand-hover);
+	}
+
+	.editor-apply__submit:disabled {
+		opacity: 0.6;
+		cursor: progress;
+	}
+
+	/* ---------- 已有申请时的状态面板 ---------- */
+
+	.editor-apply__status {
+		padding: var(--spacing-6);
+		background: var(--color-bg-subtle);
+		border: var(--rule-hairline);
+	}
+
+	.editor-apply__status-kicker {
+		margin: 0 0 var(--spacing-1);
+		font-size: var(--font-size-sm);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--color-text-secondary);
+	}
+
+	.editor-apply__status-title {
+		font-size: var(--font-size-2xl);
+		margin: 0 0 var(--spacing-2);
+	}
+
+	.editor-apply__status-hint {
+		margin: 0;
+		color: var(--color-text-secondary);
+		line-height: var(--leading-relaxed);
+	}
+
+	.editor-apply__status-meta {
+		margin: var(--spacing-2) 0 0;
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+
+	.editor-apply__status-note {
+		margin: var(--spacing-3) 0 0;
+		padding-left: var(--spacing-3);
+		border-left: var(--rule-hairline);
+		font-style: italic;
+		color: var(--color-text-secondary);
+	}
+
+	.editor-apply__status-resubmit {
+		margin-top: var(--spacing-5);
+		font-family: var(--font-heading);
+		font-weight: 700;
+		padding: var(--spacing-3) var(--spacing-6);
+		background: transparent;
+		color: var(--color-brand);
+		border: 2px solid var(--color-brand);
+		cursor: pointer;
+	}
+
+	.editor-apply__status-resubmit:hover {
+		background: var(--color-brand);
+		color: var(--color-on-brand);
+	}
+
+	@media (max-width: 560px) {
+		.editor-apply__grid {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>

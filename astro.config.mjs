@@ -5,6 +5,7 @@ import react from "@astrojs/react";
 import { defineConfig } from "astro/config";
 import auditLog from "@emdash-cms/plugin-audit-log";
 import emdash, { local } from "emdash/astro";
+import { github } from "emdash/auth/providers/github";
 import { sqlite } from "emdash/db";
 import resend from "emdash-plugin-resend";
 import pulseAgent from "pulse-agent";
@@ -59,6 +60,7 @@ const THEME_ROUTES = [
 	["/subscribe", "pages/subscribe.astro"],
 	["/subscribe/confirm", "pages/subscribe/confirm.astro"],
 	["/subscribe/unsubscribe", "pages/subscribe/unsubscribe.astro"],
+	["/editor/apply", "pages/editor/apply.astro"],
 	["/404", "pages/404.astro"],
 ];
 
@@ -122,6 +124,14 @@ const plugins = [
 	resend(),
 ];
 
+// 登录 provider：**加法**，与内建 passkey 并存（不同于 `auth` 适配器会顶掉 passkey）。
+// GitHub 让第三方用户自助注册（Subscriber）→ 到申请页申请成为 Editor（见
+// plugins/pulse-editor-applications）。凭证走环境变量，EmDash 优先读带前缀的名字：
+//   EMDASH_OAUTH_GITHUB_CLIENT_ID / EMDASH_OAUTH_GITHUB_CLIENT_SECRET
+// GitHub OAuth App 的回调地址填：https://<站点域名>/_emdash/api/auth/oauth/github/callback
+// 本地 dev 放 `.env`；生产由 `scripts/deploy-cf.mjs` 用 `wrangler secret put` 写入。
+const authProviders = [github()];
+
 let adapter = node({ mode: "standalone" });
 let emdashConfig = {
 	database: sqlite({ url: "file:./data.db" }),
@@ -130,6 +140,7 @@ let emdashConfig = {
 		baseUrl: "/_emdash/api/media/file",
 	}),
 	plugins,
+	authProviders,
 };
 
 if (isCloudflare) {
@@ -141,6 +152,7 @@ if (isCloudflare) {
 		database: d1({ binding: "DB", session: "auto" }),
 		storage: r2({ binding: "MEDIA" }),
 		plugins,
+		authProviders,
 	};
 }
 
