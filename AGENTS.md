@@ -1,7 +1,7 @@
 # Suda Pulse
 
 基于 **EmDash CMS + Astro** 构建的 Agent 协作新闻/报刊发布系统。
-站点：Suda Pulse · `ai.suda.im` · 时区 `Asia/Shanghai` · 部署 Cloudflare（D1 + R2 + Workers AI）。
+站点：Suda Pulse · `pulse.suda.im` · 时区 `Asia/Shanghai` · 部署 Cloudflare（D1 + R2 + Workers AI）。
 
 规划与任务文档见 `docs/`（先读 `docs/README.md`）。
 
@@ -90,7 +90,7 @@ npm run deploy:cf                 # 构建并部署到 Cloudflare（账号目录
 - **mini 的 keyframe 名必须是真实 CSS 属性**：`animate()` 不做 `y` / `x` → `transform` 的映射，它把 keyframe 的属性名**直接**交给 WAAPI。所以 `y` / `x` / `rotate` 这类完整版 shorthand 会被**静默忽略**（只在内联 `style` 里留一条无效的 `y: 0px`），必须写 `transform: ["translateY(6px)", "translateY(0px)"]`；`opacity` / `height` / `scale` / `translate` 是真实属性，可直接用。判断某个 keyframe 有没有生效，看动画中途的 `getComputedStyle(el).transform`，别只看 `element.style`（WAAPI 不写内联样式）。
 - **`prefers-reduced-motion` 要管两遍**：`src/styles/base.css` 的全局兜底只管 CSS transition/animation；`animate()` 是 JS/WAAPI 驱动，管不到 —— 每个 init 开头必须用 `matchMedia` 早退（reduced-motion 下不设隐藏态），CSS 侧的 `data-hover-lift` / `data-press` 位移也要在同一个媒体查询里显式关掉。
 - **一条属性只能有一个驱动源**：被 `motion` 用内联 `transform` 驱动的元素，不得同时有 CSS `:hover { transform }` / `transition: transform`。卡片 hover 抬升（`data-hover-lift`）与按压反馈（`data-press`，规则都在 `src/styles/base.css`）刻意用 `translate` / `scale` 这两个**独立属性**而非 `transform` —— 与 `transform` 叠加而非覆盖；滚动进场结束时也会清除内联 `transform` 归还给 CSS。
-- 图片字段是对象（`{ id, meta: { storageKey }, alt, width, height, blurhash, ... }`，落库时**没有 `src`**，见下方规则），用 `emdash/ui` 的 `<Image image={...} />`（自动 `srcset`/`sizes`/宽高/WebP/LQIP；首屏图传 `priority`）。**`astro.config.mjs` 的 `image.remotePatterns` 必须包含站点自身 origin**（本地 `localhost`/`127.0.0.1` + 生产域名）：EmDash 会把同源媒体路径解析成绝对 URL 交给 Astro 的 image service，未授权时**生产构建会静默退回原图**（`srcset` 各档位指向同一张全尺寸图）。
+- 图片字段是对象（`{ id, meta: { storageKey }, alt, width, height, blurhash, ... }`，落库时**没有 `src`**，见下方规则），用 `emdash/ui` 的 `<Image image={...} />`（自动 `srcset`/`sizes`/宽高/WebP/LQIP；首屏图传 `priority`）。**`astro.config.mjs` 的 `image.remotePatterns` 必须包含站点自身 origin**（本地 `localhost`/`127.0.0.1` + 生产域名）：EmDash 会把同源媒体路径解析成绝对 URL 交给 Astro 的 image service，未授权时**生产构建会静默退回原图**（`srcset` 各档位指向同一张全尺寸图）。生产域名**不写死在源码里** —— `deploy:cf` 会把 `wrangler.prod.jsonc` 的 `vars.EMDASH_SITE_URL` 传给 `astro build`，`astro.config.mjs` 的 `siteOriginPattern()` 据此补上；所以换域名只改部署配置，无需动源码（手动 `astro build` 时记得自己导出 `EMDASH_SITE_URL`）。
 - `entry.id` 是 slug（URL 用）；`entry.data.id` 是数据库 ULID（`getEntryTerms`、评论 `contentId` 用）。
 - taxonomy 名称必须与 seed 的 `"name"` 完全一致（`section` / `tag` / `edition`）。
 - **主题导航读的是 `theme.menuName`，不是 `primary`**：news-factory / pulse-news 各自读同名菜单（`src/themes/<t>/theme.config.ts`），`primary` 只是通用兜底、两套主题都不用它。所以改导航（含子菜单 `children`）必须改**对应主题**的菜单，改 `primary` 前台不会有任何变化。改完 seed 菜单要重跑 `npx emdash seed seed/seed.json`（菜单是「整段删除重建」，能生效），而 `astro dev` 不会自动重跑 seed。
@@ -127,6 +127,6 @@ npm run deploy:cf                 # 构建并部署到 Cloudflare（账号目录
 
 ## Skills & Docs
 
-- EmDash skills：`~/codes/emdash/.agents/skills/`（`building-emdash-site`、`creating-plugins`、`emdash-cli`）。
+- EmDash skills：`.agents/skills/`（`building-emdash-site`、`creating-plugins`、`emdash-cli`）。
 - 文档 MCP：`https://docs.emdashcms.com/mcp`（核对 API/hook/字段时优先用）。
 - 项目规划：`docs/`。

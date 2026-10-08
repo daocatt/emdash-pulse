@@ -16,7 +16,7 @@
 | 部署 | Cloudflare Workers | `wrangler` + cron 触发器 |
 | 图片处理 | Astro 图像服务 + R2 | 响应式 `srcset`、AVIF/WebP |
 | 邮件 | **Resend** + 自研 `pulse-subscriptions` 插件 | 订阅双确认 / 退订（D4 修订） |
-| 站点 | **Suda Pulse** · `ai.suda.im` · `Asia/Shanghai` | |
+| 站点 | **Suda Pulse** · `pulse.suda.im` · `Asia/Shanghai` | |
 
 ## 2. 分层架构
 
@@ -133,7 +133,7 @@ npm run deploy:cf
 `npm run deploy:cf` 的流程：校验 `WRANGLER_HOME` / `wrangler.prod.jsonc` → `whoami` 自检 → 幂等创建 `suda-pulse-media` R2 桶 → 缺 `EMDASH_ENCRYPTION_KEY` 时从 `.env` 写入 secret → `npm run plugin:build` → `DEPLOY_TARGET=cloudflare astro build` → `wrangler deploy`。
 
 **首次部署后**：
-1. 打开 `https://ai.suda.im/_emdash/admin`，走一次 **setup 向导**（站点信息 → 管理员邮箱/姓名 → **注册 passkey**）。向导会把 `seed/seed.json` 的内容（含媒体）灌入库。**超级管理员无法用配置 / env 预指定** —— 首个用户由向导的 WebAuthn 注册写入（`role: ADMIN`）。
+1. 打开 `https://pulse.suda.im/_emdash/admin`，走一次 **setup 向导**（站点信息 → 管理员邮箱/姓名 → **注册 passkey**）。向导会把 `seed/seed.json` 的内容（含媒体）灌入库。**超级管理员无法用配置 / env 预指定** —— 首个用户由向导的 WebAuthn 注册写入（`role: ADMIN`）。
 2. 后台「Resend」页填 API key 与 From 地址 —— 否则邮箱链接登录（magic link）会 503 `EMAIL_NOT_CONFIGURED`，订阅确认信也只能落 `pendingEmail`。
 3. `npm run demo:data:remote` 灌入 Demo 互动数据（评论 / 订阅者 / 分组 / 事件）；`npm run demo:data:remote -- --clean` 只清理。
 
@@ -145,11 +145,11 @@ npm run deploy:cf
   "compatibility_date": "2026-02-24",
   "compatibility_flags": ["nodejs_compat"],
   "account_id": "…",
-  "routes": [{ "pattern": "ai.suda.im", "custom_domain": true }],
+  "routes": [{ "pattern": "pulse.suda.im", "custom_domain": true }],
   "d1_databases": [{ "binding": "DB", "database_name": "suda-pulse-db", "database_id": "…" }],
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "suda-pulse-media" }],
   "ai": { "binding": "AI" },              // Cloudflare Workers AI
-  "vars": { "EMDASH_SITE_URL": "https://ai.suda.im" },
+  "vars": { "EMDASH_SITE_URL": "https://pulse.suda.im" },
   "triggers": { "crons": ["* * * * *"] }, // 定时发布
   "observability": { "enabled": true }
 }
@@ -159,7 +159,8 @@ npm run deploy:cf
 
 ### 环境变量
 - `EMDASH_ENCRYPTION_KEY`：加密插件密钥（`npx emdash secret`），**必须备份**；`deploy:cf` 首次会从 `.env` 写入 Worker secret。
-- `EMDASH_SITE_URL=https://ai.suda.im`：影响 Passkey/CSRF/MCP 发现/sitemap（写进 `wrangler.prod.jsonc` 的 `vars`）。
+- `EMDASH_SITE_URL=https://pulse.suda.im`：影响 Passkey/CSRF/MCP 发现/sitemap（写进 `wrangler.prod.jsonc` 的 `vars`）。
+- **构建期**：`deploy:cf` 会把 `EMDASH_SITE_URL` 传给 `astro build`，`astro.config.mjs` 用它给 `image.remotePatterns` 补上生产域名 —— **源码里不写死任何域名**，换域名只改部署配置即可。缺它时生产图片 `srcset` 会静默退回原图。
 
 ## 7. 核心约束与陷阱
 

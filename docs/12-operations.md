@@ -114,7 +114,7 @@
 **一次性配置（管理员，部署后做一次）**
 
 1. **GitHub OAuth app**：GitHub → Settings → Developer settings → OAuth Apps → New。回调填
-   `https://ai.suda.im/_emdash/api/auth/oauth/github/callback`（本地另建一个填 `http://localhost:4321/...`）。
+   `https://pulse.suda.im/_emdash/api/auth/oauth/github/callback`（本地另建一个填 `http://localhost:4321/...`）。
    把 Client ID/Secret 填进本地 `.env` 的 `EMDASH_OAUTH_GITHUB_CLIENT_ID` / `_SECRET`，再跑 `npm run deploy:cf`（会补写 secret）。
 2. **邮箱域名白名单**：后台 Users 页或 `POST /_emdash/api/admin/allowed-domains`，`{ domain: "<合作方域名>", defaultRole: 10 }`。
    **必配** —— GitHub 登录无 `defaultRole` 兜底，不配白名单等于对全网开放建号。

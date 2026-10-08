@@ -2,7 +2,7 @@
 
 ## 1. 项目定位
 
-**Suda Pulse**（`ai.suda.im`）是一套面向**新闻编辑室 / 报刊 / 独立媒体**、**以 Agent 协作生产为核心**的发布系统：
+**Suda Pulse**（`pulse.suda.im`）是一套面向**新闻编辑室 / 报刊 / 独立媒体**、**以 Agent 协作生产为核心**的发布系统：
 
 - **前台**：**双主题**阅读体验（`news-factory` 报纸头版 / `pulse-news` 杂志式，默认值 `SITE_THEME`、后台「前台主题」页可运行期切换），支持按**月 / 周**浏览归档，支持全文搜索，UI 文案支持中文 / 英文。
 - **后台**：基于 EmDash 内置管理后台，提供内容审核（编审流程）、多用户协作、分类与标签、评论审核。
@@ -17,7 +17,7 @@
 | 项 | 值 |
 | --- | --- |
 | 站点名 | **Suda Pulse** |
-| 域名 | **ai.suda.im** |
+| 域名 | **pulse.suda.im** |
 | 时区 | **Asia/Shanghai**（影响月/周归档边界） |
 | 语言 | zh-CN（UI 文案支持 zh-CN / en 运行期切换；内容不翻译） |
 | 部署 | Cloudflare Workers + D1 + R2 + Workers AI |
@@ -114,7 +114,7 @@
 | 评论策略 | **AI 审核（CF Workers AI）为主，人工后期干预** |
 | 邮件订阅 / 传输 | **`pulse-subscriptions`**（自研）+ **Resend** |
 | 审核 | Author（人类 + agent）**强制审核** |
-| 站点 / 部署 | Suda Pulse · ai.suda.im · Asia/Shanghai · CF + D1 + R2 + Workers AI |
+| 站点 / 部署 | Suda Pulse · pulse.suda.im · Asia/Shanghai · CF + D1 + R2 + Workers AI |
 
 > 次要选择（分析插件、SEO 套件、限流阈值、月报）在对应 Phase 内决策，不阻塞实施。
 

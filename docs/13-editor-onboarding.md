@@ -46,7 +46,7 @@
 ① 站点启用 GitHub 登录
    astro.config.mjs: authProviders: [github()]
    env: EMDASH_OAUTH_GITHUB_CLIENT_ID / EMDASH_OAUTH_GITHUB_CLIENT_SECRET
-   GitHub OAuth app 回调: https://ai.suda.im/_emdash/api/auth/oauth/github/callback
+   GitHub OAuth app 回调: https://pulse.suda.im/_emdash/api/auth/oauth/github/callback
 
 ② 建号限制（管理员一次性配置）
    allowed-domains: { domain: "<合作方域名>", defaultRole: 10 (Subscriber) }
@@ -110,7 +110,7 @@ Editor = 管理全部内容（含发布他人稿件），正好覆盖 `pulse-edi
 
 - [x] `astro.config.mjs`：`authProviders: [github()]`（`import { github } from "emdash/auth/providers/github"`），与 passkey 并存。
 - [x] 环境变量：`deploy:cf` 的 secret 步骤已扩展为**多 key 列表**（`EMDASH_ENCRYPTION_KEY` 必需；`EMDASH_OAUTH_GITHUB_CLIENT_ID` / `_SECRET` 可选，缺则跳过不阻断部署）；本地 dev 放 `.env`（模板 `.env.example` 已加注释）。
-- [ ] GitHub OAuth app 回调 URL 配成 `https://ai.suda.im/_emdash/api/auth/oauth/github/callback`（本地加 `http://localhost:4321/...`）——**部署后手工配置**（GitHub 侧，不在仓库里）。
+- [ ] GitHub OAuth app 回调 URL 配成 `https://pulse.suda.im/_emdash/api/auth/oauth/github/callback`（本地加 `http://localhost:4321/...`）——**部署后手工配置**（GitHub 侧，不在仓库里）。
 
 ### 5.2 建号限制（配置）
 

@@ -21,7 +21,7 @@
  *
  * 用法（dev server 需运行）：
  *   node scripts/create-agent-tokens.mjs
- *   PULSE_BASE=https://ai.suda.im node scripts/create-agent-tokens.mjs   # 生产慎用（见上）
+ *   PULSE_BASE=https://pulse.suda.im node scripts/create-agent-tokens.mjs   # 生产慎用（见上）
  */
 
 const BASE = (process.env.PULSE_BASE ?? "http://localhost:4321").replace(/\/$/, "");

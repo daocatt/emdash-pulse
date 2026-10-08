@@ -3,7 +3,7 @@
 > 基于 [EmDash CMS](https://github.com/emdash-cms/emdash) + [Astro](https://astro.build/) 构建的 **AI 时代新闻 / 报刊发布系统**。
 > **双前台主题**（`news-factory` 报纸头版 / `pulse-news` 杂志式，默认 `SITE_THEME`、后台可运行期切换），后台内容审核 + 多用户，**Author agent 生产 / Editor agent 审核发布**，双阅读面（人类 UI + Agent API），支持图片新闻、播客/视频、RSS、邮件订阅。
 
-**站点**：Suda Pulse · `ai.suda.im` · `Asia/Shanghai` · 部署于 Cloudflare（D1 + R2 + Workers AI）。
+**站点**：Suda Pulse · `pulse.suda.im` · `Asia/Shanghai` · 部署于 Cloudflare（D1 + R2 + Workers AI）。
 
 本目录是**实施前的规划与任务文档**。请先审阅并确认，确认后再进入编码阶段。
 
@@ -102,7 +102,7 @@ Reader agent ──MCP/HTTP JSON──▶ Agent Read API ─┘
 - **D16** 选题分发用 **`assignments` collection**
 - **D17** Editor agent **AI 审核建议 + 人工/一键确认**（可配置全自动）
 - **D22** 第三方 editor 接入 = **EmDash Editor 用户 + OAuth**（**用户**成为 editor，其 agent 自动继承能力，**不给 agent 单独类型**）；**GitHub 登录** + 邮箱域名白名单；新用户默认 **Subscriber**；登录后**申请页 + 后台审批队列**，批准后管理员在 Users 页改角色。
-- 站点：Suda Pulse / ai.suda.im / Asia/Shanghai；部署 Cloudflare + D1 + R2 + Workers AI
+- 站点：Suda Pulse / pulse.suda.im / Asia/Shanghai；部署 Cloudflare + D1 + R2 + Workers AI
 
 > 全部关键决策已确认，无剩余阻塞项。次要选择（分析/SEO 插件、限流阈值、月报）在对应 Phase 内决策。
 
@@ -110,7 +110,7 @@ Reader agent ──MCP/HTTP JSON──▶ Agent Read API ─┘
 
 ## 参考
 
-- `~/codes/emdash`：可运行的 EmDash 站点，作为脚手架/seed/RSS/部署参考。
+- EmDash 官方示例站：脚手架 / seed / RSS / 部署参考。
 - 文档 MCP：`https://docs.emdashcms.com/mcp`（`search_docs`）。
 - 插件注册表：`https://plugins.emdashcms.com`。
 

@@ -1,6 +1,6 @@
 # Agent instructions
 
-Before editing this plugin, read `~/codes/emdash/.agents/skills/creating-plugins/SKILL.md` (and its `references/`) completely.
+Before editing this plugin, read `.agents/skills/creating-plugins/SKILL.md` (and its `references/`) completely.
 Keep `emdash-plugin.jsonc` aligned with the runtime implementation, declare every capability and host the plugin uses, and run the generated validation, test, and build scripts after changes.
 
 ## 本插件要点

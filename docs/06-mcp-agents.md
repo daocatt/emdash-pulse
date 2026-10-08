@@ -35,7 +35,7 @@ EmDash MCP Server
 - **内置 MCP**：token + 路由权限 + `mcp:tools` 或 `mcp:tools:<pluginId>` scope；管理员需在后台**单独启用插件 MCP 工具**。
 - **插件工具**：`mcp.tools.<name>` 引用一个**私有 JSON 路由**，路由声明 `permission` 与 Zod 输入 schema；**不可**用 `response: "raw"` 路由。
 - **破坏性操作**（发布、驳回、退订、删除）标 `destructive: true`。
-- 生产配置 `EMDASH_SITE_URL=https://ai.suda.im`（影响 MCP 发现）。
+- 生产配置 `EMDASH_SITE_URL=https://pulse.suda.im`（影响 MCP 发现）。
 
 > **`/_emdash/api/mcp` 仅接受 Bearer token**（`ec_pat_` / `ec_oat_`）。宿主中间件对该端点是 **bearer-only**——session cookie、dev-bypass 会话一律**不参与**认证；未带 token 直接返回 `401 NOT_AUTHENTICATED` 并附 `WWW-Authenticate: Bearer resource_metadata=…` 发现头（`middleware/auth.ts:271-278`）。因此**不能用后台会话 cookie 调 MCP**，必须创建 API token。
 >
@@ -262,7 +262,7 @@ MCP 端点是 **stateless Streamable HTTP**（POST + JSON-RPC），**仅支持 B
   "mcpServers": {
     "suda-pulse": {
       "type": "http",
-      "url": "https://ai.suda.im/_emdash/api/mcp",
+      "url": "https://pulse.suda.im/_emdash/api/mcp",
       "headers": { "Authorization": "Bearer ec_pat_<SCOPED_TOKEN>" }
     }
   }

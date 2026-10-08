@@ -7,7 +7,7 @@
 | # | 任务 | 状态 |
 | --- | --- | --- |
 | 0.1 | 脚手架（astro/worker/live.config/wrangler/seed/AGENTS） | ✅ 完成 |
-| 0.2 | 站点标识（Suda Pulse / ai.suda.im / Asia/Shanghai） | ✅ 完成 |
+| 0.2 | 站点标识（Suda Pulse / pulse.suda.im / Asia/Shanghai） | ✅ 完成 |
 | 0.3 | 依赖安装 + dev 启动 + admin 可达 | ✅ 完成 |
 | 0.4 | seed 内容导入（articles/pages/taxonomies/bylines/menu） | ✅ 完成 |
 | **Spike 1** | 按月/周范围查询（`where.published_at` gte/lt） | ✅ **通过** |

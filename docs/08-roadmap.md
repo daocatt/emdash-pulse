@@ -8,8 +8,8 @@
 
 **目标**：搭好工程骨架，验证关键技术点与插件选型。
 
-- [x] 从 `~/codes/emdash` 复制工程结构到 `suda-pulse`（astro.config、worker.ts、live.config.ts、tsconfig、wrangler、.env.example、AGENTS.md）。
-- [x] 配置站点标识：**Suda Pulse / ai.suda.im / Asia/Shanghai**（`resolveSiteIdentity` + seed + `docs/01-overview.md`）。
+- [x] 从上游 EmDash 示例站复制工程结构到 `suda-pulse`（astro.config、worker.ts、live.config.ts、tsconfig、wrangler、.env.example、AGENTS.md）。
+- [x] 配置站点标识：**Suda Pulse / pulse.suda.im / Asia/Shanghai**（`resolveSiteIdentity` + seed + `docs/01-overview.md`）。
 - [x] `npm install`，`npm run dev` 跑通，admin 可访问；生成并保存 `EMDASH_ENCRYPTION_KEY`（`.env`）。
 - [x] **Spike 1**：按月/周范围查询（`where: { published_at: { gte, lt } }`）返回正确。✅ 见 `10-phase0-report.md`
 - [~] **Spike 2**：~~`bulletin` 插件安装 + 双确认订阅跑通~~ → **改为自研 `pulse-subscriptions`**（D4 修订），本地双确认/退订已端到端验证（Phase 3）；真实发信待 Resend 凭证。

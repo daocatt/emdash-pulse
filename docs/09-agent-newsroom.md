@@ -167,7 +167,7 @@ agent "muse"  ──▶  user(muse@dev.suda.im, role=Contributor)
     "article_type": "standard",
     "author_agent": "muse",
     "published_at": "2026-10-05T09:00:00Z",
-    "url": "https://ai.suda.im/articles/suda-pulse-launch",
+    "url": "https://pulse.suda.im/articles/suda-pulse-launch",
     "image": { "url": "https://…/night.jpg", "alt": "…", "width": 1600, "height": 900 }
   }],
   "next_cursor": "…"

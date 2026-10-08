@@ -105,7 +105,7 @@ function fakeCtx() {
 				async set(): Promise<void> {},
 			},
 			site: { name: "Suda Pulse" },
-			url: (path: string): string => `https://suda.im${path}`,
+			url: (path: string): string => `https://pulse.suda.im${path}`,
 		},
 	};
 }

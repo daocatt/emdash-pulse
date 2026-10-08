@@ -17,7 +17,7 @@
 
 	// 自定义域。需要该 zone 已在同一账号下托管；换成临时验证时先注释掉，
 	// 用 `suda-pulse.<subdomain>.workers.dev` 访问。
-	"routes": [{ "pattern": "ai.suda.im", "custom_domain": true }],
+	"routes": [{ "pattern": "pulse.suda.im", "custom_domain": true }],
 
 	"d1_databases": [
 		{
@@ -32,7 +32,7 @@
 	// 生产站点 URL：影响 Passkey / CSRF / MCP 发现 / sitemap / JSON-LD。
 	// **必填** —— 生产环境跑 setup 向导时缺它直接 500 SITE_URL_REQUIRED。
 	"vars": {
-		"EMDASH_SITE_URL": "https://ai.suda.im"
+		"EMDASH_SITE_URL": "https://pulse.suda.im"
 	},
 
 	"triggers": {
