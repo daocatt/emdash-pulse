@@ -26,6 +26,7 @@
 | [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md) | **Phase 3 报告**：评论审核（规则 + AI）与读者订阅（`pulse-subscriptions`） |
 | [12-operations.md](./12-operations.md) | **运营手册**：角色职责、巡检清单、编辑流程 SOP、Agent 投稿规范、评论/订阅规范、异常处理 |
 | [13-editor-onboarding.md](./13-editor-onboarding.md) | **第三方 Editor 接入**（已实现）：用户成为 editor + GitHub 登录 + EmDash OAuth；申请页 `/editor/apply` + `pulse-editor-applications` 后台审批队列 |
+| [14-database.md](./14-database.md) | **数据库选型与查询负载复核**：为何继续用 D1（FTS 仅 SQLite 方言）、D1 2026-09 硬限额、索引实测（单字段索引不被选用）、缓存才是杠杆 |
 
 ---
 
@@ -48,6 +49,7 @@
 - **Phase 5d（后台缺陷修复）**：① `select` 选项改到 `validation.options` —— 原先写在字段顶层，导致后台「稿件类型」下拉空白、写入校验退化为任意字符串、生成类型退化为 `string`（影响 6 个字段）✅；② `@emdash-cms/plugin-audit-log@0.2.3` 的 `/history` 页 Block Kit 字段名打补丁（camelCase → snake_case），修掉整页 502 `INVALID_BLOCK_RESPONSE`，由根 `postinstall` 固化 ✅。
 - **Phase 5e（上线准备）**：① **账户无关部署** `npm run deploy:cf`（`scripts/deploy-cf.mjs` + `scripts/lib/cf.mjs`）—— 账号目录 / account id 全落在 gitignored 的 `.env.deploy` 与 `wrangler.prod.jsonc`（模板 `.example` 提交），流程为 whoami 自检 → 幂等建 R2 桶 → 缺 `EMDASH_ENCRYPTION_KEY` 时写入 secret → `plugin:build` → CF 构建 → `wrangler deploy` ✅；② **Demo 互动数据** `scripts/demo-data.mjs`（`demo:data` / `:clean` / `:remote`，取代 `seed-test-engagement.mjs`）—— 评论 + 订阅者/分组/事件，本地 `node:sqlite` 与远端 D1 共用同一份 SQL ✅；③ **全部插件改为 in-process**（`plugins: []`，弃用 `sandboxed`）—— Workers 免费计划没有 Worker Loader 绑定，沙箱插件会静默全部不加载 ✅；④ **接入 `emdash-plugin-resend@0.2.0`**（独占 `email:deliver`，magic link / 订阅确认信依赖它）✅。
 - **Phase 6（第三方 Editor 接入）** ✅：让站外的人/组织成为 editor、其 agent 自动获得编辑能力。方案 = **EmDash Editor 用户 + GitHub 登录（`authProviders: [github()]`）+ 原生 OAuth**（不自研 token）；自建部分 = 申请页 `/editor/apply`（两套主题）+ 插件 `pulse-editor-applications`（申请/审批 + Block Kit 后台队列 + 3 个 MCP 工具）；`deploy:cf` 支持写 GitHub OAuth secret；批准后管理员在 Users 页改角色为 Editor(40)。`plugin:test` / `typecheck:all` / 生产构建均通过。**运行时配置（GitHub OAuth app、邮箱域名白名单）与审批 SOP 见 [13-editor-onboarding.md](./13-editor-onboarding.md) §5 与 [12-operations.md](./12-operations.md) §3.6**。
+- **Phase 5f（数据库复核 + 缓存）** ✅：确认**继续用 D1**（换 Postgres 会丢 FTS 中文搜索 + 放弃整套 CF 栈）；`articles` 的 `article_type` / `is_featured` / `priority` 补 `indexed`；D1 加 `coalesce: true`。复核发现：**EmDash 的 `indexed` 生成的单字段索引，对「等值过滤 + 按 `published_at` 排序」查询不被 SQLite 优化器选用**（不是性能杠杆）；真正的读负载杠杆是缓存 —— 已**启用 Workers Cache**（`cacheCloudflare()` + `routeRules`，仅 CF 部署注入），并让 `src/middleware.ts` 给会话 / 表单 / 错误页统一设 `private, no-store`。详见 [14-database.md](./14-database.md)。
 - 详见 [10-phase0-report.md](./10-phase0-report.md) 与 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)（含每阶段关键发现与踩坑）。
 
 ---
