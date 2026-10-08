@@ -126,8 +126,8 @@ export default plugin;
 ### 3.3 反垃圾与 AI 审核（已确认）
 | 插件 | 作用 | 采用 |
 | --- | --- | --- |
-| **`pulse-review`（自研）** | 规则引擎（链接/黑名单/引流/重复/HTML）+ Workers AI（Llama Guard） | ✅ **已实现** |
-| `@emdash-cms/plugin-ai-moderation` | 官方 AI 审核（TS 源码打包问题暂缓，见 `07-plugins.md` §5.1） | ⏸️ |
+| **`pulse-review`（自研）** | 规则引擎（链接/黑名单/引流/重复/HTML）+ AI 审核（委托 `pulse-ai` 网关） | ✅ **已实现** |
+| `@emdash-cms/plugin-ai-moderation` | 官方 AI 审核（TS 源码打包问题 + 绑死 CF Workers AI；已弃用，见 `07-plugins.md` §5.1） | ❌ |
 | `@peachfinthemes.com/comment-spam-protection` | 本地规则（敏感词/链接/语言/重复/限速） | ✅ 建议（与自研规则互补） |
 | `@lasymphonieagency.com/comment-notify` | 新评论邮件通知管理员 | ✅ 建议 |
 
@@ -136,9 +136,9 @@ export default plugin;
 **实现要点（Phase 3，详见 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)）**：
 
 - `comment:moderate` 是**独占 hook**，注册即**替换**内置审核器 → 必须复刻内置逻辑（`moderation=none` / `commentsAutoApproveUsers` + 已登录 / `first_time` + `priorApprovedCount>0`）。
-- 沙箱插件**拿不到 Workers AI binding**，AI 经 REST 调 `api.cloudflare.com`（`network:request` + `allowedHosts`）。
+- AI 审核**委托 `pulse-ai`**（provider / 模型 / 凭据在后台「AI 网关」页配置；`pulse-review` 不再自带 AI 凭证设置）。
 - 规则判 spam 直接返回，不调 AI；AI 失败/超时**降级到规则结论，绝不自动通过**。
-- 设置项见后台插件设置（`rulesEnabled` / `bannedWords` / `maxLinks` / `aiEnabled` / `aiAutoApprove` / `aiApiToken` 等）。
+- 设置项见后台插件设置（`rulesEnabled` / `bannedWords` / `maxLinks` / `aiEnabled` / `aiAutoApprove` / `aiTimeoutMs` 等）。
 
 ### 3.4 前端评论渲染
 ```astro

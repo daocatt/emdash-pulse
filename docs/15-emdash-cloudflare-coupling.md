@@ -1,5 +1,10 @@
 # EmDash: Openness and Cloudflare Coupling
 
+> **Outcome (2026-10).** This assessment was acted on: the site now runs on a
+> standalone VPS (Node + PostgreSQL + Redis, three Docker containers) instead of
+> Cloudflare Workers. See [16-vps-deployment.md](./16-vps-deployment.md) for the
+> resulting architecture and operations manual.
+>
 > **Scope.** This document answers two architectural questions about the EmDash CMS
 > (verified against `emdash@1.2.0`, the version this site runs):
 >

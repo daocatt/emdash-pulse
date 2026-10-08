@@ -20,7 +20,7 @@
 | 域名 | **pulse.suda.im** |
 | 时区 | **Asia/Shanghai**（影响月/周归档边界） |
 | 语言 | zh-CN（UI 文案支持 zh-CN / en 运行期切换；内容不翻译） |
-| 部署 | Cloudflare Workers + D1 + R2 + Workers AI |
+| 部署 | VPS 独立部署：Node + PostgreSQL + Redis + Docker 三容器（宿主反代终止 TLS） |
 
 ---
 
@@ -57,10 +57,10 @@
 6. **前台双主题**：`news-factory`（报纸头版）与 `pulse-news`（杂志式），各含头版、版块页、文章页、归档页、搜索页、订阅页；默认主题由构建期 `SITE_THEME` 决定，运行期可在后台「前台主题」页切换。
 7. **归档筛选**：按月、按周。
 8. **分类与标签**：hierarchical `section` + flat `tag`。
-9. **评论**：内置评论 + **Cloudflare Workers AI 语义审核** + 反垃圾。
+9. **评论**：内置评论 + **AI 语义审核**（经自研 `pulse-ai` 网关）+ 反垃圾。
 10. **RSS / JSON Feed**：全站与分版块。
 11. **邮件订阅**：**自研 `pulse-subscriptions`**（双确认、退订、订阅者管理；D4 修订），**Resend** 传输。
-12. **部署**：Cloudflare Workers + D1 + R2 + Workers AI（生产），Node + SQLite（本地开发）。
+12. **部署**：**VPS 独立部署**（Node standalone + PostgreSQL + Redis + Docker 三容器；媒体本地磁盘或 S3 兼容）。
 
 ## 4. 非目标（Out of Scope，本期不做）
 
@@ -82,14 +82,14 @@
 | D4 | 邮件订阅**自研 `pulse-subscriptions`**（原定社区 `bulletin`） | 需要自有订阅表与 Agent 订阅意向对齐；本地可完整验证数据流 | 🔁 已修订 |
 | D5 | 邮件传输采用 **Resend** | 送达率好、API 简单 | ✅ 已定 |
 | D6 | MCP 复用内置 + 自研 `pulse-agent` 插件 | 内置管内容，自研管投稿/订阅/阅读/审核 | ✅ |
-| D7 | 生产部署 **Cloudflare Workers + D1 + R2 + Workers AI** | 与参考一致；cron 支持定时发布/摘要 | ✅ |
+| D7 | 生产部署 **VPS + Docker 三容器**（Node + PostgreSQL + Redis；媒体 S3 兼容或本地） | 数据自主、AI 供应商自由、无按行计费配额；见 D23 | 🔁 已修订 |
 | D8 | 按月/周筛选用 `where.published_at` 范围（`gte`/`lt`） | 已确认 `WhereRange` 支持 | ✅ |
 | D9 | 主题从零自研（**双主题**：报纸头版 + 杂志式） | 与朋友圈主题差异大；两套 UI 稿需共存 | ✅ |
-| D10 | 自研插件优先**沙箱（Sandboxed）** | 权限可声明、安全边界清晰 | ✅ |
+| D10 | 自研插件走**标准格式**、统一 `plugins: []`（in-process） | 权限可声明；本地与生产同路径（沙箱后端在 CF 上需付费计划） | 🔁 已修订 |
 | D11 | **Author 稿件强制审核**（含人类 Author） | 新闻社编审要求 | ✅ 已定 |
 | D12 | 引入**显式期号 `editions`** | 编辑可控版面打包 | ✅ 已定 |
 | D13 | 引入 **Agent Read API**（MCP + HTTP JSON） | agent 阅读与聚合需求 | ✅ 已定 |
-| D14 | 评论 AI 审核用 **Cloudflare Workers AI** | 与 CF 部署一致，成本可控 | ✅ 已定 |
+| D14 | 评论 AI 审核走自研 **`pulse-ai` 网关**（provider 可换：CF AI Gateway / OpenAI / Anthropic / 任意兼容端点） | 不绑死单一供应商，成本可控 | 🔁 已修订 |
 | D15 | 每个 author agent **独立身份 + scoped token** | 审计、限流、归属清晰 | ✅ 已定 |
 | D16 | 选题分发用 **`assignments` collection** | 显式任务流转，后台可视化编辑，agent 可领取 | ✅ 已定 |
 | D17 | Editor agent **产出审核建议 + 人工/一键确认**（可配置全自动） | 风险可控，兼顾效率 | ✅ 已定 |
@@ -97,12 +97,14 @@
 | D19 | Agent Read API **公开只读 + 限流** | 便于任意 agent 接入 | ✅ 已定 |
 | D20 | 期号先做 **周报（week）**，月报后续可加 | 粒度贴合新闻节奏 | ✅ 已定 |
 | D21 | 评论 **AI 审核为主，人工后期干预** | 效率与可控平衡 | ✅ 已定 |
+| D22 | 第三方 editor 接入 = **EmDash Editor 用户 + GitHub OAuth**（不给 agent 单独类型） | agent 以用户身份操作，能力 = scope ∩ 角色 | ✅ 已定 |
+| D23 | 运行时从 Cloudflare Workers 迁到 **Node standalone**；库 **PostgreSQL**；缓存 **Redis**；AI 走 `pulse-ai`；订阅同步 Resend **Segments**、群发 **Broadcasts** | 中文全文搜索、AI 供应商自由、数据自主、无按行配额 | ✅ 已定 |
 
 ---
 
 ## 6. 决策收敛结果
 
-**全部关键决策已确认**（D1–D21，见 §5），无剩余阻塞项。
+**全部关键决策已确认**（D1–D23，见 §5），无剩余阻塞项。
 
 | 项 | 结论 |
 | --- | --- |
@@ -111,10 +113,10 @@
 | Author agent 接入 | **自助注册 + 审批** |
 | Agent Read API | **公开只读 + 限流**（写操作鉴权） |
 | 期号粒度 | **周报优先**（`period_type=week`），月报后续 |
-| 评论策略 | **AI 审核（CF Workers AI）为主，人工后期干预** |
-| 邮件订阅 / 传输 | **`pulse-subscriptions`**（自研）+ **Resend** |
+| 评论策略 | **AI 审核为主，人工后期干预**（AI 经 `pulse-ai` 网关） |
+| 邮件订阅 / 传输 | **`pulse-subscriptions`**（自研）+ **Resend**（Segments 同步 / Broadcasts 群发） |
 | 审核 | Author（人类 + agent）**强制审核** |
-| 站点 / 部署 | Suda Pulse · pulse.suda.im · Asia/Shanghai · CF + D1 + R2 + Workers AI |
+| 站点 / 部署 | Suda Pulse · pulse.suda.im · Asia/Shanghai · VPS（Node + PostgreSQL + Redis + Docker 三容器） |
 
 > 次要选择（分析插件、SEO 套件、限流阈值、月报）在对应 Phase 内决策，不阻塞实施。
 
@@ -128,5 +130,5 @@
 - [ ] Editor agent / 编辑可审核、通过/驳回、发布/定时发布。
 - [ ] 人类通过双主题前台 UI 阅读；agent 通过 MCP / HTTP JSON API 阅读已发布新闻。
 - [ ] RSS / JSON Feed 可订阅；邮件订阅完成双确认与退订。
-- [ ] 评论经 CF Workers AI + 人工审核。
-- [ ] 生产部署到 Cloudflare（D1 + R2 + Workers AI），定时任务正常。
+- [ ] 评论经 AI（`pulse-ai`）+ 人工审核。
+- [ ] 生产部署到 VPS（Node + PostgreSQL + Redis，Docker 三容器），定时任务正常。

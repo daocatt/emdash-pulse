@@ -312,8 +312,7 @@ Agent 侧公开路由的响应契约：**成功 200**、**未鉴权 401**、**�
   改为锚定首次请求，注释同步更正（原文误称「滑动窗口」）。
 - **`clientIp` 回退 `"unknown"`**：部署未透传真实 IP 时所有请求共桶。生产必须设置
   `EMDASH_TRUSTED_PROXY_HEADERS`（本地 dev 已用 `x-forwarded-for`）。
-- **已知局限**（留 Phase 5）：按插件实例计数（多 isolate 非严格全局）、读改写非原子
-  （并发可能少计）；计划换 Cloudflare Rate Limiting binding / Durable Object。
+- **已知局限**：按插件实例计数、读改写非原子（并发可能少计）。Node 单进程部署下实例计数即全局；如需严格限流可换 Redis 计数器 / 反代层限流。
 
 ---
 

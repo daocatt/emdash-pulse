@@ -7,20 +7,20 @@ EmDash 插件分两类：
 
 > 原则：能用官方/社区插件就不自研；自研一律**标准格式**。
 >
-> **本项目实际选择**：全部插件都放 `plugins: []`（宿主进程内）。原因是 Cloudflare Workers 上唯一的沙箱后端 Worker Loader 需要付费计划 —— 免费计划下 `sandbox()` 返回 `undefined`，沙箱插件会静默全部不加载（详见 [02-architecture.md](./02-architecture.md) §9）。代价是失去 isolate 隔离；本项目插件全部自研，风险可控。
+> **本项目实际选择**：全部插件都放 `plugins: []`（宿主进程内）。历史上 CF Workers 上唯一的沙箱后端 Worker Loader 需付费计划（免费计划下 `sandbox()` 返回 `undefined`，沙箱插件会静默全部不加载），迁到 VPS/Node 后仍统一走 in-process —— 本地与生产同一条路径（详见 [02-architecture.md](./02-architecture.md) §9）。代价是失去 isolate 隔离；本项目插件全部自研，风险可控。
 
 ---
 
 ## 1. 采用清单（已确认）
 
-> 决策：D4 订阅**自研 `pulse-subscriptions`**（修订，原定 `bulletin`）；D5 邮件传输用 **Resend**；D14 评论审核用 **规则 + Cloudflare Workers AI**。
+> 决策：D4 订阅**自研 `pulse-subscriptions`**（修订，原定 `bulletin`）；D5 邮件传输用 **Resend**；D14 评论审核用 **规则 + AI**（AI 经自研 `pulse-ai` 网关，provider 可换）。
 
 | 需求 | 插件 | 来源 | 状态 | 说明 |
 | --- | --- | --- | :-: | --- |
 | **邮件传输** | `emdash-plugin-resend@0.2.0` | 官方 npm | ✅ **已接入** | Resend，独占 `email:deliver`；后台「Resend」页填 API key / From。**缺它则 magic link 503、订阅确认信只落 `pendingEmail`** |
 | 邮件传输（备选） | `@msale.com/resend` / `@masonjames.com/emdash-smtp` / `@numoteq.com/forward-email` / `@cfreear.bsky.social/emdash-cf-email-sending` | 社区 | 备选 | 如需切换 |
 | **邮件订阅 / newsletter** | ~~`@meekmedia.bsky.social/bulletin`~~ → **自研 `pulse-subscriptions`** | 社区 → 自研 | 🔁 **D4 修订** | 需要自有订阅表与 Agent 订阅意向对齐；双确认 + 退订 + 订阅者管理，邮件发送抽象为「有 provider 就发，没有就落库待发」 |
-| **评论 AI 审核** | `@emdash-cms/plugin-ai-moderation` | 官方 | ✅ **选定** | Cloudflare Workers AI / Llama Guard |
+| **评论 AI 审核** | 自研 `pulse-review` + `pulse-ai` | 自研 | ✅ **已接入** | 规则引擎 + AI（经 `pulse-ai` 网关，provider 可换），失败降级不自动通过 |
 | 评论反垃圾 | `@peachfinthemes.com/comment-spam-protection` | 社区 | ✅ | 敏感词/链接/语言/重复/限速（与 AI 审核互补） |
 | 评论通知 | `@lasymphonieagency.com/comment-notify` | 社区 | ✅ | 新评论邮件通知管理员 |
 | 审计日志 | `@emdash-cms/plugin-audit-log` | 官方 | ✅ | 内容/媒体变更审计 |
@@ -81,8 +81,8 @@ EmDash 插件分两类：
 - `comment:moderate`（**独占**，`timeout: 10s`）：注册后**替换**内置审核器 `emdash-default-comment-moderator`，故**必须复刻内置逻辑**（`commentsModeration=none` / `commentsAutoApproveUsers` + 已登录 / `first_time` + `priorApprovedCount>0` → 自动通过；其余 pending）。
 - 能力注意：`comment:moderate` 要求 **`users:read`**（不是 `comments:moderate`）；能力不匹配时 hook 会被**静默跳过**。
 - 规则引擎（`src/moderation.ts`）：链接数 / 黑名单词 / 联系方式 / 重复字符 / 原始 HTML / 作者名是 URL。命中 spam 直接判 spam（不调 AI）。
-- AI（可选，默认关）：沙箱无 Workers AI binding，经 **REST** 调 `api.cloudflare.com`（`network:request` + `allowedHosts`）；`unsafe` → spam，**失败/超时 → 降级到规则结论，绝不自动通过**。
-- 设置：`rulesEnabled` / `bannedWords` / `maxLinks` / `maxLength` / `minLength` / `aiEnabled` / `aiAutoApprove` / `aiAccountId` / `aiApiToken`(secret) / `aiModel` / `aiTimeoutMs`。
+- AI（可选，默认关）：**委托 `pulse-ai`**（provider / 模型 / 凭据都在「AI 网关」页配置，`pulse-review` 不再自带 AI 凭证设置）；`unsafe` → spam，**失败/超时 → 降级到规则结论，绝不自动通过**。
+- 设置：`rulesEnabled` / `bannedWords` / `maxLinks` / `maxLength` / `minLength` / `aiEnabled` / `aiAutoApprove` / `aiTimeoutMs`。
 
 ### 2.5 `pulse-subscriptions`（读者订阅）
 
@@ -163,7 +163,7 @@ pnpm run build
 | 插件 | 状态 | 说明 |
 | --- | :-: | --- |
 | `@emdash-cms/plugin-audit-log@0.2.3` | ✅ 已装并验证写入 | 能力 `content:read/write`、`media:read`；storage `entries`；hooks `content:beforeSave/afterSave`、`content:beforeDelete/afterDelete`、`media:afterUpload` |
-| `@emdash-cms/plugin-ai-moderation@0.2.2` | ⏸️ 暂缓 | 该版本 `main`/`exports` 指向 **TS 源码**（`src/descriptor.ts`，无 `dist`），Astro config 加载时报 `Stripping types is currently unsupported for files under node_modules`；且需 CF Workers AI binding。待部署 CF 时一并解决 |
+| `@emdash-cms/plugin-ai-moderation@0.2.2` | ❌ 弃用 | 该版本 `main`/`exports` 指向 **TS 源码**（`src/descriptor.ts`，无 `dist`），Astro config 加载时报 `Stripping types is currently unsupported for files under node_modules`；且绑死 CF Workers AI binding。已由自研 `pulse-review` + `pulse-ai` 取代（provider 可换） |
 
 启动日志证据：
 ```
@@ -191,7 +191,7 @@ audit-log 写入证据（建一篇草稿后 `_plugin_storage` 出现一条 `entr
 
 **注册表安装失败根因**：`emdash/src/registry/publisher-handle.ts` 的 `boundedFetch` 对非 `DIRECTORY_ORIGINS`（`plc.directory`、`cloudflare-dns.com`）的请求走 SSRF 校验（`resolveAndValidateExternalUrl`），其 DNS 解析用 **Cloudflare DoH**。本环境 `cloudflare-dns.com` 不可达（TLS 被断），故发布者校验失败。
 > 直接在 Node 用 `@atcute/identity-resolver` 的 `PlcDidDocumentResolver` 解析同一 DID **成功** —— 说明 `plc.directory` 可达，问题在 DoH 依赖。
-> 结论：**在能访问 Cloudflare DoH 的网络（或部署到 CF）重试注册表安装**；本地开发可先用 npm 官方插件与自研沙箱插件。
+> 结论：**在能访问 Cloudflare DoH（`cloudflare-dns.com`）的网络重试注册表安装**；本地开发可先用 npm 官方插件与自研插件。
 
 **`emdash-plugin` CLI 可用命令**：`search` / `info`（只读发现），`init` / `build` / `dev` / `bundle` / `validate`（自研），`publish` / `release`（发布到 atproto 注册表）。**无本地安装命令** —— 安装走 Admin UI / registry API。
 
@@ -281,7 +281,7 @@ HTTP 冒烟（`/_emdash/api/plugins/<slug>/<route>`）：
 
 - 🔁 **D4（修订）**：订阅**自研 `pulse-subscriptions`**（原定社区 `bulletin`）。理由：需要自有订阅表与 Agent 订阅意向对齐，且本地可完整验证数据流；邮件传输仍不锁定单一 provider。
 - ✅ **D5**：邮件传输采用 **Resend**（`emdash-plugin-resend`）—— 待凭证。
-- ✅ **D14**：评论审核**规则 + Cloudflare Workers AI**（`pulse-review` 独占 `comment:moderate`；AI 经 REST，失败降级不自动通过）。
-- ✅ 部署：**Cloudflare Workers + D1 + R2 + Workers AI**。
+- ✅ **D14**：评论审核**规则 + AI**（`pulse-review` 独占 `comment:moderate`；AI 委托 `pulse-ai` 网关，失败降级不自动通过）。
+- ✅ 部署：**VPS + Docker 三容器（Node + PostgreSQL + Redis）**；AI 经 `pulse-ai`（provider 可换）。
 - ✅ 结构化数据：**自研 `pulse-seo`**（可信插件）统一 JSON-LD，不引入第三方 SEO 套件（见 §2.6）。
 - ⏳ 待定：分析插件（Cloudflare vs Umami）。

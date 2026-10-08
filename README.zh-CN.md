@@ -4,7 +4,7 @@
 
 基于 [EmDash](https://github.com/emdash-cms/emdash) + [Astro](https://astro.build/) 构建的 **Agent 协作新闻室发布系统**。
 
-Suda Pulse 是一套面向新闻编辑室、报刊与独立媒体的全栈发布系统，以 AI agent 协作为核心。它自带两套可切换的前台主题、编审工作流、多用户后台、面向 author/editor agent 的 MCP 接口，以及面向 reader agent 的机器可读阅读 API。
+Suda Pulse 是一套面向新闻编辑室、报刊与独立媒体的全栈发布系统，以 AI agent 协作为核心。它自带两套可切换的前台主题、编审工作流、多用户后台、面向 author/editor agent 的 MCP 接口，以及面向 reader agent 的机器可读阅读 API。运行时是**独立的 VPS 部署** —— 三个 Docker 容器，不依赖任何托管平台。
 
 ---
 
@@ -16,14 +16,14 @@ Suda Pulse 是一套面向新闻编辑室、报刊与独立媒体的全栈发布
 - **Agent 新闻室** —— 编辑分发选题，author agent 领取并投稿，editor agent（或人工）审核并发布。
 - **MCP 服务** —— `POST /_emdash/api/mcp`，走 EmDash 原生 OAuth 2.1（授权码 + PKCE、device grant）或个人访问令牌；token 的 scope 与用户角色取交集。
 - **Agent Read API** —— `/agent/*` 下的公开、限流 JSON 端点（新闻、版块、期号、JSON Feed、schema）以及 `/llms.txt`。
-- **评论** —— 内置评论 + 规则引擎与 Cloudflare Workers AI 语义审核。
-- **邮件订阅** —— 双确认、退订、订阅者分组与事件日志；通过 [Resend](https://resend.com/) 投递。
+- **评论** —— 内置评论 + 规则引擎与 AI 语义审核，模型调用走 `pulse-ai` 插件。
+- **邮件订阅** —— 双确认、退订、订阅者分组与事件日志；通过 [Resend](https://resend.com/) 投递。分组同步为 Resend **Segments**，群发走 Resend **Broadcasts**，投递回执走签名 **Webhook**。
 - **SEO 与订阅源** —— JSON-LD、XML sitemap、`robots.txt`、RSS 与 JSON Feed。
 - **双语界面** —— zh-CN / en 运行期切换（内容本身不翻译）。
-- **媒体管线** —— 图片存于 R2，支持响应式 `srcset`、WebP 与 LQIP。
-- **归档与搜索** —— 按月 / 周浏览；全文搜索。
+- **媒体管线** —— 图片存于本地磁盘或任意 S3 兼容存储，支持响应式 `srcset`、WebP 与 LQIP。
+- **归档与搜索** —— 按月 / 周浏览；全文搜索由 PostgreSQL `pg_trgm` 支撑。
 - **第三方编辑** —— GitHub 登录 + `/editor/apply` 申请页 + 后台审批队列。
-- **定时发布** —— cron 触发器驱动定时稿件。
+- **定时发布** —— 进程内调度器驱动定时稿件。
 
 ## 技术栈
 
@@ -31,93 +31,81 @@ Suda Pulse 是一套面向新闻编辑室、报刊与独立媒体的全栈发布
 | --- | --- |
 | 框架 | Astro 7（`output: "server"`，SSR） |
 | CMS | [EmDash](https://github.com/emdash-cms/emdash) 1.2 |
-| 运行时 | Cloudflare Workers |
-| 数据 | Cloudflare D1（内容） |
-| 媒体 | Cloudflare R2 |
-| AI | Cloudflare Workers AI（评论审核） |
+| 运行时 | Node.js 22（`@astrojs/node`，standalone） |
+| 数据 | PostgreSQL 17 |
+| 缓存 | Redis 7（EmDash 对象缓存） |
+| 媒体 | 本地磁盘或 S3 兼容（R2 / MinIO / …） |
+| AI | `pulse-ai` —— Cloudflare AI Gateway / OpenAI / Anthropic / 任意 OpenAI 兼容端点 |
 | 交互岛 | React 19 |
 | 语言 | TypeScript |
-| 扩展 | 7 个自研插件（全部 in-process） |
+| 扩展 | 8 个自研插件（全部 in-process） |
+| 打包 | Docker Compose —— `pulse-app` / `pulse-db` / `pulse-redis` |
 
 ## 本地快速开始
 
-要求：**Node 22.16+**。
+要求：**Node 22.16+**，以及一个可达的 **PostgreSQL**（Redis 可选 —— 未配置时对象缓存自动降级为直通）。
 
 ```bash
-npm install     # 同时会对两个上游插件包打小补丁（见「说明」）
-npm run dev     # 构建插件后启动 Astro dev，地址 http://localhost:4321
+npm install                       # 同时会对两个上游插件包打小补丁（见「说明」）
+
+# 最省事：只用 compose 起数据服务
+docker compose up -d pulse-db pulse-redis
+
+cp .env.example .env              # 填 EMDASH_ENCRYPTION_KEY 与 PG*/DATABASE_URL
+npm run dev                       # 构建插件后启动 Astro dev，地址 http://localhost:4321
 ```
 
-- 本地数据落在 SQLite（`data.db`）与 `./uploads`。
+- 内容在 PostgreSQL；本地媒体落 `./uploads`，会话落 `./data/sessions`。
 - 后台：<http://localhost:4321/_emdash/admin>。首次访问会走 **setup 向导** —— 站点标题/副标题、管理员邮箱、注册 Passkey，并导入 `seed/seed.json`（示例内容 + 媒体，可能需要几分钟）。
 - 改构建期默认主题：`SITE_THEME=pulse-news npm run dev`。
+- 重建过数据库后需要重跑搜索索引：`npm run search:rebuild`。
 
-## 部署到 Cloudflare
+## 部署到 VPS
 
-应用运行在 Cloudflare Workers 上，使用 D1、R2 与 Workers AI。仓库**不保存任何账号信息**：提交的 `wrangler.jsonc` 与各 `*.example` 文件只有占位符，真实值放在 git 忽略的 `wrangler.prod.jsonc` 与 `.env.deploy`。
+应用以三个 Docker 容器运行，由 `docker-compose.yml` 编排；TLS 由宿主上的反向代理终止。仓库**不保存任何凭据** —— 全部走 git 忽略的 `.env`（模板 `.env.example`）。
 
-### Workers 计划：免费 vs 付费
+**完整运维手册见 [`docs/16-vps-deployment.md`](./docs/16-vps-deployment.md)。** 速览：
 
-**默认配置完全可以在 Workers 免费计划上运行。** 七个插件全部 **in-process**（`plugins: []`），涉及的 Cloudflare 产品只有 D1、R2、Workers AI 与 cron —— 都有免费额度。若预期高流量，请以 Cloudflare 当前限额为准。
-
-**只有想启用 isolate 级插件沙箱时才需要 Workers 付费计划。** Workers 上唯一的沙箱后端是 **Worker Loader**（`LOADER` 绑定），属付费能力。免费计划下切到 `sandboxed: []`，`@emdash-cms/cloudflare` 的 `sandbox()` 读不到绑定会返回 `undefined`，**所有沙箱插件静默不加载**（构建期只打一条 warn）。本地逃生舱 `sandbox: false` 在 Workers 上被运行时显式禁用。
-
-| | 免费计划 | 付费计划 |
-| --- | --- | --- |
-| In-process 插件（`plugins: []`，默认） | ✅ | ✅ |
-| D1 · R2 · Workers AI · cron | ✅（免费额度） | ✅ |
-| 沙箱插件（`sandboxed: []` + `LOADER`） | ❌ | ✅ |
-
-### 1. 创建 D1 数据库
+### 1. 配置
 
 ```bash
-npx wrangler d1 create suda-pulse-db
+git clone <repo> /srv/pulse && cd /srv/pulse
+cp .env.example .env
 ```
 
-记下返回的 `database_id`。（R2 桶由部署脚本自动创建。）
+必填：`EMDASH_ENCRYPTION_KEY`（加密落库的插件密钥 —— **务必备份**，丢了它已存的密钥就解不开）、`EMDASH_SITE_URL`（公开 origin）、`POSTGRES_PASSWORD`，以及 `EMDASH_TRUSTED_PROXY_HEADERS=x-forwarded-for`（让限流/订阅拿到真实客户端 IP）。可选：`S3_*`（对象存储）、`EMDASH_OAUTH_GITHUB_*`（GitHub 登录）、`SITE_THEME`。
 
-### 2. 配置
+### 2. 启动
 
 ```bash
-cp wrangler.prod.jsonc.example wrangler.prod.jsonc
+npm run docker:up     # = docker compose up -d --build
 ```
 
-填写：
+它会构建 `pulse-app`（插件 → Astro 构建）、起 `pulse-db` 与 `pulse-redis`，并在启动时自动跑迁移。`pulse-db` 首次初始化时会建 `pg_trgm` 扩展（`docker/initdb/00-extensions.sql`）。
 
-- `account_id` —— 你的 Cloudflare 账号 ID（出现在每次控制台 URL 里）。
-- `d1_databases[0].database_id` —— 上一步拿到的值。
-- `routes[0].pattern` —— 你的自定义域名，如 `pulse.example.com`，且该 zone 必须已在同一账号下托管。想先快速验证，可注释掉 `routes`，改用 `suda-pulse.<你的子域>.workers.dev`。
-- `vars.EMDASH_SITE_URL` —— 公开 origin，如 `https://pulse.example.com`。**必填**：Passkey、CSRF、MCP 发现、sitemap 与 JSON-LD 都依赖它，缺它时 setup 向导会返回 `500 SITE_URL_REQUIRED`。部署脚本也会把它传给构建，保证图片域名白名单正确。
+### 3. 反向代理
 
-再创建本地 env 文件：
+把 [`deploy/Caddyfile.example`](./deploy/Caddyfile.example) 的站点块并入宿主 Caddyfile 后 reload —— Caddy 会自动申请证书。`pulse-app` 只绑 `127.0.0.1:4321`。nginx 等价配置要点在同一文件里。
 
-```bash
-cp .env.deploy.example .env.deploy   # 可选：把 WRANGLER_HOME 指向某个 wrangler 登录目录
-cp .env.example .env                 # 填 EMDASH_ENCRYPTION_KEY
-```
+### 4. 首次启动之后
 
-- `EMDASH_ENCRYPTION_KEY` 用于加密落库的插件密钥（API key 等）。用 `npx emdash secret` 生成。**务必备份** —— 换值会让此前加密落库的设置再也解不开。
-- `WRANGLER_HOME` 让你用指定的 `wrangler login` 凭据部署（把 `HOME` 指向该账号目录），适合手上有多个 Cloudflare 账号时。留空则用当前 shell 的登录态。
-
-### 3. 部署
-
-```bash
-npm run deploy:cf
-```
-
-脚本按顺序执行：`wrangler whoami`（仅提示）→ 幂等创建 R2 桶 → 补写缺失的 Worker secret → 构建插件 → 用 Cloudflare 适配器 `astro build` → `wrangler deploy`。
-
-可用开关：`--skip-build`、`--no-secrets`、`--no-buckets`。
-
-**更简单的路径：** `npm run deploy` 跳过辅助脚本，直接用当前 shell 已登录的 wrangler 凭据（`wrangler login`）部署。
-
-### 4. 首次部署之后
-
-1. 打开 `https://<你的域名>/_emdash/admin` 走完 **setup 向导** —— 它会灌入内容并注册首个管理员 Passkey。（超级管理员无法用配置预指定，只能由向导的 WebAuthn 注册写入。）
+1. 打开 `https://<你的域名>/_emdash/admin` 走完 **setup 向导** —— 它会灌入内容并注册首个管理员 Passkey。
 2. 后台 → **Resend** 页 → 填 API key 与 From 地址。缺它时邮箱链接登录（magic link）返回 `503 EMAIL_NOT_CONFIGURED`，订阅邮件只能落库待发。
-3. *可选* —— **GitHub 登录**：在 GitHub 新建 OAuth App，回调填 `https://<你的域名>/_emdash/api/auth/oauth/github/callback`，把 Client ID/Secret 填进 `.env` 的 `EMDASH_OAUTH_GITHUB_CLIENT_ID` / `EMDASH_OAUTH_GITHUB_CLIENT_SECRET`，再跑一次 `npm run deploy:cf`。
-4. 若启用 GitHub 登录，务必配置 **`allowed-domains`** 邮箱域名白名单（域名 + `defaultRole`），否则等于对全网开放建号。
-5. *可选* —— 灌入 Demo 互动数据：`npm run demo:data:remote`。
+3. *可选* —— 后台 → **AI 网关** 页 → 选 provider、填凭据、点「测试连接」。
+4. *可选* —— 配置 Resend Webhook 收投递回执（见 `docs/16-vps-deployment.md` §7）。
+
+### 构建期 vs 运行期的分界
+
+EmDash 会把 `database` / `storage` / `objectCache` 描述符序列化进构建产物，所以连接串**绝不能**出现在 `astro.config.mjs` 里。配置里只决定适配器的**种类**，凭据一律运行期从环境读。
+
+| 关注点 | 构建期决定 | 运行期读取 |
+| --- | --- | --- |
+| 数据库 | `postgres()`（固定） | `pg` 连接池读 `PGHOST` / `PGPORT` / `PGDATABASE` / `PGUSER` / `PGPASSWORD`；迁移读 `DATABASE_URL` |
+| 存储 | `S3_ENDPOINT` 非空 → `s3()`，否则 `local()` | `S3_ENDPOINT` / `S3_BUCKET` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` / `S3_REGION` / `S3_PUBLIC_URL` |
+| 对象缓存 | entrypoint + 可序列化默认值 | `REDIS_URL` |
+| 图片白名单 | `EMDASH_SITE_URL`（+ `S3_PUBLIC_URL`） | — |
+
+因此**换域名**只需改 `EMDASH_SITE_URL` 并重新构建，无需动源码。
 
 ## 配置项
 
@@ -125,30 +113,29 @@ npm run deploy:cf
 | --- | --- | --- |
 | `EMDASH_ENCRYPTION_KEY` | 加密落库的插件密钥 | **必需** |
 | `EMDASH_SITE_URL` | 公开 origin（Passkey、CSRF、MCP 发现、sitemap、JSON-LD、图片白名单） | **生产必需** |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | 数据库凭据（compose 据此拼出 `DATABASE_URL` 与 `PG*`） | **必需** |
+| `DATABASE_URL` | `emdash` CLI / 迁移用的单条连接串 | 二选一 |
+| `PGHOST` / `PGPORT` / `PGDATABASE` / `PGUSER` / `PGPASSWORD` | 运行期连接池读的标准 libpq 变量 | 二选一 |
+| `REDIS_URL` | EmDash 对象缓存后端；未设置时缓存直通 | 否 |
+| `S3_ENDPOINT` / `S3_BUCKET` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` / `S3_REGION` / `S3_PUBLIC_URL` | S3 兼容媒体存储（构建期设了 `S3_ENDPOINT` 才会选 `s3()`） | 否 |
 | `SITE_THEME` | 构建期默认主题（`news-factory` \| `pulse-news`） | 否（默认 `news-factory`） |
-| `EMDASH_OAUTH_GITHUB_CLIENT_ID` | GitHub 登录 client ID | 否 |
-| `EMDASH_OAUTH_GITHUB_CLIENT_SECRET` | GitHub 登录 client secret | 否 |
+| `EMDASH_OAUTH_GITHUB_CLIENT_ID` / `EMDASH_OAUTH_GITHUB_CLIENT_SECRET` | GitHub 登录 | 否 |
 | `EMDASH_TRUSTED_PROXY_HEADERS` | 信任代理头，让限流拿到真实客户端 IP | 建议 |
-| `EMDASH_ALLOWED_ORIGINS` | Passkey 额外允许的 origin（逗号分隔） | 否 |
-| `DEPLOY_TARGET` | 设为 `cloudflare` 时用 Workers 适配器构建（部署脚本会自动设） | 否 |
-| `WRANGLER_HOME` | 作为子进程 `HOME` 的 wrangler 凭据目录 | `deploy:cf` / 远端 D1 需要 |
 
 ## 脚本
 
 | 脚本 | 作用 |
 | --- | --- |
-| `npm run dev` | 构建插件后启动 Astro dev（SQLite + `./uploads`） |
+| `npm run dev` | 构建插件后启动 Astro dev（连 PostgreSQL） |
 | `npm run build` | 构建插件 + 默认主题的 Node 产物 |
 | `npm run build:news-factory` / `build:pulse-news` | 构建指定主题 |
-| `npm run build:cf` | 只构建 Cloudflare（Workers）产物，不部署 |
-| `npm run deploy` | 构建 Cloudflare 产物并用当前登录态 `wrangler deploy` |
-| `npm run deploy:cf` | 账户无关部署（见上） |
+| `npm run docker:up` / `docker:down` | 构建并启动 / 停止三容器栈 |
+| `npm run start` | 跑构建后的 Node 产物（`dist/server/entry.mjs`） |
 | `npm run typecheck` / `typecheck:all` | 单套 / 两套主题 `astro check` |
 | `npm run plugin:build` / `plugin:test` | 构建 / 测试全部插件 |
-| `npm run demo:data` | 灌入本地 Demo 互动数据（`:clean` 清理，`:remote` 针对 D1） |
+| `npm run search:rebuild` | 重建 `pulse_search` 索引（`pg_trgm`） |
+| `npm run demo:data` | 灌入本地 Demo 互动数据（`:clean` 清理） |
 | `npm run perf` | 两套主题的移动端 Lighthouse 复核 |
-| `npm run start` | 跑构建后的 Node 产物 |
-| `node scripts/configure-search.mjs` | 把搜索索引切成 trigram 分词器（中文搜索用） |
 
 ## 主题
 
@@ -170,7 +157,7 @@ Suda Pulse 提供两个 agent 面：
 
 ## 文档
 
-规划与参考文档在 [`docs/`](./docs/README.md)（中文）：架构、内容模型、前台主题、后台审核、MCP、插件、路线图、运营手册与实施报告。
+规划与参考文档在 [`docs/`](./docs/README.md)（中文）：架构、内容模型、前台主题、后台审核、MCP、插件、路线图、运营手册与实施报告。部署请先看 [`docs/16-vps-deployment.md`](./docs/16-vps-deployment.md)。
 
 ## 说明
 

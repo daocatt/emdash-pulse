@@ -67,7 +67,7 @@ function themeRoutes() {
 | 读 | `src/middleware.ts`（宿主信任代码） | `getPluginSetting("pulse-theme", "theme")`；取不到 / 非法则回退 `__DEFAULT_SITE_THEME__` |
 | 生效 | `src/middleware.ts` | 当前主题 === 默认 → 直接 `next()`；否则把干净路径 rewrite 到 `/_t/<theme>/…` |
 
-`__DEFAULT_SITE_THEME__` 由 `astro.config.mjs` 的 `vite.define` 烘进产物（Node / Workers 两种运行时都能读到，不依赖 `process.env`）。
+`__DEFAULT_SITE_THEME__` 由 `astro.config.mjs` 的 `vite.define` 烘进产物（运行期读到，不依赖 `process.env`）。
 
 中间件的四条硬约束（改之前先读 `src/middleware.ts` 顶部注释）：
 
@@ -90,7 +90,7 @@ function themeRoutes() {
 
 ### 为什么不用「改 `srcDir`」
 
-`src/live.config.ts` 必须在 `srcDir/live.config.ts`（Astro content runtime 强制）；Cloudflare adapter 的 worker 入口默认也在 srcDir；EmDash 用 `srcDir/pages/` 检测用户是否覆盖了 `robots.txt` / `sitemap.xml`。
+`src/live.config.ts` 必须在 `srcDir/live.config.ts`（Astro content runtime 强制）；EmDash 用 `srcDir/pages/` 检测用户是否覆盖了 `robots.txt` / `sitemap.xml`。
 
 ---
 
@@ -321,9 +321,9 @@ if (Astro.cache?.enabled) Astro.cache.set(cacheHint);
 
 ## 8. 搜索
 
-- 全文搜索走 EmDash 的 `search()`，集合限 `["articles", "pages"]`。
-- **中文需要 trigram 分词器**：FTS 默认 `porter unicode61` 不支持中文分词（「内容审核工作流」无法用「审核」命中）。用 `scripts/configure-search.mjs` 把 `_emdash_collections.search_config.tokenize` 改成 `trigram` 并重建索引；**重建库后需要重跑**。
-- trigram 要求 ≥ 3 字符，1–2 字的中文查询（如「审核」）走 `@utils/search` 的 `fallbackSearch()` 内存回退扫描，页面标注「（模糊匹配）」。
+- 全文搜索走**自建索引**（`src/server/search-index.mjs`）：PostgreSQL `pulse_search` 表 + **`pg_trgm` GIN trigram 索引**。EmDash 内置 FTS 建在 SQLite FTS5 上，迁到 PG 后完全失效，故自建；语义与原 trigram 分词器一致（按字符子串匹配，适合中文）。
+- 数据层 `@utils/search` 的 `searchSite()`：首次调用同步建 / 重建索引（保证第一次就有结果），之后按 5 分钟节流后台刷新；PG 不可达时返回空数组、不抛错。查询用 `ILIKE '%q%'`（GIN 加速）+ `similarity()` 排序；`/search` 页与头部实时搜索（`SearchBox.astro` → `/api/search`）共用同一实现。
+- 重建库后需 `npm run search:rebuild`；`pg_trgm` 扩展由 `docker/initdb/00-extensions.sql` 建（已有数据的库请手动 `CREATE EXTENSION IF NOT EXISTS pg_trgm;`）。
 - 主题化 CSS 变量：`--emdash-search-*`。
 - 搜索入口：news-factory 在 `TopBar`；pulse-news 在汉堡菜单面板内。
 
@@ -416,7 +416,7 @@ const { entries: articles } = await getEmDashCollection("articles", {
 ## 13. 无障碍与性能
 
 - 语义标签：`<article>`、`<nav>`、`<time datetime>`、`<figure>/<figcaption>`；跳至正文链接；`aria-label` 全部走字典。
-- **图片一律走 `emdash/ui` 的 `<Image image={...}>`**（不手写 `<img>`）：由 Astro 的 image service（本地 `sharp` / 生产 Cloudflare Images）生成 `srcset`（640–3200w）、`sizes`、`width`/`height`、WebP 转换与 LQIP 占位。
+- **图片一律走 `emdash/ui` 的 `<Image image={...}>`**（不手写 `<img>`）：由 Astro 的 image service（`sharp`）生成 `srcset`（640–3200w）、`sizes`、`width`/`height`、WebP 转换与 LQIP 占位。
   - `sizes` 按各组件真实栅格宽度显式给出（主稿 45vw / 卡片 26vw / 正文列 900px），避免默认 `100vw` 造成过度下载。
   - 首屏图（首页主图、文章 hero、期号封面）传 `priority` → `loading="eager"` + `fetchpriority="high"`。
   - **`image.remotePatterns` 必须包含站点自身 origin**（见 `astro.config.mjs`）：EmDash 把同源媒体路径解析成绝对 URL 交给 Astro，未授权时生产构建会静默退回原图（`srcset` 各档位指向同一张全尺寸图）。

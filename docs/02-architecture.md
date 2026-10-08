@@ -1,21 +1,24 @@
 # 02 · 技术架构
 
+> **当前部署形态 = VPS 独立部署**（Node + PostgreSQL + Redis + Docker 三容器）。
+> 本文描述技术栈与分层；部署 / 运维细节见 [16-vps-deployment.md](./16-vps-deployment.md)。
+
 ## 1. 技术栈
 
 | 层 | 选型 | 版本 / 说明 |
 | --- | --- | --- |
-| 框架 | Astro | `^7.3`，`output: "server"` |
-| CMS | emdash | `^1.1.0` |
-| 适配器 | `@astrojs/node` / `@astrojs/cloudflare` | 本地 node，生产 cloudflare |
-| 云适配 | `@emdash-cms/cloudflare` | **D1 + R2** |
-| 数据库 | SQLite（本地）/ **Cloudflare D1**（生产） | `sqlite()` / `d1()` |
-| 媒体存储 | local（本地）/ **Cloudflare R2**（生产） | `local()` / `r2()` |
-| AI | **Cloudflare Workers AI** | 评论语义审核（Llama Guard） |
+| 框架 | Astro | `^7.3.2`，`output: "server"` |
+| CMS | emdash | `^1.2.0` |
+| 适配器 | `@astrojs/node` | Node standalone（VPS 独立部署） |
+| 数据库 | **PostgreSQL 17** | `postgres()`（EmDash 官方适配器，Kysely） |
+| 媒体存储 | local（本地）/ **S3 兼容**（生产） | `local()` / `s3()`（R2 / MinIO 皆 S3 兼容） |
+| 对象缓存 | **Redis** | `src/server/redis-object-cache.ts`（未配 `REDIS_URL` 则直通） |
+| AI | **`pulse-ai` 插件** | CF AI Gateway / OpenAI / Anthropic / 任意 OpenAI 兼容端点 |
 | UI | Astro + React（仅 admin） | `@astrojs/react`、react 19 |
 | 运行时 | Node ≥ 22.16 | |
-| 部署 | Cloudflare Workers | `wrangler` + cron 触发器 |
-| 图片处理 | Astro 图像服务 + R2 | 响应式 `srcset`、AVIF/WebP |
-| 邮件 | **Resend** + 自研 `pulse-subscriptions` 插件 | 订阅双确认 / 退订（D4 修订） |
+| 部署 | **Docker 三容器 + 宿主反代** | `pulse-app` / `pulse-db` / `pulse-redis`，TLS 由宿主终止 |
+| 图片处理 | Astro 图像服务 + S3/本地 | 响应式 `srcset`、AVIF/WebP |
+| 邮件 | **Resend** + 自研 `pulse-subscriptions` 插件 | 订阅双确认 / 退订 / Segments 同步 / Broadcasts 群发（D4 修订） |
 | 站点 | **Suda Pulse** · `pulse.suda.im` · `Asia/Shanghai` | |
 
 ## 2. 分层架构
@@ -29,7 +32,7 @@
 ┌──────────────────────────────────────────────────────────────────────┐
 │  Astro 前台（自研双主题：news-factory / pulse-news，默认 SITE_THEME + 后台可切换）│
 │  src/themes/<theme>/pages/*  · getEmDashCollection/getEmDashEntry/…    │
-│  · PortableText · Image(R2) · Comments · LiveSearch · 图片新闻布局      │
+│  · PortableText · Image(S3/本地) · Comments · LiveSearch · 图片新闻布局 │
 └───────┬──────────────────────────────────────────────────────────────┘
         │ in-process
 ┌───────▼──────────────────────────────────────────────────────────────┐
@@ -42,15 +45,15 @@
 │  ┌──────────────────────────────────────────────────────────────────┐ │
 │  │ Plugin Runtime (in-process，`plugins: []`)                        │ │
 │  │  pulse-agent(投稿/阅读) · pulse-review(策略/评论审核) ·          │ │
-│  │  pulse-editorial(选题分发) · pulse-subscriptions(订阅) ·          │ │
-│  │  pulse-theme(主题切换) · audit-log(审计) ·                        │ │
+│  │  pulse-editorial(选题分发) · pulse-subscriptions(订阅/群发) ·     │ │
+│  │  pulse-ai(AI 网关) · pulse-theme(主题切换) · audit-log(审计) ·   │ │
 │  │  pulse-seo(JSON-LD) · resend(邮件传输)                            │ │
 │  └──────────────────────────────────────────────────────────────────┘ │
 └───────┬───────────────────────────┬──────────────────────┬────────────┘
         │                           │                      │
 ┌───────▼────────┐          ┌───────▼────────┐     ┌───────▼─────────┐
-│ D1             │          │ R2             │     │ Workers AI      │
-│ 内容+schema    │          │ 媒体(图片/视频) │     │ 评论语义审核     │
+│ PostgreSQL     │          │ S3 兼容/本地   │     │ Redis           │
+│ 内容+schema    │          │ 媒体(图片/视频) │     │ 对象缓存         │
 │ 插件 storage   │          └────────────────┘     └─────────────────┘
 └────────────────┘
 ```
@@ -70,7 +73,7 @@
 | 后台管理 / 多用户 RBAC / Passkey | ✅ | | 角色配置 |
 | 内容类型 / 字段 / 草稿 / 修订 / 预览 / 定时 | ✅ | | seed |
 | 分类 / 标签 / 菜单 / 小组件 / 署名 | ✅ | | seed |
-| 全文搜索（FTS） | ✅ | | |
+| 全文搜索 | 仅 SQLite FTS5 | | ✅ 自建 `pulse_search` + `pg_trgm`（PG 上 FTS 不可用） |
 | 评论 + 审核 | ✅ | 反垃圾 / AI | |
 | SEO / 媒体库 | ✅ | SEO 套件 | |
 | **MCP Server（内置）** | ✅ | | 业务工具 |
@@ -83,21 +86,20 @@
 | **双主题前台 + 图片新闻** | ❌ | | ✅ |
 | **按月/周归档** | 查询支持 | | ✅ 路由 + 工具 |
 
-## 5. R2 媒体与图片新闻管线
+## 5. 媒体与图片新闻管线
 
 ### 5.1 存储
-- 生产：`r2({ binding: "MEDIA" })`；本地：`local({ directory: "./uploads", baseUrl: "/_emdash/api/media/file" })`。
+- 生产：`s3()`（`S3_ENDPOINT` 非空即启用；R2 / MinIO 等 S3 兼容对象存储均可，凭据运行期从 env 读）；本地：`local({ directory: "./uploads", baseUrl: "/_emdash/api/media/file" })`。
 - EmDash 媒体库负责上传、替换、删除、引用追踪；媒体 URL 由 storage 适配器解析。
 
 ### 5.2 图片新闻（Photo News）支持
 - 内容模型增加：`article_type`（standard / photo / live / video / podcast）、`gallery`（repeater：image + caption + credit）、`photo_credit`、播客/视频字段（`audio_*` / `video_*`）与 `trending_rank`。
 - 前台：图集/图文混排布局、灯箱（Lightbox）、瀑布流/网格、图片说明与摄影署名。
-- 图片优化：Astro 图像服务生成响应式 `srcset`（AVIF/WebP），配合 R2 原图。
-- 可选：Cloudflare Image Resizing / `@verco.app/image-optimizer` 插件做体积优化。
+- 图片优化：Astro 图像服务生成响应式 `srcset`（AVIF/WebP），配合对象存储 / 本地原图。
 
 ### 5.3 上传流
 ```
-编辑/Agent 上传 ─▶ EmDash 媒体库 ─▶ (signed upload) ─▶ R2
+编辑/Agent 上传 ─▶ EmDash 媒体库 ─▶ (signed upload) ─▶ S3 兼容 / 本地磁盘
                                         │
                               media 记录(元数据/alt/尺寸)
                                         │
@@ -105,62 +107,55 @@
         双主题 UI <Image>        图片新闻 <gallery>          Agent API(media url)
 ```
 
-> 约束：图片字段是对象 `{ id, src, alt, width, height }`，必须用 `<Image image={...} />`。
+> 约束：图片字段是对象 `{ id, meta: { storageKey }, alt, width, height }`（落库无 `src`），必须用 `<Image image={...} />`。
 
 ## 6. 部署拓扑
 
 ### 本地开发
 ```bash
-npm run dev          # Astro dev：SQLite(data.db) + ./uploads
-npx emdash types     # 生成 emdash-env.d.ts
+docker compose up -d pulse-db pulse-redis   # 只起数据服务（PG + Redis）
+npm run dev                                 # Astro dev：连 PostgreSQL + ./uploads + ./data/sessions
+npx emdash types                            # 生成 emdash-env.d.ts
 # 后台 http://localhost:4321/_emdash/admin
 ```
 
-### 生产（Cloudflare）
+### 生产（VPS · Docker 三容器）
 
-**仓库里不出现任何账号信息**：account id 在 gitignored 的 `wrangler.prod.jsonc`（模板 `wrangler.prod.jsonc.example`），账号目录在 gitignored 的 `.env.deploy`（模板 `.env.deploy.example`）。提交的 `wrangler.jsonc` 只保留绑定结构（`database_id` 为占位符），供本地工具读取。
+**仓库里不出现任何凭据**：数据库密码、Resend API key、`EMDASH_ENCRYPTION_KEY` 等全部走 gitignored 的 `.env`（模板 `.env.example`）。`astro.config.mjs` 遵守「**构建期只选适配器种类，凭据一律运行期读 env**」——EmDash 会把 `database` / `storage` / `objectCache` 描述符序列化进产物，连接串不能写死在源码里。
 
 ```bash
-# 一次性准备
-cp .env.deploy.example .env.deploy                    # 填 WRANGLER_HOME=<已 wrangler login 的账号目录>
-cp wrangler.prod.jsonc.example wrangler.prod.jsonc   # 填 account_id
-npx wrangler d1 create suda-pulse-db                  # 记下 database_id 填进 wrangler.prod.jsonc
-
-# 部署（幂等：建 R2 桶 → 写密钥 → 构建 → deploy）
-npm run deploy:cf
+git clone <repo> /srv/pulse && cd /srv/pulse
+cp .env.example .env          # 填 EMDASH_ENCRYPTION_KEY / EMDASH_SITE_URL / POSTGRES_PASSWORD / EMDASH_TRUSTED_PROXY_HEADERS
+npm run docker:up             # = docker compose up -d --build
 ```
 
-`npm run deploy:cf` 的流程：校验 `WRANGLER_HOME` / `wrangler.prod.jsonc` → `whoami` 自检 → 幂等创建 `suda-pulse-media` R2 桶 → 缺 `EMDASH_ENCRYPTION_KEY` 时从 `.env` 写入 secret → `npm run plugin:build` → `DEPLOY_TARGET=cloudflare astro build` → `wrangler deploy`。
+拓扑：
+
+```
+Internet ──TLS──▶ 宿主反向代理（Caddy / nginx）──▶ 127.0.0.1:4321
+                                                  │
+                              ┌───────────────────┼────────────────────┐
+                              ▼                   ▼                    ▼
+                        pulse-app            pulse-db            pulse-redis
+                  Node 22 · Astro SSR     postgres:17-alpine    redis:7-alpine
+                  卷 pulse-data           卷 pulse-db-data      卷 pulse-redis-data
+```
+
+容器名固定为 `pulse-app` / `pulse-db` / `pulse-redis`；`pulse-app` 只绑 `127.0.0.1:4321`，TLS 由宿主终止（样例 `deploy/Caddyfile.example`）。
 
 **首次部署后**：
-1. 打开 `https://pulse.suda.im/_emdash/admin`，走一次 **setup 向导**（站点信息 → 管理员邮箱/姓名 → **注册 passkey**）。向导会把 `seed/seed.json` 的内容（含媒体）灌入库。**超级管理员无法用配置 / env 预指定** —— 首个用户由向导的 WebAuthn 注册写入（`role: ADMIN`）。
+1. 打开 `https://<域名>/_emdash/admin`，走一次 **setup 向导**（站点信息 → 管理员邮箱/姓名 → **注册 passkey**），并导入 `seed/seed.json`（含媒体）。**超级管理员无法用配置 / env 预指定** —— 首个用户由向导的 WebAuthn 注册写入（`role: ADMIN`）。
 2. 后台「Resend」页填 API key 与 From 地址 —— 否则邮箱链接登录（magic link）会 503 `EMAIL_NOT_CONFIGURED`，订阅确认信也只能落 `pendingEmail`。
-3. `npm run demo:data:remote` 灌入 Demo 互动数据（评论 / 订阅者 / 分组 / 事件）；`npm run demo:data:remote -- --clean` 只清理。
-
-`wrangler.prod.jsonc` 关键绑定（gitignored）：
-```jsonc
-{
-  "name": "suda-pulse",
-  "main": "./src/worker.ts",
-  "compatibility_date": "2026-02-24",
-  "compatibility_flags": ["nodejs_compat"],
-  "account_id": "…",
-  "routes": [{ "pattern": "pulse.suda.im", "custom_domain": true }],
-  "d1_databases": [{ "binding": "DB", "database_name": "suda-pulse-db", "database_id": "…" }],
-  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "suda-pulse-media" }],
-  "ai": { "binding": "AI" },              // Cloudflare Workers AI
-  "vars": { "EMDASH_SITE_URL": "https://pulse.suda.im" },
-  "triggers": { "crons": ["* * * * *"] }, // 定时发布
-  "observability": { "enabled": true }
-}
-```
-
-`src/worker.ts`：导出 EmDash handler + `createScheduledHandler()`（定时发布）；插件 cron 复用同一部署。
+3. *可选* 后台「AI 网关」页配 provider（评论审核用）；「订阅群发」页 + Resend Webhook（见 [16-vps-deployment.md §7](./16-vps-deployment.md)）。
+4. *可选* `npm run demo:data` 灌入 Demo 互动数据（评论 / 订阅者 / 分组 / 事件）。
 
 ### 环境变量
-- `EMDASH_ENCRYPTION_KEY`：加密插件密钥（`npx emdash secret`），**必须备份**；`deploy:cf` 首次会从 `.env` 写入 Worker secret。
-- `EMDASH_SITE_URL=https://pulse.suda.im`：影响 Passkey/CSRF/MCP 发现/sitemap（写进 `wrangler.prod.jsonc` 的 `vars`）。
-- **构建期**：`deploy:cf` 会把 `EMDASH_SITE_URL` 传给 `astro build`，`astro.config.mjs` 用它给 `image.remotePatterns` 补上生产域名 —— **源码里不写死任何域名**，换域名只改部署配置即可。缺它时生产图片 `srcset` 会静默退回原图。
+- `EMDASH_ENCRYPTION_KEY`：加密插件密钥（`npx emdash secret`），**必须离线备份** —— 丢了它已存的加密设置全部读不出。
+- `EMDASH_SITE_URL=https://<域名>`：影响 Passkey/CSRF/MCP 发现/sitemap/canonical。
+- `POSTGRES_PASSWORD` / `DATABASE_URL`：compose 用它拼连接串；`pg` 连接池读 `PGHOST`/`PGPORT`/`PGDATABASE`/`PGUSER`/`PGPASSWORD`。
+- `REDIS_URL`：对象缓存后端（未设则降级直通）。
+- `EMDASH_TRUSTED_PROXY_HEADERS=x-forwarded-for`：否则限流 / 订阅会按代理 IP 计数。
+- **构建期**：`Dockerfile` 只把 `S3_ENDPOINT` / `EMDASH_SITE_URL` / `SITE_THEME` 作为 build arg 传入；`EMDASH_SITE_URL` 被 `astro.config.mjs` 用来给 `image.remotePatterns` 补上生产域名（`S3_PUBLIC_URL` 同理）—— **源码里不写死任何域名**，换域名只改部署配置并重新构建。缺它时生产图片 `srcset` 会静默退回原图。
 
 ## 7. 核心约束与陷阱
 
@@ -186,36 +181,35 @@ npm run deploy:cf
 ```
 suda-pulse/
 ├── astro.config.mjs
-├── wrangler.jsonc / wrangler.prod.jsonc
+├── Dockerfile · docker-compose.yml · docker/initdb/00-extensions.sql
+├── deploy/Caddyfile.example
+├── .env.example
 ├── src/
 │   ├── live.config.ts
-│   ├── worker.ts
-│   ├── layouts/Base.astro
-│   ├── components/            # Masthead / LeadStory / StoryCard / Gallery / ArchiveNav ...
-│   ├── styles/{tokens,theme}.css
-│   ├── utils/{date-range,site-identity,portable-text}.ts
-│   └── pages/
-│       ├── index.astro
-│       ├── articles/[slug].astro
-│       ├── sections/[slug].astro
-│       ├── tags/[slug].astro
-│       ├── archive/index.astro
-│       ├── archive/[year]/[month].astro
-│       ├── archive/[year]/week/[week].astro
-│       ├── search.astro · subscribe.astro · pages/[slug].astro · 404.astro
-│       ├── rss.xml.ts · feed.json.ts · sections/[slug]/rss.xml.ts
-│       └── agent/                     # Agent Read API（可选，或走插件路由）
+│   ├── middleware.ts             # 运行期主题切换 + no-store 清单
+│   ├── server/{redis-object-cache.ts, search-index.mjs}
+│   ├── themes/<theme>/           # news-factory / pulse-news（layout / components / pages）
+│   ├── components/               # 主题无关共享组件（@shared）
+│   ├── utils/                    # 主题无关数据层（@utils）
+│   ├── scripts/motion/           # 浏览器动效运行时
+│   ├── i18n/{zh-CN,en}.ts
+│   ├── styles/{tokens.base,tokens,theme}.css
+│   └── pages/                    # 主题无关机器端点：rss.xml · feed.json · llms.txt · robots.txt · sitemap*.xml · agent/** · spike/**
 ├── plugins/
 │   ├── pulse-agent/          # MCP：投稿 / 选题领取 / 阅读
 │   ├── pulse-review/         # 发布门禁 + 评论审核（规则 + AI）
 │   ├── pulse-editorial/      # 选题分发 + 投稿审核发布
-│   ├── pulse-subscriptions/  # 读者订阅（双确认 / 退订 / 订阅者管理）
+│   ├── pulse-subscriptions/  # 读者订阅（双确认 / 退订 / Segments 同步 / 群发）
+│   ├── pulse-ai/             # AI 接入层（provider / AI Gateway 配置）
 │   ├── pulse-theme/          # 后台「前台主题」切换
 │   ├── pulse-seo/            # JSON-LD 结构化数据
-│   └── pulse-digest/         # 摘要邮件 cron（按需）
+│   └── pulse-editor-applications/  # 第三方 editor 申请 / 审批
+├── scripts/{perf.mjs, demo-data.mjs, search-rebuild.mjs}
 ├── seed/seed.json
 └── docs/
 ```
+
+> 主题页面**不是** `src/pages/` 下的文件路由，而是 `astro.config.mjs` 的 `THEME_ROUTES` + `themeRoutes()` 用 `injectRoute()` 注入；`src/pages/` 只放主题无关的机器端点。
 
 ## 9. 插件注册
 
@@ -223,28 +217,28 @@ suda-pulse/
 
 **全部插件都走 `plugins: []`（宿主进程内执行）**：标准格式插件由 EmDash 的 `adaptSandboxEntry` 适配，`hooks` / `routes` / `storage`（含唯一索引）/ `adminPages` / `mcp.tools` / 能力门禁都保留，代价是失去 isolate 隔离。
 
-为什么不用 `sandboxed: []`（沙箱）：
-- Cloudflare Workers 上唯一的沙箱后端是 **Worker Loader**（`LOADER` 绑定），需要 Workers 付费计划；免费计划下 `@emdash-cms/cloudflare` 的 `sandbox()` 读不到绑定会返回 `undefined`，沙箱插件会**静默全部不加载**（构建期只打一条 warn）。
-- `sandbox: false` 这个本地逃生舱在 Workers 上被运行时显式禁用（emdash-runtime 抛 `sandbox: false is not supported in Cloudflare Workers`）。
-- 本地与生产走同一条路径，避免 dev/prod 行为分叉。
+为什么不用 `sandboxed: []`（沙箱）：历史上 CF Workers 上唯一的沙箱后端是 **Worker Loader**（`LOADER` 绑定，需付费计划），免费计划下 `@emdash-cms/cloudflare` 的 `sandbox()` 读不到绑定会返回 `undefined`，沙箱插件会**静默全部不加载**。VPS/Node 部署下虽可选沙箱后端，但本站统一走 in-process —— 本地与生产走同一条路径，避免 dev/prod 行为分叉。
 
 ```javascript
-import emdash, { local } from "emdash/astro";
-import { sqlite } from "emdash/db";
+import emdash, { postgres, s3, local } from "emdash/astro";
 import resend from "emdash-plugin-resend";
 import pulseAgent from "pulse-agent";
 import pulseReview from "pulse-review";
 import pulseEditorial from "pulse-editorial";
 import pulseSubscriptions from "pulse-subscriptions";
+import pulseAi from "pulse-ai";
 import pulseTheme from "pulse-theme";
 import pulseSeo from "pulse-seo";
 import auditLog from "@emdash-cms/plugin-audit-log";
 
 emdash({
-  database: sqlite({ url: "file:./data.db" }),
-  storage: local({ directory: "./uploads", baseUrl: "/_emdash/api/media/file" }),
+  database: postgres(),  // 连接信息运行期从 PG* env 读
+  storage: process.env.S3_ENDPOINT
+    ? s3()               // R2 / MinIO / 任意 S3 兼容
+    : local({ directory: "./uploads", baseUrl: "/_emdash/api/media/file" }),
+  objectCache: { entrypoint: "…/src/server/redis-object-cache.ts" }, // REDIS_URL 运行期读
   plugins: [
-    pulseReview, pulseEditorial, pulseAgent, pulseSubscriptions, pulseTheme, auditLog,
+    pulseReview, pulseEditorial, pulseAgent, pulseSubscriptions, pulseAi, pulseTheme, auditLog,
     pulseSeo,
     resend(), // 独占 email:deliver 的邮件 provider（magic link + 订阅确认信）
   ],
@@ -255,7 +249,9 @@ emdash({
 
 | 任务 | 触发 | 实现 |
 | --- | --- | --- |
-| 定时发布 | 每分钟（Worker cron） | `createScheduledHandler()` |
-| 摘要邮件 | 插件 cron（如 `0 8 * * *`） | `pulse-digest`（按需） |
-| 订阅确认清理 | 每日 | `pulse-subscriptions` / `pulse-digest` |
+| 定时发布 | 每分钟（Node 进程内调度器） | EmDash `NodeCronScheduler`（croner，状态存 DB） |
+| 摘要邮件 | 插件 cron（如 `0 8 * * *`） | 按需 |
+| 订阅确认清理 | 每日 | `pulse-subscriptions` |
 | 选题超期提醒 | 每日 | `pulse-editorial` |
+
+> Node 部署下 `virtual:emdash/scheduler` 默认解析为 `NodeCronScheduler`（长驻进程内调度），不再依赖 Workers cron trigger。

@@ -1,6 +1,13 @@
 # 数据库选型与查询负载复核
 
-> 结论先行：**继续用 D1，不迁移到 VPS 上的 PostgreSQL。** 真正的负载杠杆不是索引，而是
+> ⚠️ **本文已被 [16-vps-deployment.md](./16-vps-deployment.md) 取代（2026-10）。**
+> 下面的结论建立在「必须保留 EmDash 内置 FTS 中文搜索」这一前提上 —— 而该前提随后被推翻：
+> 我们自建了 `pulse_search` 表 + `pg_trgm` GIN trigram 索引（语义与 FTS5 的 trigram 分词器一致），
+> 于是运行时整体迁到 **VPS + PostgreSQL + Redis**，不再使用 D1 / Workers Cache。
+> 保留本文作为**决策历史**：D1 的配额与索引行为、以及「索引不是杠杆、缓存才是」的判断仍然有效。
+> 当前架构见 [16-vps-deployment.md](./16-vps-deployment.md)。
+
+> 结论先行（**历史结论，已作废**）：**继续用 D1，不迁移到 VPS 上的 PostgreSQL。** 真正的负载杠杆不是索引，而是
 > **启用 Astro route cache / Workers Cache**（当前未启用，代码里所有 `Astro.cache.set(cacheHint)`
 > 都是空操作）。本文记录复核依据与已落地的改动。
 

@@ -102,14 +102,14 @@ Editor = 管理全部内容（含发布他人稿件），正好覆盖 `pulse-edi
 ## 5. 实现清单（已落地）
 
 > 状态：**已实现**（2026-10-08）。代码在 `plugins/pulse-editor-applications/` + 申请页两套主题
-> + `astro.config.mjs`（`authProviders` / `plugins` / `THEME_ROUTES`）+ `scripts/deploy-cf.mjs`
-> （GitHub OAuth secret）。`plugin:test` / `typecheck:all` / 生产构建均通过。
+> + `astro.config.mjs`（`authProviders` / `plugins` / `THEME_ROUTES`）；GitHub OAuth 凭据走 `.env`
+> 运行期注入（见 [16-vps-deployment.md](./16-vps-deployment.md)）。`plugin:test` / `typecheck:all` / 生产构建均通过。
 > §6 列出的运行时配置项（白名单、OAuth app、审批 SOP）仍需在部署后按 §12 手册操作。
 
 ### 5.1 GitHub 登录接入（配置）
 
 - [x] `astro.config.mjs`：`authProviders: [github()]`（`import { github } from "emdash/auth/providers/github"`），与 passkey 并存。
-- [x] 环境变量：`deploy:cf` 的 secret 步骤已扩展为**多 key 列表**（`EMDASH_ENCRYPTION_KEY` 必需；`EMDASH_OAUTH_GITHUB_CLIENT_ID` / `_SECRET` 可选，缺则跳过不阻断部署）；本地 dev 放 `.env`（模板 `.env.example` 已加注释）。
+- [x] 环境变量：`EMDASH_ENCRYPTION_KEY` 必需；`EMDASH_OAUTH_GITHUB_CLIENT_ID` / `_SECRET` 可选（缺则跳过，不阻断启动）——全部放 `.env`（模板 `.env.example` 已加注释），compose 运行期注入。
 - [ ] GitHub OAuth app 回调 URL 配成 `https://pulse.suda.im/_emdash/api/auth/oauth/github/callback`（本地加 `http://localhost:4321/...`）——**部署后手工配置**（GitHub 侧，不在仓库里）。
 
 ### 5.2 建号限制（配置）

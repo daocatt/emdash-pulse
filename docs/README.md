@@ -3,7 +3,7 @@
 > 基于 [EmDash CMS](https://github.com/emdash-cms/emdash) + [Astro](https://astro.build/) 构建的 **AI 时代新闻 / 报刊发布系统**。
 > **双前台主题**（`news-factory` 报纸头版 / `pulse-news` 杂志式，默认 `SITE_THEME`、后台可运行期切换），后台内容审核 + 多用户，**Author agent 生产 / Editor agent 审核发布**，双阅读面（人类 UI + Agent API），支持图片新闻、播客/视频、RSS、邮件订阅。
 
-**站点**：Suda Pulse · `pulse.suda.im` · `Asia/Shanghai` · 部署于 Cloudflare（D1 + R2 + Workers AI）。
+**站点**：Suda Pulse · `pulse.suda.im` · `Asia/Shanghai` · **VPS 独立部署**（Node + PostgreSQL + Redis + Docker，三容器）。
 
 本目录是**实施前的规划与任务文档**。请先审阅并确认，确认后再进入编码阶段。
 
@@ -14,7 +14,7 @@
 | 文档 | 内容 |
 | --- | --- |
 | [01-overview.md](./01-overview.md) | 愿景、范围/非目标、角色（含 Agent）、关键决策（ADR）、决策收敛结果 |
-| [02-architecture.md](./02-architecture.md) | 技术栈、架构、R2 图片管线、部署、核心约束 |
+| [02-architecture.md](./02-architecture.md) | 技术栈、架构、媒体管线、部署（VPS）、核心约束 |
 | [03-content-model.md](./03-content-model.md) | collections/fields/taxonomies/menus/widgets/seed（含图片新闻、期号、选题） |
 | [04-frontend-themes.md](./04-frontend-themes.md) | **前台双主题**（news-factory / pulse-news）：`SITE_THEME` 切换、路由注入、令牌分层、i18n、页面模式、组件、响应式 |
 | [05-admin-review.md](./05-admin-review.md) | 后台、多用户角色、内容审核工作流、评论审核 |
@@ -26,14 +26,15 @@
 | [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md) | **Phase 3 报告**：评论审核（规则 + AI）与读者订阅（`pulse-subscriptions`） |
 | [12-operations.md](./12-operations.md) | **运营手册**：角色职责、巡检清单、编辑流程 SOP、Agent 投稿规范、评论/订阅规范、异常处理 |
 | [13-editor-onboarding.md](./13-editor-onboarding.md) | **第三方 Editor 接入**（已实现）：用户成为 editor + GitHub 登录 + EmDash OAuth；申请页 `/editor/apply` + `pulse-editor-applications` 后台审批队列 |
-| [14-database.md](./14-database.md) | **数据库选型与查询负载复核**：为何继续用 D1（FTS 仅 SQLite 方言）、D1 2026-09 硬限额、索引实测（单字段索引不被选用）、缓存才是杠杆 |
+| [14-database.md](./14-database.md) | **数据库选型与查询负载复核**（历史记录）：D1 时代的复核与结论；**已被 VPS 迁移取代**，见 16 |
 | [15-emdash-cloudflare-coupling.md](./15-emdash-cloudflare-coupling.md) | **EmDash 开放性 / CF 耦合评估**（英文）：真正平台无关 vs 面向 CF、解耦难度、独立 VPS 部署可行性、PostgreSQL 官方内置、无需 Drizzle（Kysely） |
+| [16-vps-deployment.md](./16-vps-deployment.md) | **VPS 部署运维手册**（当前架构）：三容器拓扑、首次部署、构建期/运行期 env 分界、PG 搜索、Resend 订阅与回执、备份恢复、排障 |
 
 ---
 
 ## 当前进度
 
-- **Phase 0**：脚手架 ✅、Spike 1（月/周查询）✅、Spike 5（插件注册 + 发布门禁）✅、Spike 2（订阅）✅、Spike 3（Resend 插件已接入，真实发信待 API key）；Spike 4（CF Workers AI）/ Spike 6（R2）待 CF 账号。
+- **Phase 0**：脚手架 ✅、Spike 1（月/周查询）✅、Spike 5（插件注册 + 发布门禁）✅、Spike 2（订阅）✅、Spike 3（Resend 插件已接入，真实发信待 API key）；Spike 4（CF Workers AI）/ Spike 6（R2）**已由 Phase 7 的 `pulse-ai` + S3 兼容存储取代**。
 - **Phase 1**：内容模型 ✅、类型 ✅、搜索 ✅、本地媒体管线 ✅、角色/RBAC ✅、发布门禁 ✅、`audit-log` ✅；评论/订阅已由 Phase 3 的自研插件承担，Resend 待凭证。
 - **Phase 2**：报纸前台 ✅ —— 主题/布局/组件、头版、文章页、版块/标签/期号/静态页、月/周归档、搜索、RSS + JSON Feed；`npm run build` 通过。
 - **Phase 2b（双主题重构）**：前台重做为**两套可切换主题**（`news-factory` 报纸头版 / `pulse-news` 杂志式），构建期 `SITE_THEME` 二选一、`injectRoute` 注入 14 条人类路由；抽出**共享层**（`@shared` 组件 + `@utils` 数据层 + 令牌契约 `tokens.base.css`）与 **UI 文案 i18n**（`zh-CN` 默认 + `en`，cookie 运行期切换，内容不翻译）；内容模型扩展**播客 / 视频 / 热度**（`article_type` 加 `podcast`，新增 `audio_*` / `video_*` / `trending_rank`）；两套主题各 14 页全部实现，`typecheck:all` 两套 0 error、`build:*` 均通过。详见 [04-frontend-themes.md](./04-frontend-themes.md)。
@@ -50,7 +51,11 @@
 - **Phase 5d（后台缺陷修复）**：① `select` 选项改到 `validation.options` —— 原先写在字段顶层，导致后台「稿件类型」下拉空白、写入校验退化为任意字符串、生成类型退化为 `string`（影响 6 个字段）✅；② `@emdash-cms/plugin-audit-log@0.2.3` 的 `/history` 页 Block Kit 字段名打补丁（camelCase → snake_case），修掉整页 502 `INVALID_BLOCK_RESPONSE`，由根 `postinstall` 固化 ✅。
 - **Phase 5e（上线准备）**：① **账户无关部署** `npm run deploy:cf`（`scripts/deploy-cf.mjs` + `scripts/lib/cf.mjs`）—— 账号目录 / account id 全落在 gitignored 的 `.env.deploy` 与 `wrangler.prod.jsonc`（模板 `.example` 提交），流程为 whoami 自检 → 幂等建 R2 桶 → 缺 `EMDASH_ENCRYPTION_KEY` 时写入 secret → `plugin:build` → CF 构建 → `wrangler deploy` ✅；② **Demo 互动数据** `scripts/demo-data.mjs`（`demo:data` / `:clean` / `:remote`，取代 `seed-test-engagement.mjs`）—— 评论 + 订阅者/分组/事件，本地 `node:sqlite` 与远端 D1 共用同一份 SQL ✅；③ **全部插件改为 in-process**（`plugins: []`，弃用 `sandboxed`）—— Workers 免费计划没有 Worker Loader 绑定，沙箱插件会静默全部不加载 ✅；④ **接入 `emdash-plugin-resend@0.2.0`**（独占 `email:deliver`，magic link / 订阅确认信依赖它）✅。
 - **Phase 6（第三方 Editor 接入）** ✅：让站外的人/组织成为 editor、其 agent 自动获得编辑能力。方案 = **EmDash Editor 用户 + GitHub 登录（`authProviders: [github()]`）+ 原生 OAuth**（不自研 token）；自建部分 = 申请页 `/editor/apply`（两套主题）+ 插件 `pulse-editor-applications`（申请/审批 + Block Kit 后台队列 + 3 个 MCP 工具）；`deploy:cf` 支持写 GitHub OAuth secret；批准后管理员在 Users 页改角色为 Editor(40)。`plugin:test` / `typecheck:all` / 生产构建均通过。**运行时配置（GitHub OAuth app、邮箱域名白名单）与审批 SOP 见 [13-editor-onboarding.md](./13-editor-onboarding.md) §5 与 [12-operations.md](./12-operations.md) §3.6**。
-- **Phase 5f（数据库复核 + 缓存）** ✅：确认**继续用 D1**（换 Postgres 会丢 FTS 中文搜索 + 放弃整套 CF 栈）；`articles` 的 `article_type` / `is_featured` / `priority` 补 `indexed`；D1 加 `coalesce: true`。复核发现：**EmDash 的 `indexed` 生成的单字段索引，对「等值过滤 + 按 `published_at` 排序」查询不被 SQLite 优化器选用**（不是性能杠杆）；真正的读负载杠杆是缓存 —— 已**启用 Workers Cache**（`cacheCloudflare()` + `routeRules`，仅 CF 部署注入），并让 `src/middleware.ts` 给会话 / 表单 / 错误页统一设 `private, no-store`。详见 [14-database.md](./14-database.md)。
+- **Phase 5f（数据库复核 + 缓存）** ⚠️ **已被 Phase 7 取代**：当时的结论是「继续用 D1」（换 Postgres 会丢 FTS 中文搜索）并启用 **Workers Cache**。Phase 7 改变了前提 —— 自建 `pg_trgm` 搜索补上了 FTS 缺口，于是整个运行时迁到 VPS（见 7a/7b）。本节保留为决策历史。详见 [14-database.md](./14-database.md)。
+- **Phase 7a（运行时迁移到 VPS）** ✅：运行时从 **Cloudflare Workers → Node.js standalone**（`@astrojs/node`），内容库从 **D1 → 自建 PostgreSQL 17**（EmDash 官方 `postgres()` 适配器，Kysely，无需 Drizzle），媒体从 R2 → **本地磁盘或任意 S3 兼容**（R2 / MinIO 仍是 S3 兼容，可选保留），并新增 **Redis 对象缓存**后端（`src/server/redis-object-cache.ts`，未配 `REDIS_URL` 时自动降级为 no-op）。部署改为**三容器栈** `docker-compose.yml`（`pulse-app` / `pulse-db` / `pulse-redis`）+ `Dockerfile`：**构建期只选适配器种类，凭据一律运行期注入**（EmDash 会把 `database`/`storage` 描述符固化进产物，所以连接串绝不写进 `astro.config.mjs`）；TLS 由宿主反向代理终止（`deploy/Caddyfile.example`）。移除 `wrangler*.jsonc` / `src/worker.ts` / `scripts/deploy-cf.mjs`。详见 [16-vps-deployment.md](./16-vps-deployment.md)。
+- **Phase 7b（PG 全文搜索）** ✅：EmDash 的 FTS 建在 SQLite FTS5 上、非 SQLite 方言直接抛错，故自建 `pulse_search` 表 + **`pg_trgm` GIN trigram 索引**（`src/server/search-index.mjs`：自有 `pg` 连接池、懒建懒刷新、advisory lock 防并发重建、任何异常降级为空结果）；`scripts/search-rebuild.mjs`（`npm run search:rebuild`）。
+- **Phase 7c（AI 网关插件）** ✅：新增 `pulse-ai`（provider / Cloudflare AI Gateway / 自定义 base URL / 模型 / 加密 API key / 超时 / max tokens + 后台「AI 网关」页含实时连通性自测）；`pulse-review` 的 AI 审核改为委托 `pulse-ai/client`，不再自带凭证设置（`allowedHosts` 覆盖 `pulse-ai` 可能指向的所有端点）。
+- **Phase 7d（Resend 分组同步 + 群发）** ✅：`pulse-subscriptions` 把**订阅分组同步为 Resend Segments**（segment id 缓存回组记录，避免每次同步都打列表接口），新增后台 **订阅群发** 页（走 Resend **Broadcasts**，`send: true`，Resend 负责展开收件人 / 插退订链接 / 跳过已退订），以及 `resend/webhook`（**Svix 验签**，`request: { body: "text" }` 用原始字节；回执只写事件日志，**不自动改订阅状态**）；manifest 新增 `network:request` + `allowedHosts` + `broadcasts` 集合，插件升 0.3.0。
 - 详见 [10-phase0-report.md](./10-phase0-report.md) 与 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)（含每阶段关键发现与踩坑）。
 
 ---
@@ -58,10 +63,10 @@
 ## 一句话架构
 
 ```
-人类读者 ──双主题UI──▶ Astro SSR ──┐
-人类读者 ──订阅──▶ pulse-subscriptions ──▶ 邮件传输（Resend，未配置则落库待发）
-Author agent ──MCP/HTTP──▶ pulse-agent ──▶ EmDash Core ──▶ D1(内容) + R2(媒体) + Workers AI
-Editor agent ──MCP/HTTP──▶ pulse-editorial ─┤
+人类读者 ──双主题UI──▶ Astro SSR (Node) ──┐
+人类读者 ──订阅──▶ pulse-subscriptions ──▶ Resend（Segments 同步 / Broadcasts 群发 / Webhook 回执）
+Author agent ──MCP/HTTP──▶ pulse-agent ──▶ EmDash Core ──▶ PostgreSQL(内容) + S3/本地(媒体)
+Editor agent ──MCP/HTTP──▶ pulse-editorial ─┤                └─ Redis(对象缓存) + pulse-ai(AI 网关)
 评论访客 ──▶ EmDash 评论 ──▶ pulse-review（规则 + AI 审核）
 Reader agent ──MCP/HTTP JSON──▶ Agent Read API ─┘
 ```
@@ -78,19 +83,22 @@ Reader agent ──MCP/HTTP JSON──▶ Agent Read API ─┘
 | **Author agent 投稿 / Editor agent 审核** | `pulse-editorial` + `pulse-agent` + 独立 agent 身份/token | 自研 |
 | **第三方 Editor 接入** | GitHub 登录（原生）+ 申请页 + `pulse-editor-applications` + 原生 OAuth | 复用 + 自研 |
 | **Agent 阅读 API** | MCP + HTTP JSON（`/agent/*`、JSON Feed、`llms.txt`） | 自研 |
-| **图片新闻** | `article_type`/`gallery` 字段 + 图集布局 + **R2** | 自研 + R2 |
+| **图片新闻** | `article_type`/`gallery` 字段 + 图集布局 + **S3 兼容存储 / 本地磁盘** | 自研 + 存储 |
 | 期号 | `editions` collection + `/editions/[slug]` | 自研 |
 | 选题分发 | `assignments` collection | 自研 |
 | RSS | `/rss.xml` + `/feed.json` + 分版块 `/sections/[slug]/rss.xml` | 自研 |
 | 邮件订阅 | **自研 `pulse-subscriptions`**（双确认 + 退订 + 订阅者管理） | 自研 |
 | 邮件传输 | **Resend**（`emdash-plugin-resend`，独占 `email:deliver`；未配置时落库待发） | 插件 |
+| 订阅分组同步 / 群发 | 分组 → Resend **Segments**；群发走 **Broadcasts**；投递回执走 **Webhook**（Svix 验签） | 自研 |
 | 新闻分类 | taxonomy `section`（hierarchical） | 复用 |
 | 标签 | taxonomy `tag`（flat） | 复用 |
 | 评论 | 内置评论 + `pulse-review` 规则/AI 审核 + 报纸主题覆盖 | 复用 + 自研 |
+| **AI 接入** | `pulse-ai`（CF AI Gateway / OpenAI / Anthropic / 任意兼容端点，后台可切换） | 自研 |
 | 前台 UI | 自研双主题（`news-factory` / `pulse-news`，默认 `SITE_THEME` + 后台可切换） | 自研 |
 | 按月/周筛选 | `where: { published_at: { gte, lt } }` + 归档路由 | 自研 |
-| 搜索 | EmDash 内置 FTS + LiveSearch | 复用 |
-| 部署 | Cloudflare Workers + D1 + R2 + Workers AI | 复用 |
+| 搜索 | **自建 `pulse_search` + `pg_trgm` GIN**（EmDash 内置 FTS 仅支持 SQLite） | 自研 |
+| 对象缓存 | **Redis**（`src/server/redis-object-cache.ts`，未配则直通） | 自研 |
+| 部署 | **VPS + Docker 三容器**（`pulse-app` / `pulse-db` / `pulse-redis`），宿主反代终止 TLS | 自研 |
 
 ---
 
@@ -100,12 +108,13 @@ Reader agent ──MCP/HTTP JSON──▶ Agent Read API ─┘
 - **D11** Author（人类 + agent）稿件**强制审核**
 - **D12/D20** 引入期号 `editions`，**周报优先**
 - **D13/D19** 提供 **Agent Read API**（MCP + HTTP JSON），**公开只读 + 限流**
-- **D14/D21** 评论 **CF Workers AI 审核为主，人工后期干预**
+- **D14/D21** 评论 **规则 + AI 审核为主，人工后期干预**（AI 经自研 `pulse-ai` 网关，provider 可换）
 - **D15/D18** 每个 author agent 独立身份 + scoped token，**自助注册 + 审批**
 - **D16** 选题分发用 **`assignments` collection**
 - **D17** Editor agent **AI 审核建议 + 人工/一键确认**（可配置全自动）
 - **D22** 第三方 editor 接入 = **EmDash Editor 用户 + OAuth**（**用户**成为 editor，其 agent 自动继承能力，**不给 agent 单独类型**）；**GitHub 登录** + 邮箱域名白名单；新用户默认 **Subscriber**；登录后**申请页 + 后台审批队列**，批准后管理员在 Users 页改角色。
-- 站点：Suda Pulse / pulse.suda.im / Asia/Shanghai；部署 Cloudflare + D1 + R2 + Workers AI
+- 站点：Suda Pulse / pulse.suda.im / Asia/Shanghai；**部署 VPS（Node + PostgreSQL + Redis + Docker 三容器）**
+- **D23** 运行时从 Cloudflare Workers 迁到 **Node.js standalone**；内容库 **PostgreSQL**；媒体 **S3 兼容或本地磁盘**；对象缓存 **Redis**；AI 走 `pulse-ai`（可换 provider）；订阅分组同步 Resend **Segments**、群发走 **Broadcasts**
 
 > 全部关键决策已确认，无剩余阻塞项。次要选择（分析/SEO 插件、限流阈值、月报）在对应 Phase 内决策。
 
@@ -119,6 +128,6 @@ Reader agent ──MCP/HTTP JSON──▶ Agent Read API ─┘
 
 ## 约定
 
-- **Cloudflare 部署/远端操作统一走 `npm run deploy:cf` / `npm run demo:data:remote`**：账号目录由本地 `.env.deploy`（gitignored，模板 `.env.deploy.example`）的 `WRANGLER_HOME` 指定，脚本把它作为子进程 `HOME` 传给 wrangler。**仓库里不出现任何账号信息**（账号目录名、account id、token 都不进 git）。
+- **部署/远端操作走 Docker 与 `npm run` 脚本**：`npm run docker:up` 起三容器栈（`pulse-app` / `pulse-db` / `pulse-redis`），TLS 由宿主反向代理终止（`deploy/Caddyfile.example`）。**仓库里不出现任何凭据** —— 全部走 gitignored 的 `.env`（模板 `.env.example`）。详见 [16-vps-deployment.md](./16-vps-deployment.md)。
 - 内容页面全部服务端渲染（`output: "server"`），CMS 内容不用 `getStaticPaths()`。
 - 遵循 EmDash 已知约束（见 [02-architecture.md §7](./02-architecture.md#7-核心约束与陷阱)）。

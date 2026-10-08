@@ -151,12 +151,11 @@
 - [x] **性能：图片响应式 + LCP/CLS**：全站改用 `emdash/ui` 的 `<Image>`（`srcset` 640–3200w、`sizes` 按栅格给出、`width`/`height`、WebP、LQIP 占位），首屏图 `priority`；新增 `image.remotePatterns` 修复生产环境 srcset 退化为原图的问题。字体维持系统字体栈（无需子集，公开页 0 字体请求；产物里 944 KB 字体仅属后台编辑器 chunk）。详见 [04-frontend-themes.md §13](./04-frontend-themes.md)。
 - [x] 移动端 Lighthouse 实测：新增 `npm run perf`（Lighthouse + 运行期主题切换 + 阈值断言），两套主题 × 代表路由实测 LCP 1373–1607ms / CLS 0.000 / TBT 0ms / Perf 0.98–1.00。详见 [04-frontend-themes.md §13](./04-frontend-themes.md)。
 - [ ] 分析插件接入（可选）。
-- [x] **Cloudflare 资源配置模板 + 账户无关部署**：`wrangler.prod.jsonc`（account_id / database_id / routes / vars，gitignored）+ `.env.deploy`（`WRANGLER_HOME`，gitignored），模板 `.example` 提交；`npm run deploy:cf` 幂等跑通「whoami → 建 R2 桶 → 补 `EMDASH_ENCRYPTION_KEY` → `plugin:build` → CF 构建 → `wrangler deploy`」。详见 [10-phase0-report.md § Phase 5e](./10-phase0-report.md)。
-- [x] **全部插件 in-process**（`plugins: []`，弃用 `sandboxed`）：Workers 免费计划无 Worker Loader 绑定 → 沙箱插件静默全部不加载；标准格式经 `adaptSandboxEntry` 适配，hooks/routes/storage/adminPages/mcp.tools/能力门禁保留。详见 [02-architecture.md §9](./02-architecture.md)。
+- [x] **全部插件 in-process**（`plugins: []`，弃用 `sandboxed`）：历史上 Workers 免费计划无 Worker Loader 绑定 → 沙箱插件静默全部不加载；标准格式经 `adaptSandboxEntry` 适配，hooks/routes/storage/adminPages/mcp.tools/能力门禁保留。详见 [02-architecture.md §9](./02-architecture.md)。
 - [x] **邮件传输接入 `emdash-plugin-resend@0.2.0`**（独占 `email:deliver`）：magic link / 订阅确认信依赖它，API key / From 在后台「Resend」页填写。
-- [x] **Demo 互动数据脚本** `scripts/demo-data.mjs`（`demo:data` / `:clean` / `:remote`）：评论 + 订阅者/分组/事件，本地 `node:sqlite` 与远端 D1 共用同一份 SQL。
-- [~] `npm run deploy:cf` 实际部署；cron 生效。**待 CF 账号/凭证**。
-- [ ] 关闭 dev-bypass；`EMDASH_SITE_URL` 已写进 `wrangler.prod.jsonc` 的 `vars`；**备份 `EMDASH_ENCRYPTION_KEY`**。
+- [x] **Demo 互动数据脚本** `scripts/demo-data.mjs`（`demo:data` / `:clean`）：评论 + 订阅者/分组/事件（本地 PG）。
+- [~] **生产部署**：改为 **VPS + Docker 三容器**（见 Phase 7），`npm run docker:up`；cron 由 Node 进程内调度器承担。
+- [ ] 关闭 dev-bypass；`EMDASH_SITE_URL` 写进 `.env`；**备份 `EMDASH_ENCRYPTION_KEY`**。
 - [ ] 首次部署后走 setup 向导（灌 seed + 注册管理员 passkey）。
 - [ ] 备份策略：`npx emdash site export` 定期导出。
 - [ ] 监控告警（observability）。
@@ -172,7 +171,7 @@
 **目标**：让站外的人/组织成为 editor，其 agent 凭 EmDash 原生 OAuth 自动继承编辑能力。详见 [13-editor-onboarding.md](./13-editor-onboarding.md)。
 
 - [x] **决策 D22**：Editor 是**用户级角色**；agent 只是该用户的 MCP 客户端，凭 OAuth 以该用户身份操作（token = scope ∩ 用户角色）。**不给 agent 单独类型**。
-- [x] **GitHub 登录**（`authProviders: [github()]`，与 passkey 并存）：`astro.config.mjs` 配置 + `deploy:cf` 支持写 `EMDASH_OAUTH_GITHUB_CLIENT_ID/_SECRET`（可选 secret，缺则跳过）。
+- [x] **GitHub 登录**（`authProviders: [github()]`，与 passkey 并存）：`astro.config.mjs` 配置 + `EMDASH_OAUTH_GITHUB_CLIENT_ID/_SECRET` 走 `.env` 运行期注入（可选，缺则跳过）。
 - [x] **申请页** `/editor/apply`（两套主题各一份 + `THEME_ROUTES` 注册 + 共享 `EditorApplyForm` + i18n）：SSR 门禁（未登录 → 引导登录；已是 Editor → 提示无需申请），表单客户端直连私有路由提交。
 - [x] **插件 `pulse-editor-applications`**（in-process）：`applications/submit` / `mine`（`content:read`）+ `list` / `approve` / `reject`（`plugins:manage`）+ Block Kit 后台队列 `/editor-applications` + 3 个 MCP 工具；storage `applications`（`uniqueIndexes: ["userId"]`）。单测 15 例。
 - [x] **批准只改申请状态**（插件无 user 写能力）→ 提示管理员到 Users 页把角色改为 Editor(40)。
@@ -181,6 +180,19 @@
 - [ ] **端到端实测**：第三方 GitHub 登录 → 提交申请 → 后台批准 → 改角色 → agent OAuth 连 MCP → 调 `pulse-editorial__*`。
 
 **验收**：第三方用户可自助登录并申请；管理员在后台审批并改角色；该用户的 agent 经 OAuth 获得编辑能力且审计归属正确；可单独撤销。
+
+---
+
+## Phase 7 · VPS 独立部署（Self-hosted Migration）
+
+**目标**：运行时整体离开 Cloudflare —— **Node standalone + PostgreSQL + Redis + Docker 三容器**，宿主反代终止 TLS。详见 [16-vps-deployment.md](./16-vps-deployment.md)、[15-emdash-cloudflare-coupling.md](./15-emdash-cloudflare-coupling.md)。
+
+- [x] **7a 运行时迁移**：`@astrojs/node` standalone；内容库 D1 → **PostgreSQL 17**（EmDash `postgres()` 适配器）；媒体 R2 → **本地磁盘或任意 S3 兼容**；新增 **Redis 对象缓存**（`src/server/redis-object-cache.ts`，未配 `REDIS_URL` 时降级直通）。部署改 `docker-compose.yml`（`pulse-app` / `pulse-db` / `pulse-redis`）+ `Dockerfile` + `deploy/Caddyfile.example`；**构建期只选适配器种类，凭据一律运行期注入**。移除 `wrangler*.jsonc` / `src/worker.ts` / `scripts/deploy-cf.mjs`。
+- [x] **7b PG 全文搜索**：EmDash FTS 仅支持 SQLite → 自建 `pulse_search` 表 + `pg_trgm` GIN trigram 索引（`src/server/search-index.mjs`：自有 `pg` 连接池、懒建懒刷新、advisory lock、异常降级）；`npm run search:rebuild`。
+- [x] **7c AI 网关插件**：新增 `pulse-ai`（provider / CF AI Gateway / 自定义 base URL / 模型 / 加密 API key + 后台「AI 网关」页含连通性自测）；`pulse-review` 的 AI 审核委托 `pulse-ai/client`，不再自带凭证设置。
+- [x] **7d Resend 分组同步 + 群发**：`pulse-subscriptions` 把订阅分组同步为 Resend **Segments**（segment id 缓存回组记录）；新增后台「订阅群发」页（走 Resend **Broadcasts**，`send: true`）；新增 `resend/webhook`（**Svix 验签**，回执只写事件日志，不自动改订阅状态）；插件升 0.3.0。
+
+**验收**：`npm run docker:up` 起三容器、宿主反代可达；搜索 / 订阅群发 / AI 审核 / 定时发布全部在 Node 上工作；仓库无任何 Cloudflare 凭据。
 
 ---
 
@@ -211,10 +223,10 @@ Phase0 ─▶ Phase1 ─▶ Phase2 ─▶ Phase3 ─▶ Phase4 ─▶ Phase5 ─
 | Editor agent 全自动审核风险 | 误发 | 默认"AI 建议 + 人工/一键确认"，可按栏目放开为全自动 |
 | Agent 身份伪造/越权 | 未审发布 | 投稿 token 无发布权 + 策略兜底 + 身份取自认证 |
 | 公开读端点被滥用 | 资源耗尽 | 限流；写操作强制鉴权 |
-| R2 图片大/慢 | 体验差 | Astro 响应式 + 可选图片优化插件 + CDN 缓存 |
+| 大图 / 慢图 | 体验差 | Astro 响应式 `srcset` + 可选图片优化插件 + 反代 / CDN 缓存 |
 | MCP 端点/scope 假设错误 | 集成返工 | 实施前 `search_docs` 核对 |
 | 插件授权变更需重批 | 升级摩擦 | 能力声明一次规划完整 |
-| Cloudflare 账号环境用错 | 部署错账号 | 账号目录由 `.env.deploy` 的 `WRANGLER_HOME` 提供（gitignored），脚本固定子进程 `HOME`；`wrangler.prod.jsonc` 显式钉住 `account_id` |
+| 主机 / 备份 / TLS 自管 | 运维负担 | 三容器 + 宿主反代；PG 逻辑备份 + 卷备份 + `EMDASH_ENCRYPTION_KEY` 离线保管（见 [16-vps-deployment.md §8](./16-vps-deployment.md)） |
 
 ---
 
@@ -227,5 +239,6 @@ Phase0 ─▶ Phase1 ─▶ Phase2 ─▶ Phase3 ─▶ Phase4 ─▶ Phase5 ─
 | M2 读者可读 | Phase 2 / 2b | 双主题前台 + 图片新闻 / 播客 / 视频 + 归档 + 搜索 + RSS/JSON Feed |
 | M3 互动闭环 | Phase 3 | 评论(规则+AI 审核) + 邮件订阅 ✅ |
 | M4 Agent 接入 | Phase 4 | Author/Editor/Reader agent 全链路可用 ✅（`scripts/agent-e2e.mjs` 22/22） |
-| M5 上线 | Phase 5 | CF 生产部署 + 备份监控 |
+| M5 上线 | Phase 5 | 生产部署 + 备份监控（部署形态见 Phase 7：VPS + Docker 三容器） |
 | M6 开放接入 | Phase 6 | 第三方可自助登录申请成为 Editor，其 agent 经 OAuth 获得编辑能力 ✅（代码就绪；运行时配置待部署） |
+| M7 VPS 独立部署 | Phase 7 | Node + PostgreSQL + Redis + Docker 三容器，脱离 Cloudflare ✅ |

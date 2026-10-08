@@ -228,8 +228,8 @@ export default defineConfig({
 	integrations: [themeRoutes(), react(), emdash(emdashConfig)],
 	devToolbar: { enabled: false },
 	vite: {
-		// 把构建期的默认主题烘进产物：中间件在 Node 运行时读到，
-		// 不依赖 process.env（Workers 上 process.env 只映射 wrangler 的 vars）。
+		// 把构建期的默认主题烘进产物：中间件在运行期读到，不依赖 process.env
+		// （默认主题是构建期选择，与部署环境无关）。
 		define: {
 			__DEFAULT_SITE_THEME__: JSON.stringify(DEFAULT_SITE_THEME),
 		},
