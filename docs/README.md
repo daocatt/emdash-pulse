@@ -27,6 +27,7 @@
 | [12-operations.md](./12-operations.md) | **运营手册**：角色职责、巡检清单、编辑流程 SOP、Agent 投稿规范、评论/订阅规范、异常处理 |
 | [13-editor-onboarding.md](./13-editor-onboarding.md) | **第三方 Editor 接入**（已实现）：用户成为 editor + GitHub 登录 + EmDash OAuth；申请页 `/editor/apply` + `pulse-editor-applications` 后台审批队列 |
 | [14-database.md](./14-database.md) | **数据库选型与查询负载复核**：为何继续用 D1（FTS 仅 SQLite 方言）、D1 2026-09 硬限额、索引实测（单字段索引不被选用）、缓存才是杠杆 |
+| [15-emdash-cloudflare-coupling.md](./15-emdash-cloudflare-coupling.md) | **EmDash 开放性 / CF 耦合评估**（英文）：真正平台无关 vs 面向 CF、解耦难度、独立 VPS 部署可行性、PostgreSQL 官方内置、无需 Drizzle（Kysely） |
 
 ---
 
