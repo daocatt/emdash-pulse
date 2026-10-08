@@ -11,6 +11,7 @@ import type { PluginContext } from "emdash/plugin";
 
 import { recordEvent, type EventActor } from "./events";
 import { sanitizeGroupSlugs } from "./groups";
+import { syncSubscriber } from "./segments";
 import {
 	subscriberStore,
 	type PausableStatus,
@@ -19,6 +20,16 @@ import {
 } from "./subscribers";
 
 const isoNow = (): string => new Date().toISOString();
+
+/**
+ * 状态变更后把结果同步到 Resend（旁路，永不抛错，未配置时自动跳过）。
+ *
+ * 放在这里而不是各个调用方：后台行级操作与私有路由走的是**同一批**函数，
+ * 这是唯一的状态变更收口处，漏一处就会出现「本地改了、Resend 没改」。
+ */
+async function afterChange(ctx: PluginContext, id: string, record: SubscriberRecord): Promise<void> {
+	await syncSubscriber(ctx, { id, data: record });
+}
 
 export type OperationError = "NOT_FOUND" | "INVALID_STATE";
 
@@ -67,6 +78,7 @@ export async function pauseSubscriber(
 		actor: "admin",
 		...(options.reason ? { reason: options.reason } : {}),
 	});
+	await afterChange(ctx, id, record);
 	return { ok: true, record };
 }
 
@@ -95,6 +107,7 @@ export async function resumeSubscriber(
 		type: "resumed",
 		actor: "admin",
 	});
+	await afterChange(ctx, id, record);
 	return { ok: true, record };
 }
 
@@ -132,6 +145,7 @@ export async function unsubscribeSubscriber(
 		actor: options.actor,
 		...(options.reason ? { reason: options.reason } : {}),
 	});
+	await afterChange(ctx, id, record);
 	return { ok: true, record };
 }
 
@@ -161,5 +175,6 @@ export async function setSubscriberGroups(
 		actor,
 		detail: next.join(","),
 	});
+	await afterChange(ctx, id, record);
 	return { ok: true, record };
 }

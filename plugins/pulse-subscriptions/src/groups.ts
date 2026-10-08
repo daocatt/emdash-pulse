@@ -18,6 +18,11 @@ export interface GroupRecord {
 	sortOrder: number;
 	/** 停用后不出现在前台表单，但保留已有订阅关系。 */
 	active: boolean;
+	/**
+	 * 对应的 Resend segment id（首次同步时创建并写回，见 `segments.ts`）。
+	 * 缓存它是为了避免每次同步都去打 Resend 的 segment 列表接口。
+	 */
+	resendSegmentId?: string;
 	createdAt: string;
 	updatedAt?: string;
 }

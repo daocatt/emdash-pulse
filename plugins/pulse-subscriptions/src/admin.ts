@@ -13,6 +13,7 @@
 
 import type { PluginContext } from "emdash/plugin";
 
+import { listBroadcastHistory, sendBroadcastToSegment } from "./broadcast";
 import { listEvents, recordEvent, type EventType } from "./events";
 import { deleteGroup, listGroups, saveGroup } from "./groups";
 import {
@@ -21,6 +22,8 @@ import {
 	setSubscriberGroups,
 	unsubscribeSubscriber,
 } from "./operations";
+import { loadResendConfig } from "./resend";
+import { readSyncSettings } from "./segments";
 import {
 	MAX_SCAN,
 	maskEmail,
@@ -39,6 +42,7 @@ export interface AdminResponse {
 
 export const ADMIN_PAGE_SUBSCRIBERS = "/subscribers";
 export const ADMIN_PAGE_GROUPS = "/groups";
+export const ADMIN_PAGE_BROADCAST = "/broadcast";
 
 const PAGE_SIZE = 20;
 
@@ -65,6 +69,12 @@ const EVENT_LABEL: Record<EventType, string> = {
 	resumed: "恢复",
 	groups_changed: "改分组",
 	request_blocked: "订阅被拦截",
+	resend_sync_failed: "Resend 同步失败",
+	email_delivered: "邮件已送达",
+	email_bounced: "邮件退信",
+	email_complained: "标记垃圾邮件",
+	email_opened: "邮件已打开",
+	email_clicked: "链接已点击",
 };
 
 const ACTOR_LABEL: Record<string, string> = {
@@ -517,7 +527,135 @@ export interface AdminInput {
 export async function renderAdmin(ctx: PluginContext, input: AdminInput): Promise<AdminResponse> {
 	const page = typeof input.page === "string" && input.page ? input.page : ADMIN_PAGE_SUBSCRIBERS;
 
-	return page === ADMIN_PAGE_GROUPS ? renderGroupsPage(ctx, input) : renderSubscribersPage(ctx, input);
+	if (page === ADMIN_PAGE_GROUPS) return renderGroupsPage(ctx, input);
+	if (page === ADMIN_PAGE_BROADCAST) return renderBroadcastPage(ctx, input);
+	return renderSubscribersPage(ctx, input);
+}
+
+// ---------- 订阅群发（Resend Broadcasts）----------
+
+/**
+ * 群发页。
+ *
+ * 收件人池是 **Resend segment**（= 一个订阅分组），不是本地邮箱列表 ——
+ * 群发走 `POST /broadcasts`，由 Resend 展开收件人、插入退订链接、遵守
+ * contact 的 `unsubscribed` 状态。因此这里只让编辑选「发给哪个分组」。
+ *
+ * 发送不可撤销，所以表单里放一个必须打开的确认开关。
+ */
+async function renderBroadcastPage(ctx: PluginContext, input: AdminInput): Promise<AdminResponse> {
+	if (input.type === "form_submit" && input.action_id === "broadcast-send") {
+		const confirmed = input.values?.confirm === true;
+		const subject = str(input.values?.subject).trim();
+		const html = str(input.values?.html).trim();
+		const segmentSlug = str(input.values?.segment);
+
+		if (!confirmed) {
+			return { blocks: await broadcastBlocks(ctx, "⚠️ 请先勾选确认再发送。"), toast: { message: "未勾选确认", type: "error" } };
+		}
+		if (subject === "" || html === "") {
+			return { blocks: await broadcastBlocks(ctx, "⚠️ 主题与正文都不能为空。"), toast: { message: "主题/正文为空", type: "error" } };
+		}
+		if (segmentSlug === "") {
+			return { blocks: await broadcastBlocks(ctx, "⚠️ 请选择目标分组。"), toast: { message: "未选择分组", type: "error" } };
+		}
+
+		const result = await sendBroadcastToSegment(ctx, { subject, html, segmentSlug, actor: "admin" });
+		if (!result.ok) {
+			return {
+				blocks: await broadcastBlocks(ctx, `❌ 发送失败：**${result.error}**`),
+				toast: { message: `发送失败：${result.error}`, type: "error" },
+			};
+		}
+		return {
+			blocks: await broadcastBlocks(ctx, `✅ 已提交 Resend（broadcast ${result.resendId}）。`),
+			toast: { message: "已提交群发", type: "success" },
+		};
+	}
+
+	return { blocks: await broadcastBlocks(ctx) };
+}
+
+async function broadcastBlocks(ctx: PluginContext, notice?: string): Promise<Json[]> {
+	const [groups, history, config, sync] = await Promise.all([
+		listGroups(ctx),
+		listBroadcastHistory(ctx, 20),
+		loadResendConfig(),
+		readSyncSettings(ctx),
+	]);
+
+	const configured = config !== null && config.fromAddress !== "";
+	const blocks: Json[] = [
+		{ type: "header", text: "订阅群发" },
+		{
+			type: "section",
+			text: "群发走 **Resend Broadcasts**：收件人是所选分组对应的 segment，Resend 负责展开收件人、插入退订链接、并跳过已退订联系人。",
+		},
+		{
+			type: "context",
+			text: configured
+				? `Resend 已配置（From：${config?.fromAddress}）· 分组同步：${sync.enabled ? "开启" : "关闭"}`
+				: "⚠️ Resend 未配置：请先到「Resend」设置页填 API Key 与 From 地址。",
+		},
+	];
+	if (notice) blocks.push({ type: "section", text: notice });
+	blocks.push({ type: "divider" });
+
+	const options = groups
+		.filter((group) => group.data.active)
+		.map((group) => ({ label: `${group.data.name}（${group.slug}）`, value: group.slug }));
+
+	blocks.push({
+		type: "form",
+		block_id: "broadcast-send",
+		fields: [
+			{
+				type: "select",
+				action_id: "segment",
+				label: "目标分组",
+				options: options.length > 0 ? options : [{ label: "（没有启用中的分组）", value: "" }],
+				initial_value: options[0]?.value ?? "",
+			},
+			{ type: "text_input", action_id: "subject", label: "主题", initial_value: "" },
+			{
+				type: "text_input",
+				action_id: "html",
+				label: "正文（HTML；可用 {{{RESEND_UNSUBSCRIBE_URL}}} 占位退订链接）",
+				multiline: true,
+				initial_value: "",
+			},
+			{
+				type: "toggle",
+				action_id: "confirm",
+				label: "确认立即发送",
+				description: "我确认立即向该分组的全部已确认订阅者发送（不可撤销）",
+				initial_value: false,
+			},
+		],
+		submit: { label: "创建并发送", action_id: "broadcast-send" },
+	});
+
+	blocks.push({
+		type: "table",
+		columns: [
+			{ key: "subject", label: "主题" },
+			{ key: "segment", label: "分组", format: "code" },
+			{ key: "status", label: "状态", format: "badge" },
+			{ key: "created", label: "时间", format: "relative_time" },
+			{ key: "detail", label: "详情" },
+		],
+		rows: history.map((record) => ({
+			subject: record.subject,
+			segment: record.segmentSlug,
+			status: record.status === "sent" ? "已发送" : "失败",
+			created: record.createdAt,
+			detail: record.status === "sent" ? record.resendId : (record.error ?? ""),
+		})),
+		page_action_id: "broadcast-page",
+		empty_text: "还没有群发记录。",
+	});
+
+	return blocks;
 }
 
 async function renderSubscribersPage(ctx: PluginContext, input: AdminInput): Promise<AdminResponse> {

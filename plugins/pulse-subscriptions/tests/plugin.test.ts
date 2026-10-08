@@ -384,3 +384,105 @@ describe("pulse-subscriptions 后台暂停", () => {
 		expect(filtered.subscribers.every((s: Res) => s.groups.includes(groupSlug))).toBe(true);
 	});
 });
+
+// ---------- Resend Webhook（Svix 验签）----------
+
+describe("pulse-subscriptions · Resend Webhook", () => {
+	const SECRET = `whsec_${btoa("0123456789abcdef0123456789abcdef")}`;
+
+	beforeAll(async () => {
+		// 直接写设置项：`updateSettings` 会走 AES-GCM 加密，而测试宿主没有
+		// EMDASH_ENCRYPTION_KEY（secret 写入必失败）。而 `decodePluginSettingValue`
+		// 对「存成明文的 secret」原样返回，所以直写等价于已配置。
+		await host.fixtures.plugin.setting("resendWebhookSecret", SECRET);
+	});
+
+	/** 用与生产同款的算法生成合法签名（模拟 Resend 侧）。 */
+	const sign = async (id: string, timestamp: string, payload: string): Promise<string> => {
+		const raw = SECRET.slice("whsec_".length);
+		const keyBytes = Uint8Array.from(atob(raw), (char) => char.charCodeAt(0));
+		const key = await crypto.subtle.importKey("raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, [
+			"sign",
+		]);
+		const digest = new Uint8Array(
+			await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${id}.${timestamp}.${payload}`)),
+		);
+		let binary = "";
+		for (const byte of digest) binary += String.fromCharCode(byte);
+		return `v1,${btoa(binary)}`;
+	};
+
+	const webhook = async (payload: string, headers: Record<string, string>): Promise<Res> => {
+		const res = (await host.transport.invokeRoute("resend/webhook", payload, {
+			method: "POST",
+			headers,
+			meta: meta(nextIp()),
+		} as never)) as RawResponse & Res;
+		if (res && res.__emdashPluginResponse) {
+			const body = res.body?.value ? (JSON.parse(res.body.value) as Res) : {};
+			return { ...body, __status: res.status ?? 200 };
+		}
+		return res as Res;
+	};
+
+	it("合法签名 + 命中订阅者 → 落一条投递回执事件", async () => {
+		const email = `hook-${Date.now()}@example.com`;
+		await subscribeAndConfirm(email);
+
+		const subscribers = await host.inspect.storage.list<{ email: string }>("subscribers");
+		const target = subscribers.find((entry) => entry.data.email === email);
+		expect(target).toBeTruthy();
+
+		const payload = JSON.stringify({
+			type: "email.delivered",
+			data: { to: [email], broadcast_id: "bc_9" },
+		});
+		const timestamp = String(Math.floor(Date.now() / 1000));
+		const result = await webhook(payload, {
+			"svix-id": "msg_1",
+			"svix-timestamp": timestamp,
+			"svix-signature": await sign("msg_1", timestamp, payload),
+		});
+
+		expect(result.__status).toBe(200);
+		expect(result.matched).toBe(true);
+
+		const events = await host.inspect.storage.list<{ subscriberId: string; type: string; detail?: string }>(
+			"events",
+		);
+		const recorded = events.find(
+			(entry) => entry.data.subscriberId === target!.id && entry.data.type === "email_delivered",
+		);
+		expect(recorded).toBeTruthy();
+		expect(recorded!.data.detail).toBe("broadcast bc_9");
+	});
+
+	it("签名不合法 → 401", async () => {
+		const payload = JSON.stringify({ type: "email.delivered", data: { to: ["x@example.com"] } });
+		const timestamp = String(Math.floor(Date.now() / 1000));
+		const result = await webhook(payload, {
+			"svix-id": "msg_2",
+			"svix-timestamp": timestamp,
+			"svix-signature": "v1,AAAA",
+		});
+		expect(result.__status).toBe(401);
+		expect(result.error).toBe("INVALID_SIGNATURE");
+	});
+
+	it("缺签名头 → 401", async () => {
+		const result = await webhook(JSON.stringify({ type: "email.delivered" }), {});
+		expect(result.__status).toBe(401);
+	});
+
+	it("未关注的事件类型 → 200 ignored", async () => {
+		const payload = JSON.stringify({ type: "email.sent", data: { to: ["x@example.com"] } });
+		const timestamp = String(Math.floor(Date.now() / 1000));
+		const result = await webhook(payload, {
+			"svix-id": "msg_3",
+			"svix-timestamp": timestamp,
+			"svix-signature": await sign("msg_3", timestamp, payload),
+		});
+		expect(result.__status).toBe(200);
+		expect(result.ignored).toBe(true);
+	});
+});

@@ -23,7 +23,14 @@ export type EventType =
 	| "paused"
 	| "resumed"
 	| "groups_changed"
-	| "request_blocked";
+	| "request_blocked"
+	// Resend 同步与投递回执（Webhook 落库，见 resend.ts 的 mapResendEvent）。
+	| "resend_sync_failed"
+	| "email_delivered"
+	| "email_bounced"
+	| "email_complained"
+	| "email_opened"
+	| "email_clicked";
 
 /** 事件的操作者。`reader` = 读者自助（邮件链接 / 前台表单），`admin` = 后台，`system` = 自动。 */
 export type EventActor = "reader" | "admin" | "system";

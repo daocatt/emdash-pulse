@@ -12,9 +12,12 @@
 	// Trust contract — what runtime APIs the plugin asks for.
 	// - email:send → 发送确认 / 欢迎（含退订链接）邮件。未配置 provider 时降级为
 	//   在订阅记录里留 `pendingEmail`，不报错。
+	// - network:request → 直连 Resend REST（segments / contacts / broadcasts）与
+	//   接收 Webhook（`resend/webhook`，Svix 验签）。凭证复用「Resend」插件的设置
+	//   （plugin id `emdash-resend`），本插件不重复配置 API key。
 	// 订阅者身份存于插件存储 `subscribers`，不是 EmDash 用户，故无需 users 能力。
-	"capabilities": ["email:send"],
-	"allowedHosts": [],
+	"capabilities": ["email:send", "network:request"],
+	"allowedHosts": ["api.resend.com"],
 	"storage": {
 		"subscribers": {
 			"indexes": ["status", "createdAt", "tokenHash"],
@@ -30,12 +33,17 @@
 		// 同名字段会让同一订阅者的第 2 条事件撞唯一约束而写不进去。
 		"events": {
 			"indexes": ["subscriberId", "type", "at"]
+		},
+		// 群发历史（Resend Broadcasts 的本地留痕）：后台「订阅群发」页展示。
+		"broadcasts": {
+			"indexes": ["createdAt"]
 		}
 	},
 	"admin": {
 		"pages": [
 			{ "path": "/subscribers", "label": "订阅者", "icon": "mail" },
-			{ "path": "/groups", "label": "订阅分组", "icon": "tag" }
+			{ "path": "/groups", "label": "订阅分组", "icon": "tag" },
+			{ "path": "/broadcast", "label": "订阅群发", "icon": "send" }
 		],
 		"settingsSchema": {
 			"autoConfirm": {
@@ -71,6 +79,24 @@
 				"description": "欢迎 / 退订邮件里链接指向的站点路径。",
 				"type": "string",
 				"default": "/subscribe/unsubscribe"
+			},
+			"resendSyncEnabled": {
+				"label": "同步订阅到 Resend",
+				"description": "开启后，订阅者状态变更会同步为 Resend 联系人（分组 → segment）。需先在「Resend」页配置 API Key。",
+				"type": "boolean",
+				"default": true
+			},
+			"resendSegmentPrefix": {
+				"label": "Resend segment 名称前缀",
+				"description": "同一个 Resend 账号被多环境共用时，用前缀避免 segment 撞名。",
+				"type": "string",
+				"default": "Pulse · "
+			},
+			"resendWebhookSecret": {
+				"label": "Resend Webhook 签名密钥",
+				"description": "Resend 后台 Webhook 的 Svix 签名密钥（whsec_…）。留空则关闭回执处理（resend/webhook 返回 503）。",
+				"type": "secret",
+				"default": ""
 			}
 		}
 	}

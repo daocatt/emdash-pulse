@@ -29,11 +29,13 @@ import {
 import { z } from "zod";
 
 import { renderAdmin, type AdminInput } from "./admin";
-import { listEvents, recordEvent } from "./events";
+import { listEvents, recordEvent, type EventType } from "./events";
 import { deleteGroup, listActiveGroups, listGroups, saveGroup, sanitizeGroupSlugs } from "./groups";
 import { buildConfirmEmail, buildWelcomeEmail, deliver, linkWithToken, type EmailSender } from "./mail";
 import { pauseSubscriber, resumeSubscriber, setSubscriberGroups, unsubscribeSubscriber } from "./operations";
 import { checkRateLimit, clientIp } from "./rate-limit";
+import { mapResendEvent, verifyResendSignature } from "./resend";
+import { syncSubscriber } from "./segments";
 import {
 	findSubscriberByEmailHash,
 	findSubscriberByTokenHash,
@@ -97,6 +99,28 @@ function rawJson<TInput>(
 	};
 }
 
+/**
+ * 读取已声明的请求头（大小写两种都试）。
+ *
+ * 宿主只把 `request.headers` 里**显式声明**的头交给插件，其余被过滤（`Authorization`
+ * / `Cookie` / `X-EmDash-Request` 即使声明也会被拒）。Resend Webhook 的签名头
+ * （`svix-id` 等）不在过滤名单里，声明即可拿到。
+ */
+function readHeader(routeCtx: SandboxedRouteContext, name: string): string {
+	const headers = routeCtx.request?.headers ?? {};
+	const value = headers[name] ?? headers[name.toLowerCase()];
+	return typeof value === "string" ? value : "";
+}
+
+/** Resend Webhook 事件 → 本地事件类型（未列出的忽略）。 */
+const WEBHOOK_EVENT_TYPES: Record<string, EventType> = {
+	"email.delivered": "email_delivered",
+	"email.bounced": "email_bounced",
+	"email.complained": "email_complained",
+	"email.opened": "email_opened",
+	"email.clicked": "email_clicked",
+};
+
 // ---------- 输入校验 ----------
 
 const groupSlugs = z.array(z.string().trim().min(1).max(40)).max(20);
@@ -159,6 +183,8 @@ interface SubscriptionSettings {
 	welcomeSubject: string;
 	confirmPath: string;
 	unsubscribePath: string;
+	/** Resend Webhook（Svix）签名密钥，`whsec_…`。留空即关闭 Webhook 处理。 */
+	resendWebhookSecret: string;
 }
 
 const DEFAULT_SETTINGS: SubscriptionSettings = {
@@ -168,6 +194,7 @@ const DEFAULT_SETTINGS: SubscriptionSettings = {
 	welcomeSubject: "欢迎订阅 Suda Pulse",
 	confirmPath: "/subscribe/confirm",
 	unsubscribePath: "/subscribe/unsubscribe",
+	resendWebhookSecret: "",
 };
 
 function str(value: unknown, fallback: string): string {
@@ -186,13 +213,22 @@ async function readSettings(ctx: PluginContext): Promise<SubscriptionSettings> {
 			return null;
 		}
 	};
-	const [autoConfirm, replyTo, confirmSubject, welcomeSubject, confirmPath, unsubscribePath] = await Promise.all([
+	const [
+		autoConfirm,
+		replyTo,
+		confirmSubject,
+		welcomeSubject,
+		confirmPath,
+		unsubscribePath,
+		resendWebhookSecret,
+	] = await Promise.all([
 		get("autoConfirm"),
 		get("replyTo"),
 		get("confirmSubject"),
 		get("welcomeSubject"),
 		get("confirmPath"),
 		get("unsubscribePath"),
+		get("resendWebhookSecret"),
 	]);
 
 	return {
@@ -202,6 +238,7 @@ async function readSettings(ctx: PluginContext): Promise<SubscriptionSettings> {
 		welcomeSubject: str(welcomeSubject, DEFAULT_SETTINGS.welcomeSubject),
 		confirmPath: str(confirmPath, DEFAULT_SETTINGS.confirmPath),
 		unsubscribePath: str(unsubscribePath, DEFAULT_SETTINGS.unsubscribePath),
+		resendWebhookSecret: str(resendWebhookSecret, DEFAULT_SETTINGS.resendWebhookSecret),
 	};
 }
 
@@ -347,6 +384,8 @@ const plugin: SandboxedPlugin = {
 					actor: "reader",
 					detail: groups.join(","),
 				});
+				// 旁路同步（pending 会被跳过，autoConfirm 时立即进 Resend）。
+				await syncSubscriber(ctx, { id, data: record });
 
 				return ok({
 					status: record.status,
@@ -409,6 +448,7 @@ const plugin: SandboxedPlugin = {
 					type: "confirmed",
 					actor: "reader",
 				});
+				await syncSubscriber(ctx, { id: found.id, data: record });
 
 				return ok({ status: "confirmed", email: record.email, delivered: record.emailDelivered });
 			}),
@@ -504,6 +544,70 @@ const plugin: SandboxedPlugin = {
 				}));
 				return ok({ groups });
 			}),
+		},
+
+		// ===== Resend Webhook（公开，Svix 验签） =====
+		//
+		// 收投递回执（delivered / bounced / complained / opened / clicked），按收件人
+		// 反查订阅者并落一条事件日志（后台「订阅记录」里可回放）。
+		//
+		// **`request: { body: "text" }` 是必须的**：验签对象是原始请求体字节，
+		// 让宿主先 `JSON.parse` 再 `JSON.stringify` 会改变字节（键序 / 空白 / 转义），
+		// 验签必然失败。签名头是 Svix 的三件套，需显式声明才会透传给插件。
+		//
+		// 未配置 `resendWebhookSecret` 时返回 503（而不是静默 200）—— 否则运营在
+		// Resend 后台看到「投递成功」，却永远等不到回执，无从排查。
+		"resend/webhook": {
+			public: true,
+			response: "raw",
+			methods: ["POST"],
+			request: { body: "text", headers: ["svix-id", "svix-timestamp", "svix-signature"] },
+			handler: async (routeCtx, ctx): Promise<PluginResponse> => {
+				const settings = await readSettings(ctx);
+				if (settings.resendWebhookSecret === "") {
+					return json(503, { ok: false, error: "WEBHOOK_DISABLED" });
+				}
+
+				const payload = typeof routeCtx.input === "string" ? routeCtx.input : "";
+				const verified = await verifyResendSignature({
+					payload,
+					headers: {
+						id: readHeader(routeCtx, "svix-id"),
+						timestamp: readHeader(routeCtx, "svix-timestamp"),
+						signature: readHeader(routeCtx, "svix-signature"),
+					},
+					secret: settings.resendWebhookSecret,
+				});
+				if (!verified) return json(401, { ok: false, error: "INVALID_SIGNATURE" });
+
+				let parsed: unknown;
+				try {
+					parsed = JSON.parse(payload);
+				} catch {
+					return json(400, { ok: false, error: "INVALID_BODY" });
+				}
+
+				const event = mapResendEvent(parsed);
+				const type = event ? WEBHOOK_EVENT_TYPES[event.type] : undefined;
+				if (!event || !type) return json(200, { ok: true, ignored: true });
+
+				// 只留痕，不改订阅状态：退信 / 投诉的处置是人工决定（暂停还是拉黑），
+				// 自动退订会误伤（软退信 ≠ 用户不想收）。
+				const found = event.email
+					? await findSubscriberByEmailHash(ctx, await hashEmail(normalizeEmail(event.email)))
+					: null;
+				if (found) {
+					await recordEvent(ctx, {
+						subscriberId: found.id,
+						type,
+						actor: "system",
+						...(event.broadcastId ? { detail: `broadcast ${event.broadcastId}` } : {}),
+						...(event.reason ? { reason: event.reason } : {}),
+					});
+				}
+
+				return json(200, { ok: true, matched: Boolean(found) });
+			},
 		},
 
 		// ===== 订阅者管理（私有） =====

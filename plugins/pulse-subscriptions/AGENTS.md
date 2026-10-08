@@ -13,6 +13,8 @@ Keep `emdash-plugin.jsonc` aligned with the runtime implementation, declare ever
 - 状态流转只有一份实现（`src/operations.ts`）：后台行级操作与私有路由 `subscribers/update` 共用，别各写一遍状态机。
 - 公开路由（`subscribe/request|confirm`、`unsubscribe`、`preferences`、`groups/public`）为 `response: "raw"`，返回真实状态码（400/401/409/429），并自带限流 —— 但 `groups/public` 刻意**不加**限流（SSR 取不到真实 IP，加了会把所有页面挤进同一个桶）。
 - 邮件走 `ctx.email`（`email:send` + 已配置 provider）；**provider 缺失或投递失败时不抛错**，落库为 `pendingEmail`。无邮件服务时可开 `autoConfirm`（单确认）。
-- 后台两页（`/subscribers`、`/groups`）共用同一个 `admin` 路由，靠宿主补的 `input.page` 分派。宿主不回传上一次表单值 ⇒ 筛选状态必须内嵌进分页按钮 value；分组是数组字段建不了索引 ⇒ 列表走内存扫描（`MAX_SCAN` 护栏）。
+- 后台三页（`/subscribers`、`/groups`、`/broadcast`）共用同一个 `admin` 路由，靠宿主补的 `input.page` 分派。宿主不回传上一次表单值 ⇒ 筛选状态必须内嵌进分页按钮 value；分组是数组字段建不了索引 ⇒ 列表走内存扫描（`MAX_SCAN` 护栏）。
+- **Resend 集成是旁路**：`syncSubscriber`（`src/segments.ts`）永不抛错，失败只记 `resend_sync_failed` 事件；凭证复用「Resend」插件（id `emdash-resend`）的设置，跨插件读靠 `loadHost()` 动态 `import("emdash")`。**该 import 的 specifier 必须是运行时变量**（`const specifier = "emdash"; await import(specifier)`）：字面量会让 rolldown 静态解析失败（`Cannot find package 'emdash'`），也会让 `tsc` 把 EmDash 整张类型图拉进来直接 OOM。
+- `resend/webhook` 声明 `request: { body: "text" }`（验签用原始字节）+ `headers: ["svix-id","svix-timestamp","svix-signature"]`（宿主只透传显式声明的头）。回执只落事件日志，**不自动改订阅状态**。
 - 改 `capabilities` / `storage` / `admin.pages` 必须升 `package.json` 的 `version`（信任契约变更）。
 - 改动后必须 `npm run plugin:build`（根目录），沙箱 entry 内嵌的是已构建的 `dist/*.mjs`。

@@ -12,6 +12,7 @@ import { validateBlocks } from "@emdash-cms/blocks";
 import { describe, expect, it } from "vitest";
 
 import plugin from "../src/plugin";
+import type { BroadcastRecord } from "../src/broadcast";
 import type { SubscriptionEvent } from "../src/events";
 import type { GroupRecord } from "../src/groups";
 import type { SubscriberRecord } from "../src/subscribers";
@@ -91,18 +92,27 @@ function fakeCtx() {
 	const subscribers = memoryCollection<SubscriberRecord>();
 	const groups = memoryCollection<GroupRecord>();
 	const events = memoryCollection<SubscriptionEvent>();
+	const broadcasts = memoryCollection<BroadcastRecord>();
 
 	return {
 		subscribers: subscribers as MemoryCollection<SubscriberRecord>,
 		groups: groups as MemoryCollection<GroupRecord>,
 		events: events as MemoryCollection<SubscriptionEvent>,
+		broadcasts: broadcasts as MemoryCollection<BroadcastRecord>,
 		ctx: {
-			storage: { subscribers, groups, events },
+			storage: { subscribers, groups, events, broadcasts },
 			settings: {
 				async get(): Promise<unknown> {
 					return null;
 				},
 				async set(): Promise<void> {},
+			},
+			// 群发页会调 `ctx.http.fetch`；这里给个永远失败的桩（配合未配置的 Resend，
+			// 走「未配置」降级分支）。其余页面不碰 http。
+			http: {
+				async fetch(): Promise<Response> {
+					return new Response("{}", { status: 500, headers: { "content-type": "application/json" } });
+				},
 			},
 			site: { name: "Suda Pulse" },
 			url: (path: string): string => `https://pulse.suda.im${path}`,
@@ -546,5 +556,106 @@ describe("pulse-subscriptions · 后台「订阅分组」页", () => {
 		expect(await groups.get("daily")).toBeNull();
 		expect((await subscribers.get("sub_1"))?.groups).toEqual([]);
 		expect([...events.raw.values()].map((event) => event.type)).toEqual(["groups_changed"]);
+	});
+});
+
+describe("pulse-subscriptions · 后台「订阅群发」页", () => {
+	it("page_load 渲染表单与群发历史（未配置 Resend 时提示）", async () => {
+		const { ctx, groups, broadcasts } = fakeCtx();
+		await groups.put("daily", group("daily", { name: "每日摘要" }));
+		await broadcasts.put("bc_1", {
+			subject: "上周速览",
+			segmentSlug: "daily",
+			segmentId: "seg_1",
+			resendId: "re_bc_1",
+			status: "sent",
+			createdAt: NOW,
+		});
+
+		const result = await runAdmin(ctx, { type: "page_load", page: "/broadcast" });
+
+		expectValidBlocks(result);
+		expect(blockTypes(result)).toContain("form");
+		expect(blockTypes(result)).toContain("table");
+
+		const rows = tableOf(result).rows as Json[];
+		expect(rows.length).toBe(1);
+		expect(rows[0].status).toBe("已发送");
+
+		const texts = result.blocks
+			.filter((block) => block.type === "context" || block.type === "section")
+			.map((block) => String(block.text ?? ""));
+		expect(texts.some((text) => text.includes("Resend 未配置"))).toBe(true);
+	});
+
+	it("未勾选确认时拒绝发送", async () => {
+		const { ctx, groups, broadcasts } = fakeCtx();
+		await groups.put("daily", group("daily", { name: "每日摘要" }));
+
+		const result = await runAdmin(ctx, {
+			type: "form_submit",
+			page: "/broadcast",
+			action_id: "broadcast-send",
+			block_id: "broadcast-send",
+			values: { segment: "daily", subject: "主题", html: "<p>x</p>", confirm: false },
+		});
+
+		expectValidBlocks(result);
+		expect(result.toast?.type).toBe("error");
+		expect(await broadcasts.count()).toBe(0);
+	});
+
+	it("主题或正文为空时拒绝发送", async () => {
+		const { ctx, groups, broadcasts } = fakeCtx();
+		await groups.put("daily", group("daily", { name: "每日摘要" }));
+
+		const result = await runAdmin(ctx, {
+			type: "form_submit",
+			page: "/broadcast",
+			action_id: "broadcast-send",
+			block_id: "broadcast-send",
+			values: { segment: "daily", subject: "", html: "", confirm: true },
+		});
+
+		expectValidBlocks(result);
+		expect(result.toast?.type).toBe("error");
+		expect(await broadcasts.count()).toBe(0);
+	});
+
+	it("未选分组时拒绝发送", async () => {
+		const { ctx, broadcasts } = fakeCtx();
+		const result = await runAdmin(ctx, {
+			type: "form_submit",
+			page: "/broadcast",
+			action_id: "broadcast-send",
+			block_id: "broadcast-send",
+			values: { segment: "", subject: "主题", html: "<p>x</p>", confirm: true },
+		});
+
+		expectValidBlocks(result);
+		expect(result.toast?.type).toBe("error");
+		expect(await broadcasts.count()).toBe(0);
+	});
+
+	it("Resend 未配置时发送失败并提示（不落历史）", async () => {
+		const { ctx, groups, broadcasts } = fakeCtx();
+		await groups.put("daily", group("daily", { name: "每日摘要" }));
+
+		const result = await runAdmin(ctx, {
+			type: "form_submit",
+			page: "/broadcast",
+			action_id: "broadcast-send",
+			block_id: "broadcast-send",
+			values: { segment: "daily", subject: "主题", html: "<p>x</p>", confirm: true },
+		});
+
+		expectValidBlocks(result);
+		expect(result.toast?.type).toBe("error");
+		// 未配置 Resend（fakeCtx 读不到 emdash-resend 设置）→ 不发请求、不落历史。
+		expect(await broadcasts.count()).toBe(0);
+		const notices = result.blocks
+			.filter((block) => block.type === "section")
+			.map((block) => String(block.text ?? ""));
+		expect(notices.some((text) => text.includes("resend_not_configured"))).toBe(true);
 	});
 });
