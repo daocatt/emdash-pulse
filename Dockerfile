@@ -40,7 +40,10 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/seed ./seed
 COPY --from=build /app/scripts ./scripts
+# src/server 是运行期搜索索引模块（scripts/search-rebuild.mjs 与端点共用）。
+COPY --from=build /app/src/server ./src/server
 # 运行期数据目录：本地媒体（local 存储时）与会话（fsLite）。挂卷持久化。
 RUN mkdir -p data/uploads data/sessions
 EXPOSE 4321
-CMD ["node", "./dist/server/entry.mjs"]
+# 启动前尽力预热搜索索引（库还没迁移时静默跳过；应用内另有懒刷新兜底）。
+CMD ["sh", "-c", "node scripts/search-rebuild.mjs || true; exec node ./dist/server/entry.mjs"]

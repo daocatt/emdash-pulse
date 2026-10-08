@@ -44,10 +44,19 @@ const DEFAULT_THEME = __DEFAULT_SITE_THEME__;
 const THEME_PREFIX = "/_t";
 
 /**
- * 不参与主题切换的路径前缀：EmDash 后台 / API、图片端点、构建产物、机器端点，
- * 以及 `/.well-known`（EmDash 注入 OAuth 发现文档，无扩展名，靠前缀跳过）。
+ * 不参与主题切换的路径前缀：EmDash 后台 / API、自建 `/api` 端点、图片端点、
+ * 构建产物、机器端点，以及 `/.well-known`（EmDash 注入 OAuth 发现文档，无扩展名，
+ * 靠前缀跳过）。
  */
-const SKIP_PREFIXES = ["/_emdash", "/_image", "/_astro", "/agent", "/spike", "/.well-known"];
+const SKIP_PREFIXES = [
+	"/_emdash",
+	"/_image",
+	"/_astro",
+	"/api",
+	"/agent",
+	"/spike",
+	"/.well-known",
+];
 
 /** 精确跳过的机器端点。 */
 const SKIP_EXACT = new Set([

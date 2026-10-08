@@ -2,9 +2,9 @@
 /**
  * pulse-news 搜索页：大号搜索框 + 结果列表（标题 + 摘要片段）。
  */
-import { search, getSiteSettings } from "emdash";
+import { getSiteSettings } from "emdash";
 import Base from "../layout/Base.astro";
-import { fallbackSearch } from "@utils/search";
+import { searchSite } from "@utils/search";
 import { getTranslations } from "../../../i18n";
 import { resolveSiteIdentity } from "@utils/site-identity";
 
@@ -21,26 +21,9 @@ interface Hit {
 }
 
 let results: Hit[] = [];
-let usedFallback = false;
 
 if (query) {
-	const { items } = await search(query, { collections: ["articles", "pages"], limit: 30 });
-	results = items.map((item) => ({
-		collection: item.collection,
-		id: item.id,
-		slug: item.slug,
-		title: item.title ?? t("search.untitled"),
-		snippet: item.snippet,
-	}));
-
-	// trigram 分词器要求 >= 3 字符；短查询（如两字中文）走内存回退扫描。
-	if (results.length === 0) {
-		const fallback = await fallbackSearch(query, 30);
-		if (fallback.length > 0) {
-			results = fallback;
-			usedFallback = true;
-		}
-	}
+	results = await searchSite(query, 30);
 }
 
 function resultHref(collection: string, slug: string | null, id: string): string {
@@ -78,7 +61,7 @@ function resultHref(collection: string, slug: string | null, id: string): string
 			<p class="search__status">
 				{results.length === 0
 					? t("search.empty", { query })
-					: `${t("search.found", { count: results.length, query })}${usedFallback ? t("search.fuzzy") : ""}`}
+					: t("search.found", { count: results.length, query })}
 			</p>
 		)}
 

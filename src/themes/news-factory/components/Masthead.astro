@@ -2,7 +2,7 @@
 /**
  * 报头：左搜索、中站名、右登录 / 订阅按钮（三栏，窄屏堆叠）。
  */
-import LiveSearch from "emdash/ui/search";
+import SearchBox from "@shared/SearchBox.astro";
 import { getTranslations } from "../../../i18n";
 
 interface Props {
@@ -20,12 +20,7 @@ const BrandTag = isHome ? "h1" : "div";
 
 <header class:list={["masthead", className]}>
 	<div class="masthead__search">
-		<LiveSearch
-			placeholder={t("common.searchPlaceholder")}
-			collections={["articles", "pages"]}
-			searchPage="/search"
-			routeMap={{ articles: "/articles/:slug", pages: "/pages/:slug" }}
-		/>
+		<SearchBox />
 	</div>
 
 	<div class="masthead__brand">

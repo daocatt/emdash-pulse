@@ -25,6 +25,7 @@
     "build:pulse-news": "npm run plugin:build && SITE_THEME=pulse-news astro build",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
+    "search:rebuild": "node scripts/search-rebuild.mjs",
     "demo:data": "node --disable-warning=ExperimentalWarning scripts/demo-data.mjs",
     "demo:data:clean": "node --disable-warning=ExperimentalWarning scripts/demo-data.mjs --clean",
     "preview": "astro preview",

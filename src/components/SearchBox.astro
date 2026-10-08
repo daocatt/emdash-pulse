@@ -1,0 +1,307 @@
+---
+/**
+ * 头部实时搜索（项目自有，替代 EmDash 的 `emdash/ui/search`）。
+ *
+ * 为什么不用 `LiveSearch`：它把请求端点**硬编码**成 `/_emdash/api/search`（SQLite
+ * FTS5），迁到 PostgreSQL 后恒返回空。这里改打自建的 `/api/search`
+ * （见 `src/server/search-index.mjs`），并保留「回车进 `/search` 页」的完整结果入口。
+ */
+import { getTranslations } from "../i18n";
+
+interface Props {
+	class?: string;
+	/** 下拉最多显示几条（默认 8）。 */
+	limit?: number;
+}
+
+const { class: className, limit = 8 } = Astro.props;
+const { t } = getTranslations(Astro);
+
+const labels = {
+	label: t("common.searchLabel"),
+	placeholder: t("common.searchPlaceholder"),
+	submit: t("common.searchSubmit"),
+	empty: t("search.empty"),
+	untitled: t("search.untitled"),
+	page: t("search.collectionPage"),
+	article: t("search.collectionArticle"),
+};
+---
+
+<div
+	class:list={["sbox", className]}
+	data-search-box
+	data-limit={limit}
+	data-labels={JSON.stringify(labels)}
+>
+	<form class="sbox__form" method="get" action="/search" role="search">
+		<label class="sr-only" for="sbox-input">{labels.label}</label>
+		<input
+			id="sbox-input"
+			class="sbox__input"
+			type="search"
+			name="q"
+			placeholder={labels.placeholder}
+			autocomplete="off"
+			data-search-input
+		/>
+		<button class="sbox__submit" type="submit" data-press>{labels.submit}</button>
+	</form>
+
+	<div class="sbox__panel" hidden data-search-panel>
+		<ul class="sbox__list" data-search-list></ul>
+		<p class="sbox__empty" hidden data-search-empty></p>
+	</div>
+</div>
+
+<script>
+	type Hit = {
+		collection: string;
+		id: string;
+		slug: string | null;
+		title: string;
+		snippet: string;
+	};
+
+	type Labels = {
+		empty: string;
+		untitled: string;
+		page: string;
+		article: string;
+	};
+
+	// 结果里可能有多条搜索框（一般只有一条），逐个初始化；命令式逻辑不写进模板。
+	document.querySelectorAll<HTMLElement>("[data-search-box]").forEach((root) => {
+		const input = root.querySelector<HTMLInputElement>("[data-search-input]");
+		const panel = root.querySelector<HTMLElement>("[data-search-panel]");
+		const list = root.querySelector<HTMLElement>("[data-search-list]");
+		const empty = root.querySelector<HTMLElement>("[data-search-empty]");
+		if (!input || !panel || !list || !empty) return;
+
+		const limit = Number(root.dataset.limit) || 8;
+		let labels: Labels;
+		try {
+			labels = JSON.parse(root.dataset.labels ?? "{}") as Labels;
+		} catch {
+			labels = { empty: "", untitled: "", page: "", article: "" };
+		}
+
+		let controller: AbortController | null = null;
+		let timer: number | undefined;
+		let activeIndex = -1;
+
+		const close = () => {
+			panel.hidden = true;
+			list.innerHTML = "";
+			empty.hidden = true;
+			activeIndex = -1;
+		};
+
+		const hrefFor = (hit: Hit) => {
+			const path = hit.slug ?? hit.id;
+			return hit.collection === "pages" ? `/pages/${path}` : `/articles/${path}`;
+		};
+
+		const render = (hits: Hit[], query: string) => {
+			list.innerHTML = "";
+			activeIndex = -1;
+			if (hits.length === 0) {
+				empty.textContent = labels.empty.replace("{query}", query);
+				empty.hidden = false;
+				panel.hidden = false;
+				return;
+			}
+			empty.hidden = true;
+			for (const hit of hits) {
+				const li = document.createElement("li");
+				li.className = "sbox__item";
+				const link = document.createElement("a");
+				link.className = "sbox__link";
+				link.href = hrefFor(hit);
+
+				const meta = document.createElement("span");
+				meta.className = "sbox__meta";
+				meta.textContent =
+					hit.collection === "pages" ? labels.page : labels.article;
+
+				const title = document.createElement("span");
+				title.className = "sbox__title";
+				title.textContent = hit.title || labels.untitled;
+
+				link.append(meta, title);
+				if (hit.snippet) {
+					const snippet = document.createElement("span");
+					snippet.className = "sbox__snippet";
+					// 片段来自自建索引，已在服务端转义并加 <mark>。
+					snippet.innerHTML = hit.snippet;
+					link.append(snippet);
+				}
+				li.append(link);
+				list.append(li);
+			}
+			panel.hidden = false;
+		};
+
+		const search = async (query: string) => {
+			controller?.abort();
+			controller = new AbortController();
+			try {
+				const params = new URLSearchParams({ q: query, limit: String(limit) });
+				const response = await fetch(`/api/search?${params}`, {
+					signal: controller.signal,
+				});
+				if (!response.ok) throw new Error(`search ${response.status}`);
+				const data = (await response.json()) as { items?: Hit[] };
+				render(data.items ?? [], query);
+			} catch (error) {
+				if ((error as Error).name === "AbortError") return;
+				close();
+			}
+		};
+
+		const move = (delta: number) => {
+			const links = Array.from(list.querySelectorAll<HTMLAnchorElement>(".sbox__link"));
+			if (links.length === 0) return;
+			activeIndex = (activeIndex + delta + links.length) % links.length;
+			links.forEach((link, index) => link.classList.toggle("is-active", index === activeIndex));
+			links[activeIndex]?.scrollIntoView({ block: "nearest" });
+		};
+
+		input.addEventListener("input", () => {
+			const query = input.value.trim();
+			window.clearTimeout(timer);
+			if (query.length === 0) {
+				close();
+				return;
+			}
+			timer = window.setTimeout(() => void search(query), 250);
+		});
+
+		input.addEventListener("keydown", (event) => {
+			if (event.key === "ArrowDown") {
+				event.preventDefault();
+				move(1);
+			} else if (event.key === "ArrowUp") {
+				event.preventDefault();
+				move(-1);
+			} else if (event.key === "Enter") {
+				const links = list.querySelectorAll<HTMLAnchorElement>(".sbox__link");
+				const target = links[activeIndex] ?? links[0];
+				if (target) {
+					event.preventDefault();
+					window.location.assign(target.href);
+				}
+			} else if (event.key === "Escape") {
+				close();
+			}
+		});
+
+		document.addEventListener("click", (event) => {
+			if (!root.contains(event.target as Node)) close();
+		});
+	});
+</script>
+
+<style>
+	.sbox {
+		position: relative;
+	}
+
+	.sbox__form {
+		display: flex;
+		gap: var(--spacing-2);
+	}
+
+	.sbox__input {
+		flex: 1;
+		min-width: 0;
+		font: inherit;
+		font-size: var(--font-size-sm);
+		padding: var(--spacing-2) var(--spacing-3);
+		background: var(--color-surface);
+		color: var(--color-text);
+		border: 1px solid var(--color-border-strong);
+	}
+
+	.sbox__input:focus {
+		outline: none;
+		border-color: var(--color-brand);
+	}
+
+	.sbox__submit {
+		font: inherit;
+		font-size: var(--font-size-sm);
+		padding: var(--spacing-2) var(--spacing-3);
+		background: transparent;
+		color: var(--color-brand);
+		border: 1px solid var(--color-border-strong);
+		cursor: pointer;
+	}
+
+	.sbox__panel {
+		position: absolute;
+		top: calc(100% + var(--spacing-1));
+		left: 0;
+		z-index: 30;
+		width: min(24rem, 80vw);
+		max-height: 60vh;
+		overflow-y: auto;
+		background: var(--color-surface);
+		border: 1px solid var(--color-border-strong);
+		box-shadow: 0 12px 32px rgb(0 0 0 / 0.14);
+	}
+
+	.sbox__list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.sbox__item + .sbox__item {
+		border-top: var(--rule-hairline);
+	}
+
+	.sbox__link {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: var(--spacing-3);
+	}
+
+	.sbox__link.is-active,
+	.sbox__link:hover {
+		background: var(--color-brand-subtle);
+	}
+
+	.sbox__meta {
+		font-size: var(--font-size-xs);
+		text-transform: uppercase;
+		letter-spacing: var(--tracking-wide);
+		color: var(--color-brand);
+	}
+
+	.sbox__title {
+		font-family: var(--font-heading);
+		font-weight: 700;
+		line-height: var(--leading-snug);
+	}
+
+	.sbox__snippet {
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+		line-height: var(--leading-normal);
+	}
+
+	.sbox__snippet :global(mark) {
+		background: var(--color-brand-subtle);
+		color: var(--color-brand);
+		padding: 0 2px;
+	}
+
+	.sbox__empty {
+		margin: 0;
+		padding: var(--spacing-3);
+		font-size: var(--font-size-sm);
+		color: var(--color-muted);
+	}
+</style>
