@@ -1,0 +1,97 @@
+{
+	"$schema": "./node_modules/@emdash-cms/plugin-cli/schemas/emdash-plugin.schema.json",
+
+	"slug": "pulse-ai",
+	"publisher": "did:plc:zp6y7q3n5k2m4x8w9v1t6r0s",
+
+	"license": "MIT",
+	"author": { "name": "Suda Pulse", "email": "dev@suda.im" },
+	"security": { "email": "dev@suda.im" },
+	"description": "Suda Pulse AI access layer: one configurable model client (Workers AI / OpenAI / Anthropic) via Cloudflare AI Gateway",
+
+	// Trust contract — what runtime APIs the plugin asks for.
+	//
+	// - network:request → 后台「AI 网关」页的连通性自检要发一次真实补全请求。
+	//
+	// allowedHosts 是 `ctx.http` 的白名单：未列出的 host 会被宿主拦下。
+	// 用「自建 / 第三方 OpenAI 兼容网关」（下面的 baseUrl）时，**必须**把该主机加进来，
+	// 否则自检会被拒（审核调用走 `ctx.http`，同理）。
+	"capabilities": ["network:request"],
+	"allowedHosts": [
+		"gateway.ai.cloudflare.com",
+		"api.cloudflare.com",
+		"api.openai.com",
+		"api.anthropic.com"
+	],
+	"storage": {},
+
+	"admin": {
+		"pages": [{ "path": "/ai", "label": "AI 网关", "icon": "sparkles" }],
+		"settingsSchema": {
+			"provider": {
+				"label": "模型提供方",
+				"description": "选「OpenAI 兼容」并填下面的「自定义端点」可接自建 vLLM / Ollama / DeepSeek 等。",
+				"type": "select",
+				"options": [
+					{ "value": "workers-ai", "label": "Cloudflare Workers AI（推荐）" },
+					{ "value": "openai", "label": "OpenAI" },
+					{ "value": "anthropic", "label": "Anthropic" },
+					{ "value": "openai-compatible", "label": "OpenAI 兼容（自建 / 第三方）" }
+				],
+				"default": "workers-ai"
+			},
+			"accountId": {
+				"label": "Cloudflare Account ID",
+				"description": "走 AI Gateway 或直连 Workers AI 时必填。",
+				"type": "string",
+				"default": ""
+			},
+			"gatewayId": {
+				"label": "AI Gateway 名称",
+				"description": "填了就走网关统一入口（可开日志 / 缓存 / 限流 / 回退）；留空则直连 provider。",
+				"type": "string",
+				"default": ""
+			},
+			"baseUrl": {
+				"label": "自定义端点（Base URL）",
+				"description": "留空即用 provider 官方端点。填了会完全接管 URL 组装（如 http://ollama:11434/v1）。该主机需写进本插件的 allowedHosts。",
+				"type": "string",
+				"default": ""
+			},
+			"model": {
+				"label": "模型",
+				"description": "Workers AI 形如 @cf/meta/llama-guard-3-8b；OpenAI / Anthropic / 兼容端点填各自模型名。",
+				"type": "string",
+				"default": "@cf/meta/llama-guard-3-8b"
+			},
+			"apiKey": {
+				"label": "API Key",
+				"description": "加密存储（AES-GCM）。Workers AI 用有 Workers AI 权限的 Cloudflare API Token。",
+				"type": "secret"
+			},
+			"timeoutMs": {
+				"label": "超时（毫秒）",
+				"description": "超时即降级（审核不会自动通过）。",
+				"type": "number",
+				"min": 500,
+				"max": 60000,
+				"default": 5000
+			},
+			"maxTokens": {
+				"label": "最大输出 token",
+				"description": "审核类用途 64 足够；生成类可调大。",
+				"type": "number",
+				"min": 1,
+				"max": 8192,
+				"default": 256
+			},
+			"testPrompt": {
+				"label": "自检提示词",
+				"description": "「AI 网关」页点「测试连接」时发送的内容。",
+				"type": "string",
+				"multiline": true,
+				"default": "只回复两个字：正常"
+			}
+		}
+	}
+}

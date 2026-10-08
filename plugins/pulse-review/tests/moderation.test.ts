@@ -5,7 +5,7 @@ import {
 	baselineDecision,
 	classifyWithAi,
 	decide,
-	parseLlamaGuard,
+	parseVerdict,
 	rulesDecision,
 	runRules,
 	type CommentInput,
@@ -133,19 +133,20 @@ describe("baselineDecision 复刻内置逻辑", () => {
 	});
 });
 
-describe("parseLlamaGuard", () => {
+describe("parseVerdict", () => {
 	it("safe", () => {
-		expect(parseLlamaGuard({ result: { response: "safe" } })).toMatchObject({ ok: true, unsafe: false });
+		expect(parseVerdict("safe")).toMatchObject({ ok: true, unsafe: false });
 	});
 
 	it("unsafe + 类别", () => {
-		const r = parseLlamaGuard({ result: { response: "unsafe\nS1,S6" } });
+		const r = parseVerdict("unsafe\nS1,S6");
 		expect(r).toMatchObject({ ok: true, unsafe: true });
 		expect(r.categories).toEqual(["S1", "S6"]);
 	});
 
-	it("形状异常", () => {
-		expect(parseLlamaGuard({})).toMatchObject({ ok: false });
+	it("无法识别的输出按未判定处理（不是 unsafe）", () => {
+		expect(parseVerdict("我不知道")).toMatchObject({ ok: false, error: "unexpected_response" });
+		expect(parseVerdict("")).toMatchObject({ ok: false });
 	});
 });
 

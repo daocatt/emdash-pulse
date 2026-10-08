@@ -1,4 +1,5 @@
 import type { PluginContext, SandboxedPlugin } from "emdash/plugin";
+import { loadAiSettings } from "pulse-ai/client";
 
 import {
 	DEFAULT_SETTINGS,
@@ -31,10 +32,6 @@ const REJECT_REASON = "稿件需经编辑审核通过（review_status=approved�
 
 // ---------- 设置读取 ----------
 
-function str(value: unknown, fallback: string): string {
-	return typeof value === "string" && value.length > 0 ? value : fallback;
-}
-
 function num(value: unknown, fallback: number): number {
 	return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
@@ -51,7 +48,7 @@ async function readSettings(ctx: PluginContext): Promise<ModerationSettings> {
 			return null;
 		}
 	};
-	const [rulesEnabled, bannedWords, maxLinks, maxLength, minLength, aiEnabled, aiAutoApprove, aiAccountId, aiApiToken, aiModel, aiTimeoutMs] =
+	const [rulesEnabled, bannedWords, maxLinks, maxLength, minLength, aiEnabled, aiAutoApprove, ai] =
 		await Promise.all([
 			get("rulesEnabled"),
 			get("bannedWords"),
@@ -60,10 +57,9 @@ async function readSettings(ctx: PluginContext): Promise<ModerationSettings> {
 			get("minLength"),
 			get("aiEnabled"),
 			get("aiAutoApprove"),
-			get("aiAccountId"),
-			get("aiApiToken"),
-			get("aiModel"),
-			get("aiTimeoutMs"),
+			// AI 连接（provider / Account ID / Gateway / 端点 / 模型 / 密钥 / 超时）
+			// 全部由 pulse-ai 插件持有；这里不再重复配置。
+			loadAiSettings(),
 		]);
 
 	return {
@@ -80,10 +76,13 @@ async function readSettings(ctx: PluginContext): Promise<ModerationSettings> {
 		minLength: num(minLength, DEFAULT_SETTINGS.minLength),
 		aiEnabled: bool(aiEnabled, DEFAULT_SETTINGS.aiEnabled),
 		aiAutoApprove: bool(aiAutoApprove, DEFAULT_SETTINGS.aiAutoApprove),
-		aiAccountId: str(aiAccountId, DEFAULT_SETTINGS.aiAccountId),
-		aiApiToken: str(aiApiToken, DEFAULT_SETTINGS.aiApiToken),
-		aiModel: str(aiModel, DEFAULT_SETTINGS.aiModel),
-		aiTimeoutMs: num(aiTimeoutMs, DEFAULT_SETTINGS.aiTimeoutMs),
+		aiProvider: ai.provider,
+		aiAccountId: ai.accountId,
+		aiGatewayId: ai.gatewayId,
+		aiBaseUrl: ai.baseUrl,
+		aiApiToken: ai.apiKey,
+		aiModel: ai.model,
+		aiTimeoutMs: num(ai.timeoutMs, DEFAULT_SETTINGS.aiTimeoutMs),
 	};
 }
 

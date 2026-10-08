@@ -15,7 +15,7 @@ npm run build:pulse-news          # 构建 pulse-news 主题
 npm run typecheck:all             # 两套默认主题各跑一次 astro check
 npm run perf                      # 移动端性能复核（Lighthouse：构建 + 两套主题 × 代表路由，超阈值退出码 1）
 npm run perf -- --no-build --runs=3 --theme=pulse-news   # 复用产物 / 取中位数 / 只测一套主题
-npm run plugin:build              # 构建全部插件（--workspaces：pulse-review/pulse-agent/pulse-editorial/pulse-subscriptions/pulse-seo/pulse-theme）
+npm run plugin:build              # 构建全部插件（--workspaces：pulse-ai/pulse-review/pulse-agent/pulse-editorial/pulse-subscriptions/pulse-seo/pulse-theme/pulse-editor-applications）
 npm run plugin:test               # 全部插件单测
 node scripts/configure-search.mjs # 中文搜索：切 trigram 分词器并重建索引（重建库后需重跑）
 npm run demo:data                 # Demo 互动数据：先清后灌（评论 + 订阅者 + 分组 + 事件）
@@ -65,7 +65,8 @@ npm run deploy:cf                 # 构建并部署到 Cloudflare（账号目录
 | `wrangler.prod.jsonc` | 生产绑定（含 account_id / database_id，**gitignored**，模板见 `.example`） |
 | `.env.deploy` | 本地部署配置（`WRANGLER_HOME`，**gitignored**，模板见 `.example`） |
 | `seed/seed.json` | Schema + 示例内容 |
-| `plugins/pulse-review/` | 标准格式插件：发布门禁（`content:beforePublish`） |
+| `plugins/pulse-review/` | 标准格式插件：发布门禁（`content:beforePublish`）+ 评论审核（规则 + AI） |
+| `plugins/pulse-ai/` | 标准格式插件：AI 接入层（provider / AI Gateway 配置 + `pulse-ai/client` 库，供同进程复用） |
 | `plugins/pulse-editorial/` | 标准格式插件：编辑台（选题分发 + 投稿审核发布，持有 `content:publish`） |
 | `plugins/pulse-agent/` | 标准格式插件：Agent 侧（注册/审批、选题领取、投稿、订阅意向） |
 | `plugins/pulse-subscriptions/` | 标准格式插件：订阅者 / 分组 / 事件日志 + 确认退订邮件 |
@@ -98,6 +99,7 @@ npm run deploy:cf                 # 构建并部署到 Cloudflare（账号目录
 - 按月/周筛选：`where: { published_at: { gte, lt } }`（ISO 字符串，`lt` 为开区间）。
 - **插件改动后必须 `npm run plugin:build`**：`astro.config.mjs` 的 `plugins: []` 按 `descriptor.entrypoint`（如 `pulse-review/sandbox`）导入**已构建的 `dist/*.mjs`**；指向 TS 源码会报错，`exports` 需带 `default` 条件（`require.resolve` 解析）。
 - **插件通过 npm workspaces 管理**（根 `package.json` 的 `workspaces: ["plugins/*"]`）：根 `npm install` 会安装插件依赖并链接各插件。**不要**在插件目录单独 `npm install`（会被根安装当作 extraneous 清掉）。
+- **插件之间复用代码只能靠「不声明依赖的相对/内联 import」**（`pulse-ai/client` 即此模式）：`emdash-plugin build` 用 rolldown 打包 `src/plugin.ts`，**只把 `emdash/plugin` 与 `zod` 走 `noExternal` 内联**，其余**裸模块名一律判为 external** → 产物被拷到临时目录做 probe 时解析不到 → `Cannot find package 'xxx'` 整包构建失败。所以：① 被复用的库要么零静态依赖（对宿主的引用只能动态 `import(...)`，且用**模板字符串**拼接让 rolldown 不做静态分析），要么被消费方**内联**；② **消费方不要把该 workspace 包写进 `dependencies`** —— 声明了就会变成 external import 而构建失败，不声明才会被内联（实测 pulse-review 的 `plugin.mjs` 5.9KB → 8.7KB）。③ 插件设置按 plugin id 隔离（`ctx.settings` 只能读自己），跨插件读设置只能靠动态 `import("emdash")` 拿 `getPluginSetting`（宿主同一份实例，`getDb()` 的 AsyncLocalStorage 才有效）。
 - **沙箱路由收不到 `Authorization` / `Cookie` / `X-EmDash-Request`**（宿主过滤，声明也会被拒）。Agent 凭证改用自定义头（本项目用 `X-Agent-Token`），并在路由 `request.headers` 显式声明。
 - **MCP 工具只能挂「私有 + POST + JSON」路由**：GET 路由或未声明 body 的路由无法作为 MCP 工具（构建期报错）。
 - **默认 JSON 路由一律 HTTP 200**（宿主包 `{success,data}`）。要真实状态码（如 401/429）需声明 `response: "raw"` 并返回 `pluginResponse({ status, headers, body: { kind: "text", value: JSON.stringify(...) } })`（`emdash/plugin`）。raw 路由**不能**作为 MCP 工具，响应头受白名单限制（`content-type`/`retry-after` 可用）。`pulse-agent` 公开路由即用此约定（400/401/404/409/429）。沙箱测试宿主会回传 `PluginResponse` 信封（`{__emdashPluginResponse,status,body}`），测试需解包。

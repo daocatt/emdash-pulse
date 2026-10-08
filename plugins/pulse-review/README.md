@@ -42,3 +42,21 @@ You MUST bump version whenever you change `capabilities`, `allowedHosts`,
 or `storage` in the manifest. Installed users have consented to the
 old trust contract; a change without a version bump would let new
 behaviour slip past consent.
+
+## AI moderation (via `pulse-ai`)
+
+`comment:moderate` runs the rule engine first, then (when `aiEnabled`) the
+configured model. All model connection settings — provider, Cloudflare
+account, AI Gateway, base URL, model, API key, timeout — live in the
+**`pulse-ai`** plugin; this plugin only owns `aiEnabled` / `aiAutoApprove`.
+The client is shared in-process via `import ... from "pulse-ai/client"`.
+
+> **Do NOT add `pulse-ai` to this package's `dependencies`.**
+> `emdash-plugin build` externalises declared dependencies; an external
+> `pulse-ai/client` import makes the build's probe step fail with
+> `Cannot find package 'pulse-ai'`. Left undeclared, the client is inlined
+> into `dist/plugin.mjs` (≈5.9 KB → 8.7 KB). See `plugins/pulse-ai/README.md`.
+
+`allowedHosts` here must cover **every endpoint `pulse-ai` may be pointed at**:
+the moderation call uses *this* plugin's `ctx.http`, so `pulse-ai`'s own
+allow-list does not apply. Add your self-hosted gateway host if you use one.

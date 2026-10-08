@@ -1,5 +1,5 @@
 /**
- * 评论审核策略：规则引擎 + Workers AI（Llama Guard）。
+ * 评论审核策略：规则引擎 + AI（经 pulse-ai）。
  *
  * 背景：`comment:moderate` 是**独占** hook，插件注册后**替换**内置审核器
  * （`emdash-default-comment-moderator`）。因此这里必须**复刻内置逻辑**
@@ -7,15 +7,17 @@
  *
  * 决策顺序：
  *   1. 规则引擎命中 spam → 直接 spam（不再调用 AI，省成本）
- *   2. AI 启用且已配置 → 调用 Llama Guard
+ *   2. AI 启用且已配置 → 调用模型（provider / AI Gateway / 模型 / 密钥来自 pulse-ai）
  *        - unsafe → spam
  *        - safe 且开启 aiAutoApprove → approved
  *        - 调用失败/超时 → 不改变结论（fail-safe：绝不因故障而自动通过）
  *   3. 否则回落到内置逻辑（approved / pending）
  *
- * 沙箱插件**无法**访问 Cloudflare Workers AI binding，因此 AI 走 REST
- * （`api.cloudflare.com`），账号 ID 与 API Token 由插件设置提供。
+ * AI 连接（provider / Account ID / Gateway / 模型 / API Key）统一由 `pulse-ai` 插件配置，
+ * 这里通过 `pulse-ai/client` 同进程调用；本文件只保留「审核严格度」相关设置。
  */
+
+import { aiComplete, parseGuardVerdict, type AiProvider, type AiSettings } from "pulse-ai/client";
 
 export type ModerationStatus = "approved" | "pending" | "spam";
 
@@ -39,7 +41,13 @@ export interface ModerationSettings {
 	aiEnabled: boolean;
 	/** AI 判定 safe 时是否直接通过（默认 false = 仅作建议）。 */
 	aiAutoApprove: boolean;
+	/** AI 提供方（来自 pulse-ai）。 */
+	aiProvider: AiProvider;
 	aiAccountId: string;
+	/** AI Gateway 名称（来自 pulse-ai；为空则直连 provider）。 */
+	aiGatewayId: string;
+	/** 自定义端点覆盖（自建 / 第三方 OpenAI 兼容网关；来自 pulse-ai）。 */
+	aiBaseUrl: string;
 	aiApiToken: string;
 	aiModel: string;
 	aiTimeoutMs: number;
@@ -53,7 +61,10 @@ export const DEFAULT_SETTINGS: ModerationSettings = {
 	minLength: 2,
 	aiEnabled: false,
 	aiAutoApprove: false,
+	aiProvider: "workers-ai",
 	aiAccountId: "",
+	aiGatewayId: "",
+	aiBaseUrl: "",
 	aiApiToken: "",
 	aiModel: "@cf/meta/llama-guard-3-8b",
 	aiTimeoutMs: 3000,
@@ -171,7 +182,7 @@ export function baselineDecision(
 	return { status: "pending", reason: "待编辑审核" };
 }
 
-// ---------- AI（Workers AI REST）----------
+// ---------- AI（经 pulse-ai：provider / AI Gateway 无关）----------
 
 export interface AiResult {
 	ok: boolean;
@@ -181,30 +192,23 @@ export interface AiResult {
 	error?: string;
 }
 
-/** Llama Guard 的响应是 `{ result: { response: "safe" | "unsafe\nS1,S2" } }`。 */
-export function parseLlamaGuard(payload: unknown): AiResult {
-	const result = (payload as { result?: { response?: unknown } } | null)?.result;
-	const response = result?.response;
-	if (typeof response !== "string") return { ok: false, error: "unexpected_response" };
-	const [verdict, ...rest] = response.trim().split(/\r?\n/);
-	const categories = rest
-		.join(",")
-		.split(",")
-		.map((c) => c.trim())
-		.filter(Boolean);
-	return { ok: true, unsafe: verdict.trim().toLowerCase() !== "safe", categories };
+/** 解析审核模型输出的判定（`safe` / `unsafe\nS1,S2`）。 */
+export function parseVerdict(text: string): AiResult {
+	const verdict = parseGuardVerdict(text);
+	// 输出不是 safe / unsafe 时视为**未判定**（`ok:false`），而不是当成 unsafe ——
+	// 否则模型换了措辞就会把正常评论全判成 spam。
+	if (verdict.unsafe === null) return { ok: false, error: "unexpected_response" };
+	return { ok: true, unsafe: verdict.unsafe, categories: verdict.categories };
 }
 
-/** 调用 Workers AI 的 Llama Guard。任何异常都返回 `{ ok:false }`，由调用方降级。 */
+/** 调用审核模型。任何异常都返回 `{ ok:false }`，由调用方降级。 */
 export async function classifyWithAi(
 	fetcher: (url: string, init?: RequestInit) => Promise<Response>,
 	comment: CommentInput,
 	settings: ModerationSettings,
 ): Promise<AiResult> {
 	if (!settings.aiEnabled) return { ok: false, error: "disabled" };
-	if (!settings.aiAccountId || !settings.aiApiToken) return { ok: false, error: "not_configured" };
 
-	const url = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(settings.aiAccountId)}/ai/run/${settings.aiModel}`;
 	const prompt = [
 		"请判断以下网站评论是否属于需要拦截的有害内容（辱骂、骚扰、仇恨、色情、暴力、垃圾广告、诈骗）。",
 		"只输出 safe 或 unsafe，不要解释。",
@@ -213,28 +217,21 @@ export async function classifyWithAi(
 		`内容：${comment.body}`,
 	].join("\n");
 
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), settings.aiTimeoutMs);
-	try {
-		const response = await fetcher(url, {
-			method: "POST",
-			headers: {
-				"content-type": "application/json",
-				authorization: `Bearer ${settings.aiApiToken}`,
-			},
-			body: JSON.stringify({
-				messages: [{ role: "user", content: prompt }],
-				max_tokens: 64,
-			}),
-			signal: controller.signal,
-		});
-		if (!response.ok) return { ok: false, error: `http_${response.status}` };
-		return parseLlamaGuard(await response.json());
-	} catch (error) {
-		return { ok: false, error: error instanceof Error ? error.name : "unknown" };
-	} finally {
-		clearTimeout(timer);
-	}
+	// 连接参数整体来自 pulse-ai 插件（见 plugin.ts 的 readSettings）。
+	const ai: AiSettings = {
+		provider: settings.aiProvider,
+		accountId: settings.aiAccountId,
+		gatewayId: settings.aiGatewayId,
+		baseUrl: settings.aiBaseUrl,
+		model: settings.aiModel,
+		apiKey: settings.aiApiToken,
+		timeoutMs: settings.aiTimeoutMs,
+		maxTokens: 64,
+	};
+
+	const result = await aiComplete(fetcher, { messages: [{ role: "user", content: prompt }] }, ai);
+	if (!result.ok) return { ok: false, error: result.error };
+	return parseVerdict(result.text);
 }
 
 // ---------- 组合 ----------

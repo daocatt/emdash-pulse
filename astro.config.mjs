@@ -9,6 +9,7 @@ import { github } from "emdash/auth/providers/github";
 import { postgres } from "emdash/db";
 import resend from "emdash-plugin-resend";
 import pulseAgent from "pulse-agent";
+import pulseAi from "pulse-ai";
 import pulseEditorApplications from "pulse-editor-applications";
 import pulseEditorial from "pulse-editorial";
 import pulseReview from "pulse-review";
@@ -102,6 +103,9 @@ const plugins = [
 	pulseEditorApplications,
 	pulseSubscriptions,
 	pulseTheme,
+	// pulse-ai：AI 接入配置（Cloudflare AI Gateway / 多 provider）。消费方
+	// （pulse-review 的评论审核）通过 `pulse-ai/client` 同进程 import 使用。
+	pulseAi,
 	auditLog,
 	// pulse-seo 只贡献 head 元数据，放宿主进程内可避免每个公开页面渲染都起一次 isolate。
 	pulseSeo,
