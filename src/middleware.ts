@@ -87,6 +87,31 @@ function withStatus(response: Response, status: number): Response {
 	});
 }
 
+/**
+ * 必须显式 `private, no-store` 的路径。
+ *
+ * 启用 Workers Cache（`astro.config.mjs` 的 `cache` provider + `routeRules`）后，
+ * **没有 `Cache-Control` 的 200 响应会被 Cloudflare 按启发式规则缓存 2 小时**。
+ * 以下页面依赖会话 / token / 查询串，且都不调用 `Astro.cache.set`（不参与路由缓存），
+ * 必须显式关掉共享缓存 —— 否则「未登录」提示会被缓存并发给已登录用户、确认/退订页
+ * 会带着过期状态被反复命中。
+ */
+const NO_STORE_PREFIXES = ["/search", "/subscribe", "/editor", "/spike"];
+const NO_STORE_EXACT = new Set(["/404"]);
+
+function needsNoStore(pathname: string): boolean {
+	return (
+		NO_STORE_EXACT.has(pathname) ||
+		NO_STORE_PREFIXES.some((prefix) => isUnder(pathname, prefix))
+	);
+}
+
+/** 按需给响应加 `private, no-store`（其余路径不动，交给 `routeRules` 或 EmDash 自身的头）。 */
+function finalize(response: Response, pathname: string): Response {
+	if (needsNoStore(pathname)) response.headers.set("Cache-Control", "private, no-store");
+	return response;
+}
+
 export const onRequest = defineMiddleware(async (context, next) => {
 	const { pathname } = context.url;
 
@@ -98,12 +123,16 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	}
 
 	// EmDash / 机器端点 / 静态资源不参与主题切换（也因此不查设置表）。
-	if (SKIP_PREFIXES.some((prefix) => isUnder(pathname, prefix))) return next();
-	if (SKIP_EXACT.has(pathname) || HAS_EXTENSION.test(pathname)) return next();
+	if (SKIP_PREFIXES.some((prefix) => isUnder(pathname, prefix))) {
+		return finalize(await next(), pathname);
+	}
+	if (SKIP_EXACT.has(pathname) || HAS_EXTENSION.test(pathname)) {
+		return finalize(await next(), pathname);
+	}
 
 	const theme = await currentTheme();
 	// 默认主题本来就注册在干净路径上，无需 rewrite。
-	if (theme === DEFAULT_THEME) return next();
+	if (theme === DEFAULT_THEME) return finalize(await next(), pathname);
 
 	// 没命中任何页面（落到自定义 404 路由）。默认主题在干净路径上注册，
 	// 所以这个判断在运行期依然可靠。
@@ -115,5 +144,5 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	const response = await next(new URL(`${target}${context.url.search}`, context.url.origin));
 
 	// rewrite 会把状态重置成 200，这里把 404 还回去。
-	return isNotFound ? withStatus(response, 404) : response;
+	return finalize(isNotFound ? withStatus(response, 404) : response, pathname);
 });

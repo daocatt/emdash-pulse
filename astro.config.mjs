@@ -133,6 +133,12 @@ const plugins = [
 const authProviders = [github()];
 
 let adapter = node({ mode: "standalone" });
+// Workers Cache：`cache` provider + `routeRules`（仅 CF 部署注入；Node 部署不引入 CF 包）。
+// 命中时请求在 Worker 之前就被 Cloudflare 边缘返回 —— 完全不跑 SSR、不查 D1。
+// 内容页已调用 `Astro.cache.set(cacheHint)`，响应会与集合 tag 关联，发布时由 EmDash purge。
+// 注意：**只有** `astro.config` 配了 provider，`Astro.cache.enabled` 才为 true，页面里的
+// `Astro.cache.set(...)` 才不是空操作。
+let cacheConfig = {};
 let emdashConfig = {
 	database: sqlite({ url: "file:./data.db" }),
 	storage: local({
@@ -145,9 +151,34 @@ let emdashConfig = {
 
 if (isCloudflare) {
 	const { default: cloudflare } = await import("@astrojs/cloudflare");
+	const { cacheCloudflare } = await import("@astrojs/cloudflare/cache");
 	const { d1, r2 } = await import("@emdash-cms/cloudflare");
 	const configPath = existsSync("wrangler.prod.jsonc") ? "wrangler.prod.jsonc" : "wrangler.jsonc";
 	adapter = cloudflare({ configPath });
+	cacheConfig = {
+		cache: { provider: cacheCloudflare() },
+		routeRules: {
+			// 内容页（页面已调用 `Astro.cache.set`，与集合 tag 关联 → 发布时 purge）
+			"/": { maxAge: 300, swr: 86400 },
+			"/articles/[...path]": { maxAge: 300, swr: 86400 },
+			"/sections/[...path]": { maxAge: 300, swr: 86400 },
+			"/tags/[...path]": { maxAge: 300, swr: 86400 },
+			"/editions/[...path]": { maxAge: 300, swr: 86400 },
+			"/pages/[...path]": { maxAge: 600, swr: 86400 },
+			"/archive": { maxAge: 600, swr: 86400 },
+			"/archive/[...path]": { maxAge: 600, swr: 86400 },
+			// 机器端点
+			"/rss.xml": { maxAge: 300, swr: 86400 },
+			"/feed.json": { maxAge: 300, swr: 86400 },
+			"/llms.txt": { maxAge: 3600, swr: 86400 },
+			"/robots.txt": { maxAge: 3600, swr: 86400 },
+			"/sitemap.xml": { maxAge: 3600, swr: 86400 },
+			"/sitemap-sections.xml": { maxAge: 3600, swr: 86400 },
+			"/sitemap-tags.xml": { maxAge: 3600, swr: 86400 },
+			// 会话 / 表单 / 错误页不在此列：`RouteRule` 不支持 headers，这些页面也不调用
+			// `Astro.cache.set`，由 `src/middleware.ts` 统一设 `private, no-store`。
+		},
+	};
 	emdashConfig = {
 		// `session: "auto"` 让读走 D1 附近的副本；`coalesce: true` 把同一事件循环
 		// 里的并发读合并成更少的 D1 往返（首页用 `Promise.all` 一次发 9+ 个查询，
@@ -182,6 +213,7 @@ function siteOriginPattern() {
 export default defineConfig({
 	output: "server",
 	adapter,
+	...cacheConfig,
 	image: {
 		layout: "constrained",
 		responsiveStyles: true,
