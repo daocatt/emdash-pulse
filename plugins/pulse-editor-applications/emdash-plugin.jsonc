@@ -1,0 +1,27 @@
+{
+	"$schema": "./node_modules/@emdash-cms/plugin-cli/schemas/emdash-plugin.schema.json",
+
+	"slug": "pulse-editor-applications",
+	"publisher": "did:plc:zp6y7q3n5k2m4x8w9v1t6r0s",
+
+	"license": "MIT",
+	"author": { "name": "Suda Pulse", "email": "dev@suda.im" },
+	"security": { "email": "security@suda.im" },
+	"description": "Suda Pulse editor onboarding: third-party users apply to become editors",
+
+	// 只做「申请 → 审批」的记录，不读内容、不写内容、不发邮件、不访问网络。
+	// 身份取自宿主解析的 `routeCtx.user`（私有路由），不接受请求体自报。
+	// 注意：本插件**无法**修改用户角色（插件没有 user 写能力）——批准只改申请状态，
+	// 真正的 role → Editor(40) 由管理员在后台 Users 页完成。
+	"capabilities": [],
+	"allowedHosts": [],
+	"storage": {
+		"applications": {
+			"indexes": ["status", "createdAt", "email"],
+			"uniqueIndexes": ["userId"]
+		}
+	},
+	"admin": {
+		"pages": [{ "path": "/editor-applications", "label": "Editor 申请", "icon": "users" }]
+	}
+}

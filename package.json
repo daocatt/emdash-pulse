@@ -12,7 +12,8 @@
     "plugins/pulse-editorial",
     "plugins/pulse-subscriptions",
     "plugins/pulse-seo",
-    "plugins/pulse-theme"
+    "plugins/pulse-theme",
+    "plugins/pulse-editor-applications"
   ],
   "scripts": {
     "postinstall": "node scripts/patch-audit-log.mjs && node scripts/patch-resend.mjs",

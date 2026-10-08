@@ -8,6 +8,7 @@ import emdash, { local } from "emdash/astro";
 import { sqlite } from "emdash/db";
 import resend from "emdash-plugin-resend";
 import pulseAgent from "pulse-agent";
+import pulseEditorApplications from "pulse-editor-applications";
 import pulseEditorial from "pulse-editorial";
 import pulseReview from "pulse-review";
 import pulseSeo from "pulse-seo";
@@ -107,6 +108,7 @@ const plugins = [
 	pulseReview,
 	pulseEditorial,
 	pulseAgent,
+	pulseEditorApplications,
 	pulseSubscriptions,
 	pulseTheme,
 	auditLog,

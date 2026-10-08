@@ -1,0 +1,42 @@
+{
+	"name": "pulse-editor-applications",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"packageManager": "npm@11.7.0",
+	"main": "dist/index.mjs",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.mts",
+			"import": "./dist/index.mjs",
+			"default": "./dist/index.mjs"
+		},
+		"./sandbox": {
+			"types": "./dist/plugin.d.mts",
+			"import": "./dist/plugin.mjs",
+			"default": "./dist/plugin.mjs"
+		}
+	},
+	"files": [
+		"dist",
+		"emdash-plugin.jsonc"
+	],
+	"scripts": {
+		"validate": "emdash-plugin validate",
+		"build": "emdash-plugin build",
+		"dev": "emdash-plugin dev",
+		"typecheck": "tsc --noEmit",
+		"test": "emdash-plugin validate && vitest run"
+	},
+	"peerDependencies": {
+		"emdash": ">=1.0.0"
+	},
+	"devDependencies": {
+		"@emdash-cms/blocks": "^1.1.0",
+		"@emdash-cms/plugin-cli": "0.13.2",
+		"@emdash-cms/plugin-test": "^0.2.7",
+		"emdash": "^1.1.0",
+		"typescript": "^5.9.0",
+		"vitest": "^4.1.0"
+	}
+}
