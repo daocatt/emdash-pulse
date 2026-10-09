@@ -23,6 +23,7 @@ export type EventType =
 	| "paused"
 	| "resumed"
 	| "groups_changed"
+	| "cadence_changed"
 	| "request_blocked"
 	// Resend 同步与投递回执（Webhook 落库，见 resend.ts 的 mapResendEvent）。
 	| "resend_sync_failed"

@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 
 import plugin from "../src/plugin";
 import type { BroadcastRecord } from "../src/broadcast";
+import type { DigestRunRecord } from "../src/digest";
 import type { SubscriptionEvent } from "../src/events";
 import type { GroupRecord } from "../src/groups";
 import type { SubscriberRecord } from "../src/subscribers";
@@ -93,14 +94,19 @@ function fakeCtx() {
 	const groups = memoryCollection<GroupRecord>();
 	const events = memoryCollection<SubscriptionEvent>();
 	const broadcasts = memoryCollection<BroadcastRecord>();
+	const digestRuns = memoryCollection<DigestRunRecord>();
+	// 记录摘要页自愈时注册的 cron 任务名（键为任务名，值为 cron 表达式）。
+	const scheduled = new Map<string, string>();
 
 	return {
 		subscribers: subscribers as MemoryCollection<SubscriberRecord>,
 		groups: groups as MemoryCollection<GroupRecord>,
 		events: events as MemoryCollection<SubscriptionEvent>,
 		broadcasts: broadcasts as MemoryCollection<BroadcastRecord>,
+		digestRuns: digestRuns as MemoryCollection<DigestRunRecord>,
+		scheduled,
 		ctx: {
-			storage: { subscribers, groups, events, broadcasts },
+			storage: { subscribers, groups, events, broadcasts, digest_runs: digestRuns },
 			settings: {
 				async get(): Promise<unknown> {
 					return null;
@@ -114,6 +120,19 @@ function fakeCtx() {
 					return new Response("{}", { status: 500, headers: { "content-type": "application/json" } });
 				},
 			},
+			// 摘要页加载时自愈 cron 任务；这里记录调用，便于断言注册了哪些任务。
+			cron: {
+				async schedule(name: string, opts: { schedule: string }): Promise<void> {
+					scheduled.set(name, opts.schedule);
+				},
+				async cancel(name: string): Promise<void> {
+					scheduled.delete(name);
+				},
+				async list(): Promise<Array<{ name: string; schedule: string; nextRunAt: string }>> {
+					return [...scheduled].map(([name, schedule]) => ({ name, schedule, nextRunAt: NOW }));
+				},
+			},
+			log: { info(): void {}, warn(): void {}, error(): void {}, debug(): void {} },
 			site: { name: "Suda Pulse" },
 			url: (path: string): string => `https://pulse.suda.im${path}`,
 		},
@@ -657,5 +676,106 @@ describe("pulse-subscriptions · 后台「订阅群发」页", () => {
 			.filter((block) => block.type === "section")
 			.map((block) => String(block.text ?? ""));
 		expect(notices.some((text) => text.includes("resend_not_configured"))).toBe(true);
+	});
+});
+
+describe("pulse-subscriptions · 后台「订阅摘要」页", () => {
+	function digestRun(overrides: Partial<DigestRunRecord> = {}): DigestRunRecord {
+		return {
+			cadence: "weekly",
+			windowSince: "2026-04-20T00:00:00.000Z",
+			windowUntil: "2026-04-27T00:00:00.000Z",
+			sentAt: NOW,
+			segmentId: "seg_1",
+			transportId: "re_bc_1",
+			count: 5,
+			status: "sent",
+			...overrides,
+		};
+	}
+
+	it("page_load 渲染统计、表单与历史表，并自愈注册两档 cron 任务", async () => {
+		const { ctx, subscribers, digestRuns, scheduled } = fakeCtx();
+		await subscribers.put("sub_1", subscriber({ email: "a@example.com", cadence: "weekly" }));
+		await subscribers.put("sub_2", subscriber({ email: "b@example.com", cadence: "monthly" }));
+		await digestRuns.put("dg_1", digestRun());
+
+		const result = await runAdmin(ctx, { type: "page_load", page: "/digest" });
+
+		expectValidBlocks(result);
+		expect(blockTypes(result)).toContain("form");
+		expect(blockTypes(result)).toContain("table");
+
+		// 自愈：加载即按当前设置注册两档任务（默认开启）。
+		expect(scheduled.get("digest-weekly")).toBe("0 0 * * 1");
+		expect(scheduled.get("digest-monthly")).toBe("0 0 1 * *");
+
+		const rows = tableOf(result).rows as Json[];
+		expect(rows.length).toBe(1);
+		expect(rows[0].cadence).toBe("每周");
+		expect(rows[0].status).toBe("已发送");
+
+		// 未配置邮件服务时给出提示。
+		const texts = result.blocks
+			.filter((block) => block.type === "context" || block.type === "section")
+			.map((block) => String(block.text ?? ""));
+		expect(texts.some((text) => text.includes("未配置"))).toBe(true);
+	});
+
+	it("未选节奏时拒绝手动发送", async () => {
+		const { ctx, digestRuns } = fakeCtx();
+
+		const result = await runAdmin(ctx, {
+			type: "form_submit",
+			page: "/digest",
+			action_id: "digest-run",
+			block_id: "digest-run",
+			values: { cadence: "daily" },
+		});
+
+		expectValidBlocks(result);
+		expect(result.toast?.type).toBe("error");
+		expect(await digestRuns.count()).toBe(0);
+	});
+
+	it("Resend 未配置时手动发送失败并落一条 failed 记录", async () => {
+		const { ctx, digestRuns } = fakeCtx();
+
+		const result = await runAdmin(ctx, {
+			type: "form_submit",
+			page: "/digest",
+			action_id: "digest-run",
+			block_id: "digest-run",
+			values: { cadence: "weekly" },
+		});
+
+		expectValidBlocks(result);
+		expect(result.toast?.type).toBe("error");
+		const runs = [...digestRuns.raw.values()];
+		expect(runs.length).toBe(1);
+		expect(runs[0].status).toBe("failed");
+		expect(runs[0].error).toBe("resend_not_configured");
+	});
+
+	it("「重新同步受众」扫描已确认订阅者（未配置通道时记为失败）", async () => {
+		const { ctx, subscribers } = fakeCtx();
+		await subscribers.put("sub_1", subscriber({ email: "a@example.com" }));
+		await subscribers.put("sub_2", subscriber({ email: "b@example.com" }));
+		await subscribers.put("sub_3", subscriber({ email: "c@example.com", status: "pending" }));
+
+		const result = await runAdmin(ctx, {
+			type: "block_action",
+			page: "/digest",
+			action_id: "digest-resync",
+			value: "resync",
+		});
+
+		expectValidBlocks(result);
+		// 只扫描 confirmed（2 条）；未配置通道 → 全部失败。
+		expect(result.toast?.message).toBe("同步完成（0/2）");
+		const notices = result.blocks
+			.filter((block) => block.type === "section")
+			.map((block) => String(block.text ?? ""));
+		expect(notices.some((text) => text.includes("扫描 2，成功 0，失败 2"))).toBe(true);
 	});
 });

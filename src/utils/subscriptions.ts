@@ -15,6 +15,14 @@ export const SUBSCRIPTIONS_API_BASE = `/_emdash/api/plugins/${SUBSCRIPTIONS_PLUG
 
 export type SubscriberStatus = "pending" | "confirmed" | "unsubscribed" | "paused";
 
+/** 投递节奏（与插件 `src/subscribers.ts` 的 Cadence 一致）。 */
+export type Cadence = "weekly" | "monthly";
+
+export interface CadenceOption {
+	value: Cadence;
+	label: string;
+}
+
 /** 订阅分组（前台表单与订阅管理页共用）。 */
 export interface SubscriptionGroup {
 	slug: string;
@@ -35,7 +43,7 @@ interface RawEnvelope {
 	body?: { kind?: string; value?: string };
 }
 
-/** SSR 调用公开插件路由（仅用于 confirm / unsubscribe）。 */
+/** SSR 调用公开插件路由（仅用于 confirm / unsubscribe / preferences）。 */
 export async function callSubscriptionsRoute(
 	locals: unknown,
 	route: string,
@@ -86,6 +94,14 @@ const isGroup = (value: unknown): value is SubscriptionGroup => {
 	return typeof group.slug === "string" && typeof group.name === "string";
 };
 
+const isCadence = (value: unknown): value is Cadence => value === "weekly" || value === "monthly";
+
+const isCadenceOption = (value: unknown): value is CadenceOption => {
+	if (typeof value !== "object" || value === null) return false;
+	const option = value as Record<string, unknown>;
+	return isCadence(option.value) && typeof option.label === "string";
+};
+
 /** 取启用中的订阅分组（`/subscribe` 页渲染勾选框用）。失败时返回空数组，页面照常渲染。 */
 export async function fetchActiveGroups(locals: unknown): Promise<SubscriptionGroup[]> {
 	const result = await callSubscriptionsRoute(locals, "groups/public", {});
@@ -102,30 +118,49 @@ export interface PreferencesSnapshot {
 	email: string | null;
 	status: SubscriberStatus | null;
 	groups: string[];
+	/** 当前生效节奏（已套用插件默认档位）。 */
+	cadence: Cadence | null;
+	/** 可选节奏（插件返回；为空时页面用内置兜底）。 */
+	cadences: CadenceOption[];
 	available: SubscriptionGroup[];
 }
+
+/** 偏好写入：字段存在即写入，缺省则只读。 */
+export interface PreferencesWrite {
+	groups?: string[];
+	cadence?: Cadence;
+}
+
+/** 内置兜底选项（插件未返回 `cadences` 时用）。 */
+export const DEFAULT_CADENCE_OPTIONS: CadenceOption[] = [
+	{ value: "weekly", label: "每周" },
+	{ value: "monthly", label: "每月" },
+];
 
 /**
  * 读 / 写某邮箱的订阅偏好（token 即凭证）。
  *
- * 传 `groups` 即为写入；不传则纯读取。**GET 打开管理页时不要传 groups** ——
+ * 传 `write` 里的字段即为写入；全空则纯读取。**GET 打开管理页时不要传任何写入** ——
  * 这样邮件客户端预取链接不会改动任何状态。
  */
 export async function callPreferences(
 	locals: unknown,
 	token: string,
-	groups?: string[],
+	write: PreferencesWrite = {},
 ): Promise<{ response: SubscriptionResponse; snapshot: PreferencesSnapshot }> {
 	const result = await callSubscriptionsRoute(locals, "preferences", {
 		token,
-		...(groups ? { groups } : {}),
+		...(write.groups !== undefined ? { groups: write.groups } : {}),
+		...(write.cadence !== undefined ? { cadence: write.cadence } : {}),
 	});
 
 	const available = Array.isArray(result.body.available)
 		? (result.body.available as unknown[]).filter(isGroup)
 		: [];
 	const rawGroups = result.body.groups;
+	const rawCadences = result.body.cadences;
 	const status = result.body.status;
+	const cadence = result.body.cadence;
 
 	return {
 		response: result,
@@ -136,6 +171,10 @@ export async function callPreferences(
 					? status
 					: null,
 			groups: Array.isArray(rawGroups) ? rawGroups.filter((slug): slug is string => typeof slug === "string") : [],
+			cadence: isCadence(cadence) ? cadence : null,
+			cadences: Array.isArray(rawCadences)
+				? (rawCadences as unknown[]).filter(isCadenceOption)
+				: [],
 			available,
 		},
 	};
@@ -152,6 +191,8 @@ export type ManageOutcome =
 			token: string;
 			email: string | null;
 			groups: string[];
+			cadence: Cadence;
+			cadences: CadenceOption[];
 			available: SubscriptionGroup[];
 			notice: "saved" | "saveFailed" | null;
 	  };
@@ -160,10 +201,12 @@ export interface ManageRequest {
 	/** `Astro.request.method`。 */
 	method: string;
 	token: string;
-	/** POST 表单的 `intent` 字段：`unsubscribe` / `groups` / 其它。 */
+	/** POST 表单的 `intent` 字段：`unsubscribe` / `groups` / `cadence` / 其它。 */
 	intent: string;
 	/** POST 表单勾选的分组。 */
 	groups: string[];
+	/** POST 表单选择的节奏（`groups` / `cadence` 两种 intent 都可能带）。 */
+	cadence: string;
 	/** POST 表单的退订原因。 */
 	reason: string;
 }
@@ -195,8 +238,14 @@ export async function resolveManageOutcome(
 		return { kind: "invalidToken" };
 	}
 
-	if (request.intent === "groups") {
-		const { response, snapshot } = await callPreferences(locals, request.token, request.groups);
+	if (request.intent === "groups" || request.intent === "cadence") {
+		const write: PreferencesWrite =
+			request.intent === "groups"
+				? { groups: request.groups }
+				: isCadence(request.cadence)
+					? { cadence: request.cadence }
+					: {};
+		const { response, snapshot } = await callPreferences(locals, request.token, write);
 		if (!response.ok) {
 			return response.status === 400 ? { kind: "invalidToken" } : { kind: "missingToken" };
 		}
@@ -205,6 +254,8 @@ export async function resolveManageOutcome(
 			token: request.token,
 			email: snapshot.email,
 			groups: snapshot.groups,
+			cadence: snapshot.cadence ?? "weekly",
+			cadences: snapshot.cadences.length > 0 ? snapshot.cadences : DEFAULT_CADENCE_OPTIONS,
 			available: snapshot.available,
 			notice: "saved",
 		};
@@ -226,6 +277,8 @@ export async function resolveManageOutcome(
 			token: request.token,
 			email: snapshot.email,
 			groups: snapshot.groups,
+			cadence: snapshot.cadence ?? "weekly",
+			cadences: snapshot.cadences.length > 0 ? snapshot.cadences : DEFAULT_CADENCE_OPTIONS,
 			available: snapshot.available,
 			notice: null,
 		};

@@ -14,6 +14,7 @@
 import type { PluginContext } from "emdash/plugin";
 
 import { listBroadcastHistory, sendBroadcastToSegment } from "./broadcast";
+import { listDigestRuns, readDigestSettings, runDigest } from "./digest";
 import { listEvents, recordEvent, type EventType } from "./events";
 import { deleteGroup, listGroups, saveGroup } from "./groups";
 import {
@@ -22,12 +23,17 @@ import {
 	setSubscriberGroups,
 	unsubscribeSubscriber,
 } from "./operations";
-import { readSyncSettings } from "./segments";
+import { ensureDigestSchedules } from "./schedule";
+import { readSyncSettings, syncSubscriber } from "./segments";
 import {
+	CADENCE_LABELS,
+	cadenceOf,
+	isCadence,
 	MAX_SCAN,
 	maskEmail,
 	scanSubscribers,
 	subscriberStore,
+	type Cadence,
 	type SubscriberRecord,
 	type SubscriberStatus,
 } from "./subscribers";
@@ -43,6 +49,7 @@ export interface AdminResponse {
 export const ADMIN_PAGE_SUBSCRIBERS = "/subscribers";
 export const ADMIN_PAGE_GROUPS = "/groups";
 export const ADMIN_PAGE_BROADCAST = "/broadcast";
+export const ADMIN_PAGE_DIGEST = "/digest";
 
 const PAGE_SIZE = 20;
 
@@ -68,6 +75,7 @@ const EVENT_LABEL: Record<EventType, string> = {
 	paused: "暂停",
 	resumed: "恢复",
 	groups_changed: "改分组",
+	cadence_changed: "改节奏",
 	request_blocked: "订阅被拦截",
 	resend_sync_failed: "Resend 同步失败",
 	email_delivered: "邮件已送达",
@@ -529,6 +537,7 @@ export async function renderAdmin(ctx: PluginContext, input: AdminInput): Promis
 
 	if (page === ADMIN_PAGE_GROUPS) return renderGroupsPage(ctx, input);
 	if (page === ADMIN_PAGE_BROADCAST) return renderBroadcastPage(ctx, input);
+	if (page === ADMIN_PAGE_DIGEST) return renderDigestPage(ctx, input);
 	return renderSubscribersPage(ctx, input);
 }
 
@@ -657,6 +666,193 @@ async function broadcastBlocks(ctx: PluginContext, notice?: string): Promise<Jso
 		})),
 		page_action_id: "broadcast-page",
 		empty_text: "还没有群发记录。",
+	});
+
+	return blocks;
+}
+
+// ---------- 摘要页（每周 / 每月）----------
+
+/** 把 UTC ISO 转成本地（Asia/Shanghai）展示串。 */
+function formatLocal(iso: string): string {
+	if (!iso) return "—";
+	const at = new Date(iso);
+	if (Number.isNaN(at.getTime())) return iso;
+	return at.toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false });
+}
+
+const RUN_STATUS_LABEL: Record<string, string> = {
+	sent: "已发送",
+	skipped: "已跳过",
+	failed: "失败",
+};
+
+const RUN_REASON_LABEL: Record<string, string> = {
+	disabled: "总开关已关闭",
+	already_sent: "本周期已发送",
+	no_articles: "窗口内没有文章",
+	no_http: "缺少 network:request 能力",
+	resend_not_configured: "邮件服务未配置",
+	resend_from_address_missing: "缺少发件地址",
+	segment_sync_failed: "受众同步失败",
+};
+
+async function renderDigestPage(ctx: PluginContext, input: AdminInput): Promise<AdminResponse> {
+	// 自愈：宿主不是每次启动都触发 plugin:activate，打开本页时重注册一次任务。
+	await ensureDigestSchedules(ctx);
+
+	if (input.type === "block_action" && input.action_id === "digest-resync") {
+		const { items } = await scanSubscribers(ctx);
+		let scanned = 0;
+		let synced = 0;
+		let failed = 0;
+		for (const item of items) {
+			if (item.data.status !== "confirmed") continue;
+			scanned += 1;
+			const outcome = await syncSubscriber(ctx, { id: item.id, data: item.data });
+			if (outcome.ok) synced += 1;
+			else failed += 1;
+		}
+		return {
+			blocks: await digestBlocks(ctx, `已重新同步受众：扫描 ${scanned}，成功 ${synced}，失败 ${failed}。`),
+			toast: { message: `同步完成（${synced}/${scanned}）`, type: failed > 0 ? "error" : "success" },
+		};
+	}
+
+	if (input.type === "form_submit" && input.action_id === "digest-run") {
+		const cadence = str(input.values?.cadence);
+		if (!isCadence(cadence)) {
+			return { blocks: await digestBlocks(ctx, "⚠️ 请选择节奏。"), toast: { message: "未选择节奏", type: "error" } };
+		}
+		const result = await runDigest(ctx, cadence, { manual: true });
+		if (!result.ok) {
+			const reason = RUN_REASON_LABEL[result.error] ?? result.error;
+			return {
+				blocks: await digestBlocks(ctx, `❌ ${CADENCE_LABELS[cadence]}摘要未发送：**${reason}**。`),
+				toast: { message: `未发送：${reason}`, type: "error" },
+			};
+		}
+		return {
+			blocks: await digestBlocks(ctx, `✅ 已发送${CADENCE_LABELS[cadence]}摘要（${result.count} 篇）。`),
+			toast: { message: "已提交发送", type: "success" },
+		};
+	}
+
+	return { blocks: await digestBlocks(ctx) };
+}
+
+async function digestBlocks(ctx: PluginContext, notice?: string): Promise<Json[]> {
+	const [settings, sync, transport, runs, summary] = await Promise.all([
+		readDigestSettings(ctx),
+		readSyncSettings(ctx),
+		resolveTransport(ctx),
+		listDigestRuns(ctx, 20),
+		scanSummary(ctx),
+	]);
+
+	const label = transport?.label ?? "邮件服务";
+	const from = transport ? await transport.fromAddress() : "";
+	const configured = transport !== null && from !== "" && (await transport.isConfigured());
+
+	let nextRuns = new Map<string, string>();
+	try {
+		const tasks = (await ctx.cron?.list()) ?? [];
+		nextRuns = new Map(tasks.map((task) => [task.name, task.nextRunAt]));
+	} catch {
+		nextRuns = new Map();
+	}
+
+	const counts: Record<Cadence, number> = { weekly: 0, monthly: 0 };
+	for (const item of summary.items) {
+		if (item.data.status !== "confirmed") continue;
+		counts[cadenceOf(item.data, settings.defaultCadence)] += 1;
+	}
+
+	const blocks: Json[] = [
+		{ type: "header", text: "订阅摘要" },
+		{
+			type: "section",
+			text: "按节奏（**每周 / 每月**）自动向订阅者发送上一周期的内容精选。内容取自各周期内发布的文章，走当前投递通道群发。",
+		},
+		{
+			type: "stats",
+			items: [
+				{ label: "每周订阅者", value: counts.weekly },
+				{ label: "每月订阅者", value: counts.monthly },
+				{ label: "已确认总数", value: summary.counts.confirmed },
+			],
+		},
+		{
+			type: "context",
+			text: `总开关：**${settings.enabled ? "开启" : "关闭"}** · ${
+				configured
+					? `${label} 已配置（From：${from}）· 分组同步：${sync.enabled ? "开启" : "关闭"}`
+					: `⚠️ ${label} 未配置：请先到「Resend」设置页填 API Key 与 From 地址。`
+			}`,
+		},
+		{
+			type: "context",
+			text: [
+				`周报：\`${settings.weeklySchedule}\`（UTC）→ 下次 ${formatLocal(nextRuns.get("digest-weekly") ?? "")}`,
+				`月报：\`${settings.monthlySchedule}\`（UTC）→ 下次 ${formatLocal(nextRuns.get("digest-monthly") ?? "")}`,
+				"时间为 UTC cron；本站 CST = UTC+8。",
+			].join("\n"),
+		},
+	];
+	if (notice) blocks.push({ type: "section", text: notice });
+	blocks.push({ type: "divider" });
+
+	blocks.push({
+		type: "form",
+		block_id: "digest-run",
+		fields: [
+			{
+				type: "select",
+				action_id: "cadence",
+				label: "节奏",
+				options: [
+					{ label: "每周", value: "weekly" },
+					{ label: "每月", value: "monthly" },
+				],
+				initial_value: "weekly",
+			},
+		],
+		submit: { label: "立即发送本期", action_id: "digest-run" },
+	});
+
+	blocks.push({
+		type: "actions",
+		elements: [{ type: "button", label: "重新同步受众", action_id: "digest-resync", value: "resync" }],
+	});
+
+	blocks.push({
+		type: "table",
+		columns: [
+			{ key: "cadence", label: "节奏" },
+			{ key: "window", label: "周期" },
+			{ key: "count", label: "篇数", format: "number" },
+			{ key: "status", label: "状态", format: "badge" },
+			{ key: "sentAt", label: "时间", format: "relative_time" },
+			{ key: "detail", label: "详情" },
+		],
+		rows: runs.map((run) => ({
+			cadence: CADENCE_LABELS[run.cadence] ?? run.cadence,
+			window: `${run.windowSince.slice(0, 10)} → ${run.windowUntil.slice(0, 10)}`,
+			count: run.count,
+			status: RUN_STATUS_LABEL[run.status] ?? run.status,
+			sentAt: run.sentAt,
+			detail:
+				run.status === "sent"
+					? run.transportId || "—"
+					: (RUN_REASON_LABEL[run.error ?? ""] ?? run.error ?? "—"),
+		})),
+		page_action_id: "digest-runs-page",
+		empty_text: "还没有摘要运行记录。",
+	});
+
+	blocks.push({
+		type: "context",
+		text: "摘要按周期去重：同一自然周 / 自然月只会自动发送一次；「立即发送本期」会忽略去重。",
 	});
 
 	return blocks;

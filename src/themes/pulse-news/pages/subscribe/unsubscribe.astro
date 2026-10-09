@@ -22,6 +22,7 @@ const outcome = await resolveManageOutcome(Astro.locals, {
 	token: (isPost ? String(form?.get("token") ?? "") : (Astro.url.searchParams.get("token") ?? "")).trim(),
 	intent: isPost ? String(form?.get("intent") ?? "") : "",
 	groups: form?.getAll("groups").map((value) => String(value)) ?? [],
+	cadence: isPost ? String(form?.get("cadence") ?? "").trim() : "",
 	reason: isPost ? String(form?.get("reason") ?? "").trim() : "",
 });
 
@@ -65,7 +66,7 @@ const pageTitle =
 
 				{manage.notice && (
 					<p class="manage__notice" role="status">
-						{manage.notice === "saved" ? t("subscribeManage.groupsSaved") : t("subscribeManage.groupsFailed")}
+						{manage.notice === "saved" ? t("subscribeManage.saved") : t("subscribeManage.saveFailed")}
 					</p>
 				)}
 
@@ -95,6 +96,29 @@ const pageTitle =
 							</button>
 						</form>
 					)}
+				</section>
+
+				<section class="manage__section">
+					<h2 class="manage__section-title">{t("subscribeManage.cadenceHeading")}</h2>
+					<form method="post" class="manage__form">
+						<input type="hidden" name="token" value={manage.token} />
+						<input type="hidden" name="intent" value="cadence" />
+						<p class="manage__hint">{t("subscribeManage.cadenceHint")}</p>
+						{manage.cadences.map((option) => (
+							<label class="manage__group">
+								<input
+									type="radio"
+									name="cadence"
+									value={option.value}
+									checked={manage.cadence === option.value}
+								/>
+								<span class="manage__group-name">{option.label}</span>
+							</label>
+						))}
+						<button type="submit" class="manage__button" data-press>
+							{t("subscribeManage.saveCadence")}
+						</button>
+					</form>
 				</section>
 
 				<section class="manage__section manage__section--danger">

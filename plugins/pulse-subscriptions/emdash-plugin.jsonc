@@ -15,8 +15,9 @@
 	// - network:request → 直连 Resend REST（segments / contacts / broadcasts）与
 	//   接收 Webhook（`resend/webhook`，Svix 验签）。凭证复用「Resend」插件的设置
 	//   （plugin id `emdash-resend`），本插件不重复配置 API key。
+	// - content:read → 摘要任务读取 `articles` 集合（按发布时间窗口取数）。
 	// 订阅者身份存于插件存储 `subscribers`，不是 EmDash 用户，故无需 users 能力。
-	"capabilities": ["email:send", "network:request"],
+	"capabilities": ["email:send", "network:request", "content:read"],
 	"allowedHosts": ["api.resend.com"],
 	"storage": {
 		"subscribers": {
@@ -37,13 +38,20 @@
 		// 群发历史（Resend Broadcasts 的本地留痕）：后台「订阅群发」页展示。
 		"broadcasts": {
 			"indexes": ["createdAt"]
+		},
+		// 摘要运行留痕（每周 / 每月）：既是后台展示的历史，也是「同一周期不重发」的
+		// 幂等判据（见 src/digest.ts）。**不声明 unique** —— cadence / sentAt 天然会
+		// 重复，而同集合内重复值会撞 uniqueIndexes 建出的唯一索引。
+		"digest_runs": {
+			"indexes": ["cadence", "sentAt"]
 		}
 	},
 	"admin": {
 		"pages": [
 			{ "path": "/subscribers", "label": "订阅者", "icon": "mail" },
 			{ "path": "/groups", "label": "订阅分组", "icon": "tag" },
-			{ "path": "/broadcast", "label": "订阅群发", "icon": "send" }
+			{ "path": "/broadcast", "label": "订阅群发", "icon": "send" },
+			{ "path": "/digest", "label": "订阅摘要", "icon": "calendar" }
 		],
 		"settingsSchema": {
 			"autoConfirm": {
@@ -86,6 +94,52 @@
 				"type": "select",
 				"options": [{ "value": "resend", "label": "Resend" }],
 				"default": "resend"
+			},
+			"digestEnabled": {
+				"label": "启用订阅摘要",
+				"description": "开启后按下方时间自动向订阅者发送每周 / 每月内容摘要。关闭会取消已注册的定时任务。",
+				"type": "boolean",
+				"default": true
+			},
+			"defaultCadence": {
+				"label": "默认订阅节奏",
+				"description": "订阅者未显式选择节奏时使用的档位。",
+				"type": "select",
+				"options": [
+					{ "value": "weekly", "label": "每周" },
+					{ "value": "monthly", "label": "每月" }
+				],
+				"default": "weekly"
+			},
+			"weeklySchedule": {
+				"label": "周报时间（UTC cron）",
+				"description": "标准 cron 表达式，时区固定 UTC。本站 CST = UTC+8，故 `0 0 * * 1` = 周一 08:00。",
+				"type": "string",
+				"default": "0 0 * * 1"
+			},
+			"monthlySchedule": {
+				"label": "月报时间（UTC cron）",
+				"description": "标准 cron 表达式，时区固定 UTC。本站 CST = UTC+8，故 `0 0 1 * *` = 每月 1 日 08:00。",
+				"type": "string",
+				"default": "0 0 1 * *"
+			},
+			"digestMaxArticles": {
+				"label": "单期最多文章数",
+				"description": "每期摘要最多列出多少篇文章（超出按头条 / 权重 / 时间排序截取）。",
+				"type": "number",
+				"default": 12
+			},
+			"weeklySubject": {
+				"label": "周报主题",
+				"description": "支持占位符 {site}（站点名）与 {count}（文章数）。",
+				"type": "string",
+				"default": "本周回顾 · {site}"
+			},
+			"monthlySubject": {
+				"label": "月报主题",
+				"description": "支持占位符 {site}（站点名）与 {count}（文章数）。",
+				"type": "string",
+				"default": "本月回顾 · {site}"
 			},
 			"resendSyncEnabled": {
 				"label": "同步订阅到 Resend",

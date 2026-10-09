@@ -13,7 +13,9 @@ import { recordEvent, type EventActor } from "./events";
 import { sanitizeGroupSlugs } from "./groups";
 import { syncSubscriber } from "./segments";
 import {
+	isCadence,
 	subscriberStore,
+	type Cadence,
 	type PausableStatus,
 	type SubscriberRecord,
 	type SubscriberStatus,
@@ -174,6 +176,38 @@ export async function setSubscriberGroups(
 		type: "groups_changed",
 		actor,
 		detail: next.join(","),
+	});
+	await afterChange(ctx, id, record);
+	return { ok: true, record };
+}
+
+/**
+ * 设置投递节奏（每周 / 每月）。传入非法值时返回 `INVALID_STATE`；
+ * 与当前一致时不写库、不记事件（同 `setSubscriberGroups`）。
+ *
+ * 节奏是受众归属的一部分（见 `segments.ts` 的 `cadenceAudienceId`），
+ * 所以变更后同样走 `afterChange` 同步。
+ */
+export async function setSubscriberCadence(
+	ctx: PluginContext,
+	id: string,
+	cadence: unknown,
+	actor: EventActor,
+): Promise<OperationResult> {
+	if (!isCadence(cadence)) return invalidState();
+
+	const store = subscriberStore(ctx);
+	const current = await store.get(id);
+	if (!current) return notFound();
+	if (current.cadence === cadence) return { ok: true, record: current };
+
+	const record: SubscriberRecord = { ...current, cadence: cadence as Cadence };
+	await store.put(id, record);
+	await recordEvent(ctx, {
+		subscriberId: id,
+		type: "cadence_changed",
+		actor,
+		detail: cadence,
 	});
 	await afterChange(ctx, id, record);
 	return { ok: true, record };

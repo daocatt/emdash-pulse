@@ -29,6 +29,7 @@
 | [14-database.md](./14-database.md) | **数据库选型与查询负载复核**（历史记录）：D1 时代的复核与结论；**已被 VPS 迁移取代**，见 16 |
 | [15-emdash-cloudflare-coupling.md](./15-emdash-cloudflare-coupling.md) | **EmDash 开放性 / CF 耦合评估**（英文）：真正平台无关 vs 面向 CF、解耦难度、独立 VPS 部署可行性、PostgreSQL 官方内置、无需 Drizzle（Kysely） |
 | [16-vps-deployment.md](./16-vps-deployment.md) | **VPS 部署运维手册**（当前架构）：三容器拓扑、首次部署、构建期/运行期 env 分界、PG 搜索、Resend 订阅与回执、备份恢复、排障 |
+| [17-subscriber-digests.md](./17-subscriber-digests.md) | **订阅摘要（每周 / 每月）**（已实施）：插件 cron + cadence 受众 + 时间窗口内容生成；扩展 `pulse-subscriptions` |
 
 ---
 
@@ -58,6 +59,7 @@
 - **Phase 7d（Resend 分组同步 + 群发）** ✅：`pulse-subscriptions` 把**订阅分组同步为 Resend Segments**（segment id 缓存回组记录，避免每次同步都打列表接口），新增后台 **订阅群发** 页（走 Resend **Broadcasts**，`send: true`，Resend 负责展开收件人 / 插退订链接 / 跳过已退订），以及 `resend/webhook`（**Svix 验签**，`request: { body: "text" }` 用原始字节；回执只写事件日志，**不自动改订阅状态**）；manifest 新增 `network:request` + `allowedHosts` + `broadcasts` 集合，插件升 0.3.0。
 - **Phase 7e（持续部署）** ✅：`.github/workflows/deploy.yml` —— **仅 `production` 分支触发**（`main` 不部署），GitHub 侧先 verify（`plugin:build` → `typecheck:all` → `build`），再 SSH 到 VPS `git reset --hard origin/production` → `cp $VPS_ENV_FILE .env` → `docker compose build --no-cache` → `up -d`；`docker-compose.yml` 数据持久化改为**绑定挂载**（`DOCKER_DATA_PATH` 可在 `.env` 配置）。
 - **Phase 7f（邮件 transport 抽象）** ✅：`pulse-subscriptions` 抽出 `BroadcastTransport` 接口（`src/transport/`），分组同步 / 群发 / Webhook 回执只依赖接口，**不再直接耦合 Resend**；Resend 成为第一个实现（`src/transport/resend.ts`，底层 REST 客户端仍在 `src/resend.ts`），新增 `broadcastProvider` 设置项。为后续接入其它邮件服务（如 Rilay）预留了登记点。
+- **Phase 7g（订阅摘要 每周 / 每月）** ✅：给 `pulse-subscriptions` 加**订阅节奏**（`cadence: weekly | monthly`，前台管理页可自助切换）与**自动摘要**——节奏是**平行受众维度**（`syncSubscriber` 同时并入分组与节奏 segment），每档一个**插件 cron** 任务（`ctx.cron.schedule("digest-weekly"/"digest-monthly")`，**UTC** 时区）在周期结束时向节奏受众群发「**上一自然周 / 自然月**」的文章精选；`digest_runs` 做同周期去重与留痕；后台新增「订阅摘要」页（下次运行时间本地展示 + 立即发送 + 重新同步受众）。**不新建 `pulse-digest` 插件**（插件存储按 plugin id 隔离，读不到 `subscribers`）。插件升 0.4.0（capabilities 加 `content:read`、storage 加 `digest_runs`、admin 加第 4 页）。详见 [17-subscriber-digests.md](./17-subscriber-digests.md)。
 - 详见 [10-phase0-report.md](./10-phase0-report.md) 与 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)（含每阶段关键发现与踩坑）。
 
 ---

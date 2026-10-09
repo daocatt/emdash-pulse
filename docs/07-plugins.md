@@ -46,12 +46,12 @@ EmDash 插件分两类：
 | `pulse-editorial` | Sandboxed | **编辑台**：选题分发（创建/列出/结束）+ 投稿审核发布 | `content:read`、`content:write`、`content:publish`、`content:revisions:read` | P0 |
 | `pulse-agent` | Sandboxed | **Agent 侧**：注册/审批、选题领取、投稿、订阅意向 | `content:read`、`content:write`、`taxonomies:read`、`taxonomies:write` | P0 |
 | `pulse-review` | Sandboxed | 编审策略：发布门禁 + 评论审核（规则 + AI） | `hooks.content-policy:register`、`users:read`、`network:request` | P0 |
-| `pulse-subscriptions` | Sandboxed | **读者订阅**：双确认 / 退订 / 订阅者管理（替代 `bulletin`） | `email:send` | P0 |
+| `pulse-subscriptions` | Sandboxed | **读者订阅**：双确认 / 退订 / 订阅者管理 + **每周/每月摘要**（替代 `bulletin`） | `email:send`、`network:request`、`content:read` | P0 |
 | `pulse-seo` | **Trusted** | **结构化数据**：为公开页面贡献唯一 JSON-LD（文章 `NewsArticle` / 其余 `WebSite`） | 无（`page:metadata` 无能力要求） | P1 |
 | `pulse-theme` | Sandboxed | **前台主题**：后台「前台主题」页写插件设置，供 `src/middleware.ts` 运行期切换 | 无（只写自己的插件设置） | P2c |
-| `pulse-digest` | Sandboxed | 摘要邮件（若需自定义摘要格式） | `content:read`、`email:send`、`cron` | P2（按需） |
+| ~~`pulse-digest`~~ | — | ~~摘要邮件~~ **已并入 `pulse-subscriptions`**（插件存储按 plugin id 隔离，新插件读不到 `subscribers`） | — | ✅ 不做 |
 
-> 订阅由自研 `pulse-subscriptions` 承担（**D4 修订**，见 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)）。仅在需要**自定义摘要格式**时才做 `pulse-digest`。
+> 订阅由自研 `pulse-subscriptions` 承担（**D4 修订**，见 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)）。**摘要不单独建插件**：订阅者存储、transport、退订 token 都在 `pulse-subscriptions`，且插件存储/设置按 plugin id 隔离，新建插件读订阅者只能靠公开路由或动态 `import("emdash")`，得不偿失。详见 [17-subscriber-digests.md](./17-subscriber-digests.md)。
 
 ### 2.1 拆分原则（**实施后修订**）
 
@@ -86,14 +86,15 @@ EmDash 插件分两类：
 
 ### 2.5 `pulse-subscriptions`（读者订阅）
 
-- 存储：`subscribers`（唯一 `emailHash`；索引 `status`/`createdAt`/`tokenHash`）、`groups`（订阅分组，slug 即记录 id）、`events`（append-only 事件日志）、`broadcasts`（群发历史）。状态机 `pending → confirmed → unsubscribed`，外加只能后台进出的 `paused`。
-- 公开路由（`response: "raw"` + IP 限流）：`subscribe/request`（建 pending + 发确认邮件，可带分组）、`subscribe/confirm`（token → confirmed，发欢迎邮件）、`unsubscribe`（token → unsubscribed，可带原因）、`preferences`（读者自助读/改分组）；`groups/public` 只读启用中的分组（**刻意不限流**，SSR 取不到真实 IP）。
-- 私有路由（`plugins:manage`）：`subscribers/list`（列表 + 计数 + 按分组/关键词过滤）、`subscribers/update`（暂停/恢复/退订/改分组）、`subscribers/events`、`groups/{list,save,delete}`；MCP 工具 `listSubscribers` / `listGroups`。
-- Block Kit 后台**三页**（`/subscribers`、`/groups`、`/broadcast`）共用同一个 `admin` 路由，靠宿主补的 `input.page` 分派。
+- 存储：`subscribers`（唯一 `emailHash`；索引 `status`/`createdAt`/`tokenHash`）、`groups`（订阅分组，slug 即记录 id）、`events`（append-only 事件日志）、`broadcasts`（群发历史）、`digest_runs`（摘要运行留痕 + 幂等判据）。状态机 `pending → confirmed → unsubscribed`，外加只能后台进出的 `paused`。
+- 公开路由（`response: "raw"` + IP 限流）：`subscribe/request`（建 pending + 发确认邮件，可带分组/节奏）、`subscribe/confirm`（token → confirmed，发欢迎邮件）、`unsubscribe`（token → unsubscribed，可带原因）、`preferences`（读者自助读/改**分组与节奏**）；`groups/public` 只读启用中的分组（**刻意不限流**，SSR 取不到真实 IP）。
+- 私有路由（`plugins:manage`）：`subscribers/list`（列表 + 计数 + 按分组/关键词过滤）、`subscribers/update`（暂停/恢复/退订/改分组）、`subscribers/events`、`groups/{list,save,delete}`、`digest/{run,resync,runs}`；MCP 工具 `listSubscribers` / `listGroups` / `listDigestRuns` / `runDigest` / `resyncDigestAudience`。
+- Block Kit 后台**四页**（`/subscribers`、`/groups`、`/broadcast`、`/digest`）共用同一个 `admin` 路由，靠宿主补的 `input.page` 分派。
 - **邮件投递走 transport 抽象**（`src/transport/`）：分组同步 / 群发 / Webhook 回执只依赖 `BroadcastTransport` 接口，当前实现是 Resend（分组 → **Segments**，群发 → **Broadcasts**，回执 → **Webhook** 验签）；设置项 `broadcastProvider` 选择生效 provider，换服务只需新增一个实现并在 `resolveTransport()` 登记。
+- **订阅摘要（每周 / 每月）**（`src/digest.ts` + `src/schedule.ts`）：节奏（cadence）是**平行受众维度**，`confirmed` 订阅者同时并入分组 segment 与节奏 segment；每档一个插件 cron 任务（`ctx.cron.schedule`，**UTC** 时区）在周期结束时向节奏受众群发「上一自然周 / 自然月」的文章精选。**`plugin:activate` 非每次启动触发** ⇒ 后台「订阅摘要」页加载时自愈重注册。`digest_runs` 做同周期去重与留痕。
 - **同一 token 贯穿确认与退订**（确认后用途翻转，不轮换）→ 重复点击确认/退订链接**幂等**。
 - 事务邮件走 `ctx.email`（`email:send`）；**provider 缺失或投递失败不报错**，落库为记录的 `pendingEmail`。`autoConfirm` 设置可在无邮件服务时走单确认。
-- 前台接线：提交走**浏览器 fetch**（端点按客户端 IP 限流，SSR 代理会丢失真实 IP）；确认/退订/读改分组走 **SSR**（`getPublicPluginApiRouteHandler`，token 即凭证）。`/subscribe/unsubscribe` 已改为**订阅管理页**（GET 只读，退订/改分组走原生 POST）。
+- 前台接线：提交走**浏览器 fetch**（端点按客户端 IP 限流，SSR 代理会丢失真实 IP）；确认/退订/读改分组与节奏走 **SSR**（`getPublicPluginApiRouteHandler`，token 即凭证）。`/subscribe/unsubscribe` 即**订阅管理页**（GET 只读，退订/改分组/改节奏走原生 POST）。
 
 ### 2.6 `pulse-seo`（结构化数据）
 
@@ -207,7 +208,7 @@ audit-log 写入证据（建一篇草稿后 `_plugin_storage` 出现一条 `entr
 | `pulse-review` | 0（仅 hooks） | — | 40 用例（发布门禁 4 + 评论审核 36） |
 | `pulse-editorial` | 8 | 8 | 9 用例（审核流转 + 选题） |
 | `pulse-agent` | 14 | 4 | 29 用例（注册/审批/token/限流 12 + MD→PT 11 + 投稿 6） |
-| `pulse-subscriptions` | 13 | 2 | 96 用例（token/邮件 + Resend 客户端/验签 + 同步/群发 + 后台三页 + 路由） |
+| `pulse-subscriptions` | 16 | 5 | 118 用例（token/邮件 + Resend 客户端/验签 + 同步/群发 + **摘要窗口/取数/幂等/调度** + 后台四页 + 路由） |
 
 HTTP 冒烟（`/_emdash/api/plugins/<slug>/<route>`）：
 

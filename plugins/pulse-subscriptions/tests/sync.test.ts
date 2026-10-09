@@ -82,14 +82,38 @@ function stubApi(handler: (method: string, path: string, body: any) => { status?
 	return { fetcher, calls };
 }
 
+/** 内存版插件 KV（cadence 受众 id 缓存用）。 */
+function memoryKv() {
+	const map = new Map<string, unknown>();
+	return {
+		raw: map,
+		async get<T>(key: string): Promise<T | null> {
+			return (map.get(key) as T) ?? null;
+		},
+		async set(key: string, value: unknown): Promise<void> {
+			map.set(key, value);
+		},
+		async delete(key: string): Promise<boolean> {
+			return map.delete(key);
+		},
+		async list(prefix?: string) {
+			return [...map.entries()]
+				.filter(([key]) => !prefix || key.startsWith(prefix))
+				.map(([key, value]) => ({ key, value }));
+		},
+	};
+}
+
 function fakeCtx(options: { http?: Fetcher | null; settings?: Record<string, unknown> } = {}) {
 	const groups = memoryCollection<GroupRecord>();
 	const events = memoryCollection<SubscriptionEvent>();
 	const broadcasts = memoryCollection<BroadcastRecord>();
+	const kv = memoryKv();
 
 	const http = options.http === null ? undefined : options.http ? { fetch: options.http } : undefined;
 	const ctx = {
 		storage: { groups, events, broadcasts },
+		kv,
 		settings: {
 			async get(key: string): Promise<unknown> {
 				return options.settings?.[key] ?? null;
@@ -101,7 +125,7 @@ function fakeCtx(options: { http?: Fetcher | null; settings?: Record<string, unk
 		url: (path: string): string => `https://pulse.suda.im${path}`,
 	} as unknown as PluginContext;
 
-	return { ctx, groups, events, broadcasts };
+	return { ctx, groups, events, broadcasts, kv };
 }
 
 const NOW = "2026-05-01T00:00:00.000Z";
@@ -138,10 +162,20 @@ describe("segments · 设置与命名", () => {
 
 	it("readSyncSettings 未配置时用默认值，配置后覆盖", async () => {
 		const plain = fakeCtx();
-		expect(await readSyncSettings(plain.ctx)).toEqual({ enabled: true, prefix: "Pulse · " });
+		expect(await readSyncSettings(plain.ctx)).toEqual({
+			enabled: true,
+			prefix: "Pulse · ",
+			defaultCadence: "weekly",
+		});
 
-		const custom = fakeCtx({ settings: { resendSyncEnabled: false, resendSegmentPrefix: "S" } });
-		expect(await readSyncSettings(custom.ctx)).toEqual({ enabled: false, prefix: "S" });
+		const custom = fakeCtx({
+			settings: { resendSyncEnabled: false, resendSegmentPrefix: "S", defaultCadence: "monthly" },
+		});
+		expect(await readSyncSettings(custom.ctx)).toEqual({
+			enabled: false,
+			prefix: "S",
+			defaultCadence: "monthly",
+		});
 	});
 });
 
@@ -174,10 +208,14 @@ describe("segments · syncSubscriber", () => {
 		expect(calls).toHaveLength(0);
 	});
 
-	it("confirmed：建 segment、写回组记录、把 contact 放进 segment", async () => {
+	it("confirmed：建分组与节奏 segment、写回组记录、把 contact 放进两个 segment", async () => {
+		let created = 0;
 		const { fetcher, calls } = stubApi((method, path) => {
 			if (method === "GET" && path === "/segments") return { body: { data: [] } };
-			if (method === "POST" && path === "/segments") return { body: { id: "seg_daily" } };
+			if (method === "POST" && path === "/segments") {
+				created += 1;
+				return { body: { id: created === 1 ? "seg_daily" : "seg_weekly" } };
+			}
 			if (method === "POST" && path === "/contacts") return { body: { id: "ct_1" } };
 			return { status: 404, body: { message: "unexpected" } };
 		});
@@ -190,28 +228,33 @@ describe("segments · syncSubscriber", () => {
 		});
 
 		expect(result).toEqual({ attempted: true, ok: true });
+		// 分组受众在前、节奏受众在后（各一次 ensure）。
 		expect(calls.map((call) => `${call.method} ${call.path}`)).toEqual([
+			"GET /segments",
+			"POST /segments",
 			"GET /segments",
 			"POST /segments",
 			"POST /contacts",
 		]);
 		expect(calls[1].body).toEqual({ name: "Pulse · 每日摘要" });
-		expect(calls[2].body).toEqual({
+		expect(calls[3].body).toEqual({ name: "Pulse · 每周" });
+		expect(calls[4].body).toEqual({
 			email: "a@example.com",
 			unsubscribed: false,
-			segments: [{ id: "seg_daily" }],
+			segments: [{ id: "seg_daily" }, { id: "seg_weekly" }],
 		});
 		// segment id 写回组记录，下次不再打列表接口。
 		expect(groups.raw.get("daily")?.resendSegmentId).toBe("seg_daily");
 	});
 
-	it("已缓存 segment id 时不再查列表", async () => {
+	it("分组与节奏 id 都已缓存时不再查列表", async () => {
 		const { fetcher, calls } = stubApi((method, path) => {
 			if (method === "POST" && path === "/contacts") return { body: { id: "ct_1" } };
 			return { status: 404, body: {} };
 		});
-		const { ctx, groups } = fakeCtx({ http: fetcher });
+		const { ctx, groups, kv } = fakeCtx({ http: fetcher });
 		await groups.put("daily", group("daily", { resendSegmentId: "seg_cached" }));
+		await kv.set("digest.segment.weekly", "seg_weekly_cached");
 
 		await syncSubscriber(ctx, {
 			id: "sub_1",
@@ -219,7 +262,39 @@ describe("segments · syncSubscriber", () => {
 		});
 
 		expect(calls.map((call) => `${call.method} ${call.path}`)).toEqual(["POST /contacts"]);
-		expect(calls[0].body.segments).toEqual([{ id: "seg_cached" }]);
+		expect(calls[0].body.segments).toEqual([{ id: "seg_cached" }, { id: "seg_weekly_cached" }]);
+	});
+
+	it("节奏受众 id 首次创建后写入 KV 缓存", async () => {
+		const { fetcher, calls } = stubApi((method, path) => {
+			if (method === "GET" && path === "/segments") return { body: { data: [] } };
+			if (method === "POST" && path === "/segments") return { body: { id: "seg_weekly" } };
+			if (method === "POST" && path === "/contacts") return { body: { id: "ct_1" } };
+			return { status: 404, body: {} };
+		});
+		const { ctx, kv } = fakeCtx({ http: fetcher, settings: { defaultCadence: "weekly" } });
+
+		await syncSubscriber(ctx, { id: "sub_1", data: subscriber({ email: "a@example.com" }) });
+
+		expect(calls[1].body).toEqual({ name: "Pulse · 每周" });
+		expect(kv.raw.get("digest.segment.weekly")).toBe("seg_weekly");
+	});
+
+	it("monthly 节奏用「每月」受众", async () => {
+		const { fetcher, calls } = stubApi((method, path) => {
+			if (method === "GET" && path === "/segments") return { body: { data: [] } };
+			if (method === "POST" && path === "/segments") return { body: { id: "seg_monthly" } };
+			if (method === "POST" && path === "/contacts") return { body: { id: "ct_1" } };
+			return { status: 404, body: {} };
+		});
+		const { ctx } = fakeCtx({ http: fetcher });
+
+		await syncSubscriber(ctx, {
+			id: "sub_1",
+			data: subscriber({ email: "a@example.com", cadence: "monthly" }),
+		});
+
+		expect(calls[1].body).toEqual({ name: "Pulse · 每月" });
 	});
 
 	it("退订 / 暂停同步为 unsubscribed:true 且清空分组", async () => {

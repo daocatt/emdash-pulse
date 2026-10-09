@@ -7,11 +7,26 @@
  * 确认 / 退订 token 只存哈希（`tokenHash`），随状态流转轮换。
  *
  * `groups` 是分组 slug 列表（见 `groups.ts`）；空数组 = 主刊订阅者。
+ * `cadence` 是投递节奏（每周 / 每月，见 `digest.ts`）；缺省用插件设置 `defaultCadence`。
  */
 
 import type { PluginContext } from "emdash/plugin";
 
 export type SubscriberStatus = "pending" | "confirmed" | "unsubscribed" | "paused";
+
+/** 投递节奏：只支持每周 / 每月（不做每天）。 */
+export type Cadence = "weekly" | "monthly";
+
+export const CADENCE_VALUES: readonly Cadence[] = ["weekly", "monthly"];
+
+export const CADENCE_LABELS: Record<Cadence, string> = {
+	weekly: "每周",
+	monthly: "每月",
+};
+
+export function isCadence(value: unknown): value is Cadence {
+	return value === "weekly" || value === "monthly";
+}
 
 /** 可以「暂停」的状态——退订是终态，不再暂停。 */
 export type PausableStatus = "pending" | "confirmed";
@@ -41,6 +56,8 @@ export interface SubscriberRecord {
 	source?: string;
 	/** 订阅分组 slug 列表；空数组 / 缺省 = 主刊订阅者。 */
 	groups?: string[];
+	/** 投递节奏；缺省 = 插件设置 `defaultCadence`（默认 weekly）。 */
+	cadence?: Cadence;
 	createdAt: string;
 	/** 最近一次提交订阅的时间。 */
 	requestedAt: string;
@@ -149,6 +166,11 @@ export async function scanSubscribers(ctx: PluginContext, max = MAX_SCAN): Promi
 	}
 
 	return { items, truncated: true };
+}
+
+/** 记录上的节奏；未设置 / 非法时回退到 `fallback`（来自插件设置）。 */
+export function cadenceOf(record: SubscriberRecord, fallback: Cadence): Cadence {
+	return isCadence(record.cadence) ? record.cadence : fallback;
 }
 
 /** 邮箱脱敏（列表展示用）。 */

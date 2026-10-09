@@ -29,19 +29,31 @@ import {
 import { z } from "zod";
 
 import { renderAdmin, type AdminInput } from "./admin";
+import { listDigestRuns, readDigestSettings, runDigest } from "./digest";
 import { listEvents, recordEvent, type EventType } from "./events";
 import { deleteGroup, listActiveGroups, listGroups, saveGroup, sanitizeGroupSlugs } from "./groups";
 import { buildConfirmEmail, buildWelcomeEmail, deliver, linkWithToken, type EmailSender } from "./mail";
-import { pauseSubscriber, resumeSubscriber, setSubscriberGroups, unsubscribeSubscriber } from "./operations";
+import {
+	pauseSubscriber,
+	resumeSubscriber,
+	setSubscriberCadence,
+	setSubscriberGroups,
+	unsubscribeSubscriber,
+} from "./operations";
 import { checkRateLimit, clientIp } from "./rate-limit";
+import { cadenceFromTaskName, ensureDigestSchedules } from "./schedule";
 import { syncSubscriber } from "./segments";
 import {
+	CADENCE_LABELS,
+	cadenceOf,
 	findSubscriberByEmailHash,
 	findSubscriberByTokenHash,
+	isCadence,
 	maskEmail,
 	newSubscriberId,
 	scanSubscribers,
 	subscriberStore,
+	type Cadence,
 	type SubscriberRecord,
 	type SubscriberStatus,
 	type TokenPurpose,
@@ -125,10 +137,14 @@ const WEBHOOK_EVENT_TYPES: Record<string, EventType> = {
 
 const groupSlugs = z.array(z.string().trim().min(1).max(40)).max(20);
 
+/** 投递节奏（每周 / 每月）。 */
+const cadenceSchema = z.enum(["weekly", "monthly"]);
+
 const requestInput = z.object({
 	email: z.string().trim().email().max(200),
 	source: z.string().trim().max(64).optional(),
 	groups: groupSlugs.optional(),
+	cadence: cadenceSchema.optional(),
 });
 
 const tokenInput = z.object({ token: z.string().trim().min(8).max(200) });
@@ -141,6 +157,7 @@ const unsubscribeInput = z.object({
 const preferencesInput = z.object({
 	token: z.string().trim().min(8).max(200),
 	groups: groupSlugs.optional(),
+	cadence: cadenceSchema.optional(),
 });
 
 const listInput = z.object({
@@ -173,6 +190,10 @@ const groupSaveInput = z.object({
 });
 
 const groupDeleteInput = z.object({ slug: z.string().trim().min(1).max(40) });
+
+const digestRunInput = z.object({ cadence: cadenceSchema });
+
+const digestRunsInput = z.object({ limit: z.number().int().min(1).max(100).optional() });
 
 // ---------- 设置 ----------
 
@@ -321,13 +342,19 @@ const plugin: SandboxedPlugin = {
 							: []
 						: await sanitizeGroupSlugs(ctx, parsed.data.groups);
 
+				// 节奏同理：显式传了就覆盖，没传则沿用已有（缺省由插件设置决定，此处不落库）。
+				const cadence = parsed.data.cadence ?? existing?.data.cadence;
+
 				// 已确认（且非单确认模式）：幂等返回，不重复发信（避免被当作骚扰工具）。
-				// 但分组是「读者偏好」，允许在这里顺手更新。
+				// 但分组 / 节奏是「读者偏好」，允许在这里顺手更新。
 				if (!settings.autoConfirm && existing?.data.status === "confirmed") {
 					if (parsed.data.groups !== undefined) {
 						await setSubscriberGroups(ctx, existing.id, parsed.data.groups, "reader");
 					}
-					return ok({ status: "confirmed", email, already: true, delivered: false, groups });
+					if (parsed.data.cadence !== undefined) {
+						await setSubscriberCadence(ctx, existing.id, parsed.data.cadence, "reader");
+					}
+					return ok({ status: "confirmed", email, already: true, delivered: false, groups, cadence: cadence ?? null });
 				}
 
 				const purpose: TokenPurpose = settings.autoConfirm ? "unsubscribe" : "confirm";
@@ -342,6 +369,7 @@ const plugin: SandboxedPlugin = {
 					tokenPurpose: purpose,
 					source: parsed.data.source || existing?.data.source || "web",
 					groups,
+					...(cadence ? { cadence } : {}),
 					createdAt: existing?.data.createdAt ?? now,
 					requestedAt: now,
 					emailDelivered: false,
@@ -385,6 +413,7 @@ const plugin: SandboxedPlugin = {
 					status: record.status,
 					email,
 					groups,
+					cadence: record.cadence ?? null,
 					delivered: record.emailDelivered,
 					...(record.emailDelivered ? {} : { note: "邮件服务未配置，订阅已记录，待发确认邮件。" }),
 				});
@@ -512,11 +541,24 @@ const plugin: SandboxedPlugin = {
 						updated = true;
 					}
 				}
+				if (parsed.data.cadence !== undefined) {
+					const result = await setSubscriberCadence(ctx, found.id, parsed.data.cadence, "reader");
+					if (result.ok) {
+						record = result.record;
+						updated = true;
+					}
+				}
 
+				const digest = await readDigestSettings(ctx);
 				return ok({
 					email: record.email,
 					status: record.status,
 					groups: groupsOf(record),
+					cadence: cadenceOf(record, digest.defaultCadence),
+					cadences: (Object.keys(CADENCE_LABELS) as Cadence[]).map((value) => ({
+						value,
+						label: CADENCE_LABELS[value],
+					})),
 					available,
 					updated,
 				});
@@ -662,6 +704,7 @@ const plugin: SandboxedPlugin = {
 						status: item.data.status,
 						source: item.data.source ?? null,
 						groups: groupsOf(item.data),
+						cadence: item.data.cadence ?? null,
 						created_at: item.data.createdAt,
 						confirmed_at: item.data.confirmedAt ?? null,
 						unsubscribed_at: item.data.unsubscribedAt ?? null,
@@ -811,6 +854,58 @@ const plugin: SandboxedPlugin = {
 			},
 		},
 
+		// ===== 摘要（每周 / 每月） =====
+
+		// 手动触发某档摘要（忽略总开关与幂等判据）。后台页与 MCP 都用它。
+		"digest/run": {
+			permission: "plugins:manage",
+			methods: ["POST"],
+			request: { body: "json" },
+			handler: async (routeCtx, ctx): Promise<Json> => {
+				const parsed = digestRunInput.safeParse(routeCtx.input ?? {});
+				if (!parsed.success) return fail("INVALID_INPUT", { issues: parsed.error.issues });
+				const result = await runDigest(ctx, parsed.data.cadence, { manual: true });
+				return result.ok
+					? ok({ status: result.status, count: result.count, segment_id: result.segmentId })
+					: fail(result.error, { status: result.status });
+			},
+		},
+
+		// 重新同步所有已确认订阅者到远端（含其节奏受众）。功能上线后，老订阅者
+		// 从未进过 cadence 受众，需手动跑一次 backfill（见 docs/17）。
+		"digest/resync": {
+			permission: "plugins:manage",
+			methods: ["POST"],
+			request: { body: "json" },
+			handler: async (_routeCtx, ctx): Promise<Json> => {
+				const { items } = await scanSubscribers(ctx);
+				let scanned = 0;
+				let synced = 0;
+				let failed = 0;
+				for (const item of items) {
+					if (item.data.status !== "confirmed") continue;
+					scanned += 1;
+					const outcome = await syncSubscriber(ctx, { id: item.id, data: item.data });
+					if (outcome.ok) synced += 1;
+					else failed += 1;
+				}
+				return ok({ scanned, synced, failed });
+			},
+		},
+
+		// 摘要运行历史（后台页与 MCP 共用）。
+		"digest/runs": {
+			permission: "plugins:manage",
+			methods: ["POST"],
+			request: { body: "json" },
+			handler: async (routeCtx, ctx): Promise<Json> => {
+				const parsed = digestRunsInput.safeParse(routeCtx.input ?? {});
+				if (!parsed.success) return fail("INVALID_INPUT", { issues: parsed.error.issues });
+				const runs = await listDigestRuns(ctx, parsed.data.limit ?? 20);
+				return ok({ count: runs.length, runs });
+			},
+		},
+
 		// ===== 后台页（Block Kit，两个页面共用此路由，靠 input.page 分派） =====
 
 		admin: {
@@ -819,6 +914,19 @@ const plugin: SandboxedPlugin = {
 				const result = await renderAdmin(ctx, (routeCtx.input ?? {}) as AdminInput);
 				return { blocks: result.blocks, ...(result.toast ? { toast: result.toast } : {}) };
 			},
+		},
+	},
+
+	hooks: {
+		// 首次安装 / 后台重新启用时注册摘要定时任务（幂等）。宿主**不是每次启动**都
+		// 触发 activate，故后台「订阅摘要」页加载时还会再调一次自愈。
+		"plugin:activate": async (_event, ctx) => {
+			await ensureDigestSchedules(ctx);
+		},
+		// 摘要任务到点触发：`digest-weekly` / `digest-monthly`（见 schedule.ts）。
+		cron: async (event, ctx) => {
+			const cadence = cadenceFromTaskName(event.name);
+			if (cadence) await runDigest(ctx, cadence);
 		},
 	},
 
@@ -839,6 +947,26 @@ const plugin: SandboxedPlugin = {
 			listGroups: {
 				description: "列出读者订阅分组（含每组订阅人数）。",
 				route: "groups/list",
+				input: z.object({}),
+				destructive: false,
+			},
+			listDigestRuns: {
+				description: "列出最近的订阅摘要（每周 / 每月）运行记录。",
+				route: "digest/runs",
+				input: z.object({ limit: z.number().int().min(1).max(100).optional() }),
+				destructive: false,
+			},
+			runDigest: {
+				description:
+					"立即向指定节奏（weekly/monthly）的订阅者发送一期内容摘要（忽略总开关与去重，谨慎使用）。",
+				route: "digest/run",
+				input: z.object({ cadence: z.enum(["weekly", "monthly"]) }),
+				destructive: true,
+			},
+			resyncDigestAudience: {
+				description:
+					"重新同步所有已确认订阅者到远端受众（含节奏受众）。摘要功能上线后跑一次 backfill。",
+				route: "digest/resync",
 				input: z.object({}),
 				destructive: false,
 			},

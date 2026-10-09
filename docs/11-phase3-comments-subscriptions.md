@@ -231,6 +231,12 @@ EmDash: Loaded sandboxed plugin pulse-subscriptions:0.1.0 with capabilities: [em
     所以**同一个插件里另一个集合若也用同名字段，就会互撞**：`events` 一度照抄 `emailHash`，结果同一订阅者的第 2 条事件就撞唯一约束，
     `recordEvent` 吞掉异常 ⇒ **事件静默丢失**。更隐蔽的是：内存版测试宿主不校验索引，55 个用例全绿；只有真 SQLite（本地 seed / dev）才暴露。
     **规则**：跨集合复用的字段名要避开被声明为 unique 的字段；事件这类一对多记录只留 `subscriberId` 即可（订阅者 id 稳定，从不重建）。
+
+    > **2026-10-09 在 PG + emdash 1.2.0 上复测更正**：上面「跨集合复用同名字段就会互撞」的**机制描述有误** —— 索引键是
+    > `(plugin_id, collection, (data)::jsonb->>'field')`，**`collection` 在键里**，故跨集合同值**不会**互撞（实测：`subscribers` 与 `events`
+    > 同存 `emailHash=H` 均写入成功；`subscribers` 内重复 `H` 才被拦）。当初真正踩的坑是**同一集合内该字段有合法重复值**
+    > —— `events` 里同一订阅者会有多条事件（`emailHash` 相同）→ 同集合撞唯一约束。**规则照旧**：只给「本集合内必然唯一」的字段声明
+    > `uniqueIndexes`；字段名跨集合复用无需回避。复测脚本见 `scripts/` 临时冒烟（已删）。
 15. **`z.object` 之外的同类陷阱**：任何「只在真数据库 / 真宿主上才生效」的约束（唯一索引、触发器、字段规范化），都要在本地跑一遍 seed 或 dev 才算验证过 —— 单测与 typecheck 都覆盖不到。
 
 ---

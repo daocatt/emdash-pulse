@@ -4,13 +4,14 @@ Suda Pulse **读者订阅**沙箱插件（自研，替代 bulletin 依赖）。
 
 ## 能力与存储
 
-- capabilities：`email:send`、`network:request`（直连 Resend REST + 接收 Webhook）
+- capabilities：`email:send`、`network:request`（直连 Resend REST + 接收 Webhook）、`content:read`（摘要读取 `articles`）
 - allowedHosts：`api.resend.com`
 - storage：
   - `subscribers`（唯一索引 `emailHash`；索引 `status` / `createdAt` / `tokenHash`）
   - `groups`（订阅分组；索引 `active` / `sortOrder`；**slug 即记录 id，创建后不可变**）
   - `events`（订阅事件日志，append-only；索引 `subscriberId` / `type` / `at`）
   - `broadcasts`（群发历史；索引 `createdAt`）
+  - `digest_runs`（摘要运行留痕 + 幂等判据；索引 `cadence` / `sentAt`；**不声明 unique**）
 
 状态机：`pending`（待确认）→ `confirmed`（已确认）→ `unsubscribed`（已退订），
 外加只能由后台进出的 `paused`（暂停投递，记录保留）。
@@ -31,7 +32,7 @@ Resend 侧的回执（`email.delivered` / `bounced` / `complained` / `opened` / 
 | `subscribe/request` | POST | 公开 | — | 提交邮箱 + 可选 `groups` → 建 pending + 发确认邮件；已确认则幂等返回（可顺手更新分组）；命中 `paused` 则不改状态、只记 `request_blocked` |
 | `subscribe/confirm` | POST | 公开 | — | 凭确认 token 转 confirmed，转出退订用途 token 并发欢迎邮件 |
 | `unsubscribe` | POST | 公开 | — | 凭退订 token 转 unsubscribed，可带 `reason` |
-| `preferences` | POST | 公开 | — | 读者自助（token 即凭证）：`{token}` 只读返回 `{email,status,groups,available}`；带 `groups` 则写入 |
+| `preferences` | POST | 公开 | — | 读者自助（token 即凭证）：`{token}` 只读返回 `{email,status,groups,cadence,cadences,available}`；带 `groups` / `cadence` 则写入 |
 | `groups/public` | POST | 公开 | — | 只读启用中的分组（前台订阅表单用）。**不加 IP 限流**——SSR 取不到真实 IP |
 | `resend/webhook` | POST | 公开 | — | 投递回执（当前 transport 验签，Resend 用 Svix，`request: { body: "text" }`）。未配置签名密钥 → 503；验签失败 → 401 |
 | `subscribers/list` | POST | 私有 | `plugins:manage` | 订阅者列表（`status` / `group` / `q` / `limit` 过滤）+ 各状态计数 |
@@ -40,21 +41,44 @@ Resend 侧的回执（`email.delivered` / `bounced` / `complained` / `opened` / 
 | `groups/list` | POST | 私有 | `plugins:manage` | 分组列表（含 `members` 计数） |
 | `groups/save` | POST | 私有 | `plugins:manage` | 新建（`create:true`，slug 必须不存在）/ 更新分组 |
 | `groups/delete` | POST | 私有 | `plugins:manage` | 删除分组，并先从订阅者记录里摘掉该 slug |
-| `admin` | — | 私有 | `plugins:manage` | 后台三页（Block Kit，靠 `input.page` 分派） |
+| `digest/run` | POST | 私有 | `plugins:manage` | 手动触发某档摘要（忽略总开关与去重） |
+| `digest/resync` | POST | 私有 | `plugins:manage` | 重新同步全部已确认订阅者到远端受众（含节奏受众）；上线后跑一次 backfill |
+| `digest/runs` | POST | 私有 | `plugins:manage` | 摘要运行历史 |
+| `admin` | — | 私有 | `plugins:manage` | 后台四页（Block Kit，靠 `input.page` 分派） |
 
 公开路由为 `response: "raw"`（返回真实 400/401/409/429/503 状态码）。
 
-MCP 工具：`listSubscribers`（含 `group` / `q`）、`listGroups`。
+MCP 工具：`listSubscribers`（含 `group` / `q`）、`listGroups`、`listDigestRuns`、`runDigest`、`resyncDigestAudience`。
+
+## 订阅摘要（每周 / 每月）
+
+按**订阅节奏**自动向读者发送上一周期的内容精选。见 `src/digest.ts`（内容 + 运行）、`src/schedule.ts`（定时注册）。
+
+- **节奏**（cadence）：订阅者记录上的 `cadence: "weekly" | "monthly"`；缺省用设置 `defaultCadence`。
+  读者可在**订阅管理页**自助切换（`preferences` 路由的 `cadence` 字段）。
+- **受众**：节奏是**平行的受众维度** —— `confirmed` 订阅者除分组 segment 外，还会被同步进
+  「`前缀 + 每周/每月`」segment（id 缓存在 `ctx.kv`，见 `segments.ts` 的 `cadenceAudienceId`）。
+- **调度**：`ctx.cron.schedule("digest-weekly" / "digest-monthly", …)`（幂等 upsert）。
+  **时区固定 UTC**（本站 CST = UTC+8，默认 `0 0 * * 1` = 周一 08:00、`0 0 1 * *` = 每月 1 日 08:00）。
+  注册时机：`plugin:activate`（首次安装 / 后台重启用）；后台「订阅摘要」页加载时会再调一次**自愈**
+  —— 宿主**不是每次启动**都触发 activate。
+- **内容**：`上一个完整自然周 / 自然月`（CST 对齐）内发布的文章，按「头条候选 → 版面权重 → 时间」
+  排序取前 N 篇。插件侧 `ctx.content.list` **不支持按 `published_at` 区间过滤**，故取一批后**在 JS 里裁剪**。
+- **投递**：走当前 transport 的 `send()`（Resend Broadcasts，面向节奏受众）。
+- **幂等**：每档最近一条 `digest_runs` 的 `windowUntil >= 本期 until` 时跳过；窗口内无文章不发。
+- **手动**：后台「订阅摘要」页可「立即发送本期」（忽略去重）与「重新同步受众」（backfill）。
 
 ## 后台
 
-manifest `admin.pages` 注册三个页面，共用同一个 `admin` 路由（宿主会给每个交互补上 `page`）：
+manifest `admin.pages` 注册四个页面，共用同一个 `admin` 路由（宿主会给每个交互补上 `page`）：
 
 - `/subscribers`（订阅者）：统计 + 筛选（状态 / 分组 / 邮箱关键词）+ 订阅者表
   （邮箱脱敏；行级操作：暂停 / 恢复 / 退订 / 改分组 / 订阅记录）+ 显式分页。
 - `/groups`（订阅分组）：统计 + 新建 / 编辑表单 + 分组表（名称 / slug / 订阅人数 / 状态 / 排序）。
 - `/broadcast`（订阅群发）：选目标分组 + 主题 + HTML 正文 → 走 Resend Broadcast 立即发送；
   下方是本地群发历史（主题 / 分组 / 状态 / 时间 / 详情）。
+- `/digest`（订阅摘要）：开关与通道状态、每周 / 每月任务的下次运行时间（**本地时区展示**）、
+  节奏订阅者计数、立即发送本期、重新同步受众、运行历史表。
 
 实现要点（踩过的坑，见 `src/admin.ts` 顶部注释）：
 
@@ -71,6 +95,8 @@ manifest `admin.pages` 注册三个页面，共用同一个 `admin` 路由（宿
 `admin.settingsSchema`：`autoConfirm`（单确认，无邮件服务时可用）、`replyTo`、
 `confirmSubject`、`welcomeSubject`、`confirmPath`、`unsubscribePath`、
 `broadcastProvider`（群发投递通道，默认 `resend`）、
+`digestEnabled`（摘要总开关）、`defaultCadence`（默认节奏）、`weeklySchedule` / `monthlySchedule`
+（**UTC** cron）、`digestMaxArticles`、`weeklySubject` / `monthlySubject`（支持 `{site}` / `{count}`）、
 `resendSyncEnabled`、`resendSegmentPrefix`、`resendWebhookSecret`。
 
 ## 邮件
@@ -113,9 +139,9 @@ Resend 实现的具体约定：
 ## 前台接线
 
 - `src/utils/subscriptions.ts`：`fetchActiveGroups` / `callPreferences` / `resolveManageOutcome`。
-- `SubscribeForm.astro`：可选渲染分组勾选；提交始终带 `groups`。
+- `SubscribeForm.astro`：可选渲染分组勾选；提交始终带 `groups`（**不含节奏**，新读者用默认节奏）。
 - 两套主题的 `pages/subscribe.astro` 传 `groups`，`pages/subscribe/unsubscribe.astro` 即**订阅管理页**
-  （GET 只读，退订 / 改分组走原生 POST）。
+  （GET 只读，退订 / 改分组 / 改节奏走原生 POST）。
 
 ## 命令
 

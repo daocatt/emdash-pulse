@@ -25,7 +25,7 @@ import type { PluginContext } from "emdash/plugin";
 
 import { recordEvent } from "./events";
 import { groupStore, listGroups, type GroupListEntry } from "./groups";
-import type { SubscriberRecord } from "./subscribers";
+import { cadenceOf, isCadence, CADENCE_LABELS, type Cadence, type SubscriberRecord } from "./subscribers";
 import { httpFetcher, resolveTransport, type BroadcastTransport } from "./transport";
 
 /** 受众名字前缀：同一个远端账号被多环境（staging / prod）共用时避免撞名。 */
@@ -34,11 +34,14 @@ export const DEFAULT_SEGMENT_PREFIX = "Pulse · ";
 export interface ResendSyncSettings {
 	enabled: boolean;
 	prefix: string;
+	/** 订阅者未显式选择节奏时的默认档位（摘要用）。 */
+	defaultCadence: Cadence;
 }
 
 export const DEFAULT_SYNC_SETTINGS: ResendSyncSettings = {
 	enabled: true,
 	prefix: DEFAULT_SEGMENT_PREFIX,
+	defaultCadence: "weekly",
 };
 
 export async function readSyncSettings(ctx: PluginContext): Promise<ResendSyncSettings> {
@@ -49,13 +52,18 @@ export async function readSyncSettings(ctx: PluginContext): Promise<ResendSyncSe
 			return null;
 		}
 	};
-	const [enabled, prefix] = await Promise.all([get("resendSyncEnabled"), get("resendSegmentPrefix")]);
+	const [enabled, prefix, defaultCadence] = await Promise.all([
+		get("resendSyncEnabled"),
+		get("resendSegmentPrefix"),
+		get("defaultCadence"),
+	]);
 	return {
 		enabled: typeof enabled === "boolean" ? enabled : DEFAULT_SYNC_SETTINGS.enabled,
 		prefix:
 			typeof prefix === "string" && prefix.trim() !== ""
 				? prefix.trim()
 				: DEFAULT_SYNC_SETTINGS.prefix,
+		defaultCadence: isCadence(defaultCadence) ? defaultCadence : DEFAULT_SYNC_SETTINGS.defaultCadence,
 	};
 }
 
@@ -87,6 +95,40 @@ export async function ensureGroupAudience(
 	return result.data.id;
 }
 
+/** cadence 受众 id 的 KV 缓存键（分组把 id 写回组记录，cadence 没有记录可写，故用 KV）。 */
+const cadenceCacheKey = (cadence: Cadence): string => `digest.segment.${cadence}`;
+
+/**
+ * 确保某档节奏有对应的远端受众，返回受众 id（失败返回 null）。
+ *
+ * 与 `ensureGroupAudience` 的区别：cadence 没有「组记录」可以回写，缓存落在
+ * `ctx.kv`。KV 不可用时退化为每次都查（`ensureAudience` 本身幂等，只是多一次请求）。
+ */
+export async function cadenceAudienceId(
+	ctx: PluginContext,
+	transport: BroadcastTransport,
+	cadence: Cadence,
+	prefix: string,
+): Promise<string | null> {
+	const key = cadenceCacheKey(cadence);
+	try {
+		const cached = await ctx.kv?.get<string>(key);
+		if (typeof cached === "string" && cached !== "") return cached;
+	} catch {
+		// KV 读失败：继续走 ensureAudience（幂等）。
+	}
+
+	const result = await transport.ensureAudience(segmentName(prefix, CADENCE_LABELS[cadence]));
+	if (!result.ok) return null;
+
+	try {
+		await ctx.kv?.set(key, result.data.id);
+	} catch {
+		// 缓存写失败不影响本次返回。
+	}
+	return result.data.id;
+}
+
 export interface SyncOutcome {
 	/** 是否真正发起了同步（未配置 / 已禁用 / 无网络时为 false）。 */
 	attempted: boolean;
@@ -98,7 +140,7 @@ export interface SyncOutcome {
  * 把一个订阅者的当前状态同步到远端。**永不抛错**。
  *
  * 目标状态：
- *   - `confirmed` → contact `unsubscribed:false` + 属于其分组的所有受众
+ *   - `confirmed` → contact `unsubscribed:false` + 属于其分组的受众 + 其节奏（cadence）受众
  *   - `paused` / `unsubscribed` → contact `unsubscribed:true`，且清空受众归属
  *   - `pending` → 跳过（邮箱未确认）
  */
@@ -123,15 +165,25 @@ export async function syncSubscriber(
 
 		const confirmed = record.status === "confirmed";
 		const audienceIds: string[] = [];
-		if (confirmed && (record.groups ?? []).length > 0) {
-			const wanted = new Set(record.groups ?? []);
-			const groups = (await listGroups(ctx)).filter(
-				(group) => wanted.has(group.slug) && group.data.active,
-			);
-			for (const group of groups) {
-				const audienceId = await ensureGroupAudience(ctx, transport, group, settings.prefix);
-				if (audienceId) audienceIds.push(audienceId);
+		if (confirmed) {
+			if ((record.groups ?? []).length > 0) {
+				const wanted = new Set(record.groups ?? []);
+				const groups = (await listGroups(ctx)).filter(
+					(group) => wanted.has(group.slug) && group.data.active,
+				);
+				for (const group of groups) {
+					const audienceId = await ensureGroupAudience(ctx, transport, group, settings.prefix);
+					if (audienceId) audienceIds.push(audienceId);
+				}
 			}
+			// 节奏受众：摘要按它群发（见 digest.ts）。
+			const cadenceId = await cadenceAudienceId(
+				ctx,
+				transport,
+				cadenceOf(record, settings.defaultCadence),
+				settings.prefix,
+			);
+			if (cadenceId) audienceIds.push(cadenceId);
 		}
 
 		const result = await transport.syncContact({
