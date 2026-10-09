@@ -33,24 +33,27 @@ Internet ──TLS──▶  反向代理（Caddy / nginx）           │
                                ▼
                     ┌──────────────────────┐
                     │  pulse-app           │  Node 22 · Astro SSR · 全部插件 in-process
-                    │  (Dockerfile)        │  卷 pulse-data → /app/data（本地媒体 + 会话）
+                    │  (Dockerfile)        │  $DATA/app → /app/data（本地媒体 + 会话）
                     └───┬──────────────┬───┘
                         ▼              ▼
               ┌─────────────────┐  ┌──────────────────┐
               │  pulse-db       │  │  pulse-redis     │
               │  postgres:17    │  │  redis:7         │
-              │  卷 pulse-db-data│  │  卷 pulse-redis-data│
+              │  $DATA/postgres │  │  $DATA/redis     │
               └─────────────────┘  └──────────────────┘
+
+  $DATA = .env 的 DOCKER_DATA_PATH（默认 ./data），绑定挂载到宿主目录。
 ```
 
-| 容器 | 镜像 | 作用 | 持久化 |
+| 容器 | 镜像 | 作用 | 持久化（宿主路径） |
 | --- | --- | --- | --- |
-| `pulse-app` | 本仓库 `Dockerfile` | Astro SSR + EmDash + 8 个插件（同进程） | 卷 `pulse-data` → `/app/data` |
-| `pulse-db` | `postgres:17-alpine` | 内容 / 用户 / 评论 / 订阅 / 插件存储 | 卷 `pulse-db-data` |
-| `pulse-redis` | `redis:7-alpine` | EmDash 对象缓存后端 | 卷 `pulse-redis-data`（RDB 快照） |
+| `pulse-app` | 本仓库 `Dockerfile` | Astro SSR + EmDash + 8 个插件（同进程） | `$DOCKER_DATA_PATH/app` → `/app/data` |
+| `pulse-db` | `postgres:17-alpine` | 内容 / 用户 / 评论 / 订阅 / 插件存储 | `$DOCKER_DATA_PATH/postgres` |
+| `pulse-redis` | `redis:7-alpine` | EmDash 对象缓存后端 | `$DOCKER_DATA_PATH/redis`（RDB 快照） |
 
 容器名固定为 `pulse-app` / `pulse-db` / `pulse-redis`。**`pulse-app` 只绑 `127.0.0.1:4321`**，
-不直接暴露到公网。
+不直接暴露到公网（`pulse-db` 也只绑回环，供宿主 `psql` / `pg_dump` 用）。
+数据落宿主目录而非 Docker 命名卷，便于直接 `rsync` / 快照备份。
 
 ---
 
@@ -79,6 +82,8 @@ cp .env.example .env
 | `EMDASH_TRUSTED_PROXY_HEADERS` | 保持 `x-forwarded-for`，否则限流/订阅会按代理 IP 计数 |
 
 选填：`S3_*`（媒体放对象存储）、`EMDASH_OAUTH_GITHUB_*`（GitHub 登录）、`SITE_THEME`（构建期默认主题）、`REDIS_URL`（本地 dev 用）。
+
+compose 编排变量：`DOCKER_DATA_PATH`（数据根目录，默认 `./data`，**生产建议绝对路径**如 `/srv/pulse/data`）、`APP_PORT`（`pulse-app` 绑定的宿主回环端口，默认 `4321`，反代转发到这里）、`DB_PORT`（`pulse-db` 宿主回环端口，默认 `5432`）、`TZ`（默认 `Asia/Shanghai`）。
 
 ### 3.3 启动
 
@@ -130,7 +135,7 @@ nginx 要点：`proxy_set_header Host $host; proxy_set_header X-Forwarded-For $p
 
 ```bash
 npm run docker:up              # 构建并启动 / 应用新配置
-npm run docker:down            # 停栈（保留卷）
+npm run docker:down            # 停栈（保留数据目录）
 docker compose logs -f pulse-app
 docker compose restart pulse-app
 npm run search:rebuild         # 手动重建搜索索引（见 §6）
@@ -138,12 +143,41 @@ npm run search:rebuild         # 手动重建搜索索引（见 §6）
 
 ### 升级流程
 
+**方式一：GitHub Actions（推荐）** —— 见下方「持续部署」。
+
+**方式二：手动**
+
 ```bash
 git pull
 npm run docker:up              # 重新构建 pulse-app；启动时自动跑迁移
 ```
 
 镜像重建后 `pulse-app` 的启动命令会先跑迁移再起服务。**升级前先备份**（§8）。
+
+### 持续部署（GitHub Actions）
+
+`.github/workflows/deploy.yml` 在 **`production` 分支**被 push 时（或手动 `workflow_dispatch`）触发，
+`main` 只作开发分支、**不会**部署：
+
+1. **verify**（GitHub 侧）：`npm ci` → `plugin:build` → `typecheck:all`（两套主题）→ `npm run build`。
+   任何一步失败都不会连 VPS（构建期不需要数据库）。
+2. **deploy**（SSH 到 VPS）：`git fetch` → `git checkout -B production origin/production && git reset --hard`
+   → `cp $VPS_ENV_FILE .env` → `docker compose build --no-cache`（失败即中止、日志脱敏）
+   → `docker compose up -d --remove-orphans` → `docker image prune -f`。
+
+需要配置的 **Repository secrets**：
+
+| Secret | 说明 |
+| --- | --- |
+| `VPS_HOST` | VPS 主机名 / IP |
+| `VPS_USERNAME` | SSH 用户 |
+| `VPS_SSH_KEY` | SSH 私钥（对应公钥已装到 VPS 的 `~/.ssh/authorized_keys`） |
+| `VPS_PORT` | SSH 端口（可选，默认 22） |
+| `VPS_PROJECT_PATH` | VPS 上的仓库路径（如 `/srv/pulse`） |
+| `VPS_ENV_FILE` | VPS 上存放真实 `.env` 的路径（如 `/srv/pulse.env`）；部署时 `cp` 成仓库根的 `.env` |
+
+发布流程：`git push origin main` 开发合并后，把 `production` 快进/合并到目标提交并 `git push origin production` 即触发。
+回滚：把 `production` 重置到上一个正常提交再 push（或手动 dispatch）。
 
 ### 本地开发（不走 Docker）
 
@@ -189,22 +223,27 @@ EmDash 的 FTS 只支持 SQLite。PG 上本站自建：
 
 ## 8. 备份与恢复
 
-要备份三样：**PG 数据**、**`pulse-data` 卷**（本地媒体 + 会话）、**`EMDASH_ENCRYPTION_KEY`**。
+要备份三样：**PG 数据**、**媒体 / 会话目录**（`$DOCKER_DATA_PATH/app`）、**`EMDASH_ENCRYPTION_KEY`**。
+因为数据都落在宿主目录（绑定挂载），可直接打包：
 
 ```bash
+DATA="${DOCKER_DATA_PATH:-./data}"
+
 # PostgreSQL（逻辑备份）
 docker compose exec pulse-db pg_dump -U "${POSTGRES_USER:-pulse}" "${POSTGRES_DB:-pulse}" > backup-$(date +%F).sql
 
-# 本地媒体 / 会话卷
-docker run --rm -v pulse-data:/data -v "$PWD":/out alpine \
-  tar czf /out/pulse-data-$(date +%F).tgz -C /data .
+# 本地媒体 / 会话目录
+tar czf "pulse-app-$(date +%F).tgz" -C "$DATA" app
 
 # 恢复
 docker compose exec -T pulse-db psql -U "${POSTGRES_USER:-pulse}" "${POSTGRES_DB:-pulse}" < backup-YYYY-MM-DD.sql
-docker run --rm -v pulse-data:/data -v "$PWD":/out alpine tar xzf /out/pulse-data-YYYY-MM-DD.tgz -C /data
+tar xzf pulse-app-YYYY-MM-DD.tgz -C "$DATA"
 ```
 
-> 用了 S3 存媒体就跳过卷备份，改备份桶。
+> 要连 PG 数据目录一起冷备，最省事的是停栈后打包整个 `$DATA`：
+> `docker compose down && tar czf pulse-data-$(date +%F).tgz -C "$DATA" .`
+> 用了 S3 存媒体就跳过媒体目录，改备份桶。
+
 > **`EMDASH_ENCRYPTION_KEY` 必须单独妥善保管**：它不在数据库里，丢了就无法解密已存的插件密钥。
 
 ---

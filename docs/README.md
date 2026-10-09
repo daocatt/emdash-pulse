@@ -56,6 +56,7 @@
 - **Phase 7b（PG 全文搜索）** ✅：EmDash 的 FTS 建在 SQLite FTS5 上、非 SQLite 方言直接抛错，故自建 `pulse_search` 表 + **`pg_trgm` GIN trigram 索引**（`src/server/search-index.mjs`：自有 `pg` 连接池、懒建懒刷新、advisory lock 防并发重建、任何异常降级为空结果）；`scripts/search-rebuild.mjs`（`npm run search:rebuild`）。
 - **Phase 7c（AI 网关插件）** ✅：新增 `pulse-ai`（provider / Cloudflare AI Gateway / 自定义 base URL / 模型 / 加密 API key / 超时 / max tokens + 后台「AI 网关」页含实时连通性自测）；`pulse-review` 的 AI 审核改为委托 `pulse-ai/client`，不再自带凭证设置（`allowedHosts` 覆盖 `pulse-ai` 可能指向的所有端点）。
 - **Phase 7d（Resend 分组同步 + 群发）** ✅：`pulse-subscriptions` 把**订阅分组同步为 Resend Segments**（segment id 缓存回组记录，避免每次同步都打列表接口），新增后台 **订阅群发** 页（走 Resend **Broadcasts**，`send: true`，Resend 负责展开收件人 / 插退订链接 / 跳过已退订），以及 `resend/webhook`（**Svix 验签**，`request: { body: "text" }` 用原始字节；回执只写事件日志，**不自动改订阅状态**）；manifest 新增 `network:request` + `allowedHosts` + `broadcasts` 集合，插件升 0.3.0。
+- **Phase 7e（持续部署）** ✅：`.github/workflows/deploy.yml` —— **仅 `production` 分支触发**（`main` 不部署），GitHub 侧先 verify（`plugin:build` → `typecheck:all` → `build`），再 SSH 到 VPS `git reset --hard origin/production` → `cp $VPS_ENV_FILE .env` → `docker compose build --no-cache` → `up -d`；`docker-compose.yml` 数据持久化改为**绑定挂载**（`DOCKER_DATA_PATH` 可在 `.env` 配置）。
 - 详见 [10-phase0-report.md](./10-phase0-report.md) 与 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)（含每阶段关键发现与踩坑）。
 
 ---

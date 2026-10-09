@@ -1,0 +1,92 @@
+name: Production CD (Suda Pulse)
+
+# 只由 **production** 分支触发（main 仅作开发，push 到 main 不会部署）。
+# 也可在 Actions 页手动 dispatch（用于回滚：先重置 production 再手动跑）。
+on:
+  push:
+    branches:
+      - production
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  # 先在 GitHub 侧验证：装依赖 → 构建插件 → 两套主题 typecheck → 生产构建。
+  # 任何一步失败都不会 SSH 到 VPS。
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build plugins
+        run: npm run plugin:build
+
+      - name: Type check (both themes)
+        run: npm run typecheck:all
+
+      - name: Verify build
+        run: npm run build
+        env:
+          # 构建期只决定适配器「种类」，不连库；给占位值即可（见 astro.config.mjs）。
+          EMDASH_SITE_URL: https://pulse.example.com
+          SITE_THEME: news-factory
+          DATABASE_URL: postgres://placeholder:placeholder@127.0.0.1:5432/placeholder
+
+  # 通过后 SSH 到 VPS：同步 production → 注入 .env → 重建并启动三容器栈。
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remote SSH deployment
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT != '' && secrets.VPS_PORT || 22 }}
+          script: |
+            set -e
+            set -o pipefail
+
+            PROJECT_PATH="${{ secrets.VPS_PROJECT_PATH }}"
+            ENV_FILE="${{ secrets.VPS_ENV_FILE }}"
+            BRANCH="production"
+
+            cd "$PROJECT_PATH"
+            git fetch --all
+            echo "🚀 Deployment started at $(date) — commit $(git rev-parse --short origin/$BRANCH)"
+
+            # 1. 同步代码到 production 分支（硬重置：VPS 上的本地改动一律丢弃）
+            git checkout -B "$BRANCH" "origin/$BRANCH"
+            git reset --hard "origin/$BRANCH"
+
+            # 2. 注入运行期环境（.env 不进仓库，放在 VPS 上、由 VPS_ENV_FILE 指向）
+            cp "$ENV_FILE" .env
+
+            # 3. 构建镜像 —— 失败即中止（绝不沿用旧镜像假装成功），日志脱敏
+            echo "📦 Building images..."
+            if ! docker compose build --no-cache >/tmp/pulse-build.log 2>&1; then
+              echo "❌ Build failed — deployment aborted. Last build output:"
+              tail -80 /tmp/pulse-build.log | grep -vE '(DATABASE_URL|PGPASSWORD|POSTGRES_PASSWORD|EMDASH_ENCRYPTION_KEY|S3_SECRET|SECRET)'
+              exit 1
+            fi
+
+            # 4. 启动（compose 会按 healthcheck 等 pulse-db / pulse-redis 就绪）
+            echo "🚀 Starting containers..."
+            docker compose up -d --remove-orphans
+
+            # 5. 清理悬空镜像
+            docker image prune -f
+
+            echo "✅ Deployment successful! (commit $(git rev-parse --short HEAD))"

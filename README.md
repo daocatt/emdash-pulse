@@ -73,7 +73,7 @@ git clone <repo> /srv/pulse && cd /srv/pulse
 cp .env.example .env
 ```
 
-Required: `EMDASH_ENCRYPTION_KEY` (encrypts plugin secrets at rest — **back it up**, losing it makes stored secrets unreadable), `EMDASH_SITE_URL` (public origin), `POSTGRES_PASSWORD`, and `EMDASH_TRUSTED_PROXY_HEADERS=x-forwarded-for` (so rate limits and subscriptions see the real client IP). Optional: `S3_*` for object storage, `EMDASH_OAUTH_GITHUB_*` for GitHub sign-in, `SITE_THEME`.
+Required: `EMDASH_ENCRYPTION_KEY` (encrypts plugin secrets at rest — **back it up**, losing it makes stored secrets unreadable), `EMDASH_SITE_URL` (public origin), `POSTGRES_PASSWORD`, and `EMDASH_TRUSTED_PROXY_HEADERS=x-forwarded-for` (so rate limits and subscriptions see the real client IP). Optional: `S3_*` for object storage, `EMDASH_OAUTH_GITHUB_*` for GitHub sign-in, `SITE_THEME`. Compose variables: `DOCKER_DATA_PATH` (host data root, default `./data` — use an absolute path in production), `APP_PORT` (default `4321`), `DB_PORT` (default `5432`), `TZ` (default `Asia/Shanghai`).
 
 ### 2. Start
 
@@ -81,7 +81,7 @@ Required: `EMDASH_ENCRYPTION_KEY` (encrypts plugin secrets at rest — **back it
 npm run docker:up     # = docker compose up -d --build
 ```
 
-This builds `pulse-app` (plugins → Astro build), starts `pulse-db` and `pulse-redis`, and runs migrations on boot. `pulse-db` creates the `pg_trgm` extension on first initialisation (`docker/initdb/00-extensions.sql`).
+This builds `pulse-app` (plugins → Astro build), starts `pulse-db` and `pulse-redis`, and runs migrations on boot. `pulse-db` creates the `pg_trgm` extension on first initialisation (`docker/initdb/00-extensions.sql`). Data lives in bind mounts under `DOCKER_DATA_PATH` (`postgres/`, `app/`, `redis/`) so it can be backed up or moved directly.
 
 ### 3. Reverse proxy
 
@@ -93,6 +93,12 @@ Merge the site block from [`deploy/Caddyfile.example`](./deploy/Caddyfile.exampl
 2. Back office → **Resend** page → set the API key and From address. Without it, magic-link sign-in returns `503 EMAIL_NOT_CONFIGURED` and subscription emails are only queued.
 3. *Optional* — back office → **AI gateway** page → pick a provider, enter credentials, hit **Test connection**.
 4. *Optional* — configure the Resend webhook for delivery receipts (see `docs/16-vps-deployment.md` §7).
+
+### Continuous deployment (GitHub Actions)
+
+`.github/workflows/deploy.yml` deploys on push to the **`production`** branch (`main` is development only and never deploys; there is also a manual `workflow_dispatch`). It first runs a GitHub-side `verify` job (`npm ci` → `plugin:build` → `typecheck:all` → `build`), then SSHes to the VPS to `git reset --hard origin/production`, write `.env`, and run `docker compose build --no-cache && docker compose up -d`.
+
+Configure these repository secrets: `VPS_HOST`, `VPS_USERNAME`, `VPS_SSH_KEY`, `VPS_PORT` (optional, default 22), `VPS_PROJECT_PATH` (repo path on the VPS), and `VPS_ENV_FILE` (path to the real `.env` on the VPS, copied into the repo root at deploy time).
 
 ### Build-time vs runtime configuration
 
@@ -114,6 +120,8 @@ EmDash serialises the `database` / `storage` / `objectCache` descriptors into th
 | `EMDASH_ENCRYPTION_KEY` | Encrypts plugin secrets at rest | **Yes** |
 | `EMDASH_SITE_URL` | Public origin (Passkey, CSRF, MCP discovery, sitemap, JSON-LD, image allow-list) | **Yes in production** |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Database credentials (compose derives `DATABASE_URL` and `PG*` from these) | **Yes** |
+| `DOCKER_DATA_PATH` | Host directory for the bind-mounted data (`postgres/`, `app/`, `redis/`); default `./data` | No |
+| `APP_PORT` / `DB_PORT` | Host loopback ports for `pulse-app` (4321) / `pulse-db` (5432) | No |
 | `DATABASE_URL` | Single connection string for the `emdash` CLI / migrations | One of the two |
 | `PGHOST` / `PGPORT` / `PGDATABASE` / `PGUSER` / `PGPASSWORD` | Standard libpq variables for the runtime pool | One of the two |
 | `REDIS_URL` | EmDash object cache backend; cache is bypassed when unset | No |

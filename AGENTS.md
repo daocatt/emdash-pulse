@@ -24,11 +24,13 @@ npm run demo:data:clean           # 只清理 Demo 互动数据
 npx emdash types                  # 从运行中的站点生成类型
 npx emdash secret                 # 生成 EMDASH_ENCRYPTION_KEY
 npm run docker:up                 # 构建并启动三容器栈（= docker compose up -d --build）
-npm run docker:down               # 停栈（保留卷）
+npm run docker:down               # 停栈（保留数据目录）
 npm run start                     # 跑构建后的 Node 产物（dist/server/entry.mjs）
 ```
 
-**部署（VPS / Docker）**：`npm run docker:up` 起 `pulse-app` + `pulse-db` + `pulse-redis`，TLS 由**宿主**反向代理终止（样例 `deploy/Caddyfile.example`，`pulse-app` 只绑 `127.0.0.1:4321`）。**仓库里不出现任何凭据** —— 全部走 gitignored 的 `.env`（模板 `.env.example`）。首次启动后需在后台走一次 setup 向导（灌 seed 内容 + 注册管理员 passkey），并在「Resend」页填 API key / From。完整运维手册见 [docs/16-vps-deployment.md](docs/16-vps-deployment.md)。
+**部署（VPS / Docker）**：`npm run docker:up` 起 `pulse-app` + `pulse-db` + `pulse-redis`，TLS 由**宿主**反向代理终止（样例 `deploy/Caddyfile.example`，`pulse-app` 只绑 `127.0.0.1:4321`）。数据以绑定挂载落在 `.env` 的 `DOCKER_DATA_PATH`（默认 `./data`）下。**仓库里不出现任何凭据** —— 全部走 gitignored 的 `.env`（模板 `.env.example`）。首次启动后需在后台走一次 setup 向导（灌 seed 内容 + 注册管理员 passkey），并在「Resend」页填 API key / From。完整运维手册见 [docs/16-vps-deployment.md](docs/16-vps-deployment.md)。
+
+**持续部署**：`.github/workflows/deploy.yml` **只由 `production` 分支触发**（`main` 仅开发，不部署）。发布 = 把目标提交推到 `production`；回滚 = 把 `production` 重置到上一个正常提交再推。
 
 后台：`http://localhost:4321/_emdash/admin`
 
@@ -60,9 +62,10 @@ npm run start                     # 跑构建后的 Node 产物（dist/server/en
 | `scripts/perf.mjs` | 移动端性能复核（Lighthouse + 运行期主题切换，`npm run perf`） |
 | `scripts/demo-data.mjs` | Demo 互动数据注入 / 清理（本地 PG，`npm run demo:data`） |
 | `scripts/search-rebuild.mjs` | 重建 PG 搜索索引（`npm run search:rebuild`） |
-| `docker-compose.yml` | 三容器栈（`pulse-app` / `pulse-db` / `pulse-redis`）+ 卷 + 健康检查 |
+| `docker-compose.yml` | 三容器栈（`pulse-app` / `pulse-db` / `pulse-redis`）+ 绑定挂载（`DOCKER_DATA_PATH`）+ 健康检查 |
 | `Dockerfile` | `pulse-app` 镜像：构建期只传适配器**种类**与站点 URL，凭据全部运行期注入 |
 | `docker/initdb/00-extensions.sql` | PG 首次初始化建 `pg_trgm` 扩展 |
+| `.github/workflows/deploy.yml` | 生产 CD：push 到 `production` 触发（verify → SSH → compose 重建） |
 | `deploy/Caddyfile.example` | 宿主反向代理 + 自动 HTTPS 样例（nginx 要点在文件注释里） |
 | `.env.example` | 部署环境变量模板（`cp .env.example .env`；`.env` gitignored） |
 | `src/server/redis-object-cache.ts` | EmDash 对象缓存后端（`REDIS_URL`，未配则 no-op） |

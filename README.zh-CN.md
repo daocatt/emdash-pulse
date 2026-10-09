@@ -73,7 +73,7 @@ git clone <repo> /srv/pulse && cd /srv/pulse
 cp .env.example .env
 ```
 
-必填：`EMDASH_ENCRYPTION_KEY`（加密落库的插件密钥 —— **务必备份**，丢了它已存的密钥就解不开）、`EMDASH_SITE_URL`（公开 origin）、`POSTGRES_PASSWORD`，以及 `EMDASH_TRUSTED_PROXY_HEADERS=x-forwarded-for`（让限流/订阅拿到真实客户端 IP）。可选：`S3_*`（对象存储）、`EMDASH_OAUTH_GITHUB_*`（GitHub 登录）、`SITE_THEME`。
+必填：`EMDASH_ENCRYPTION_KEY`（加密落库的插件密钥 —— **务必备份**，丢了它已存的密钥就解不开）、`EMDASH_SITE_URL`（公开 origin）、`POSTGRES_PASSWORD`，以及 `EMDASH_TRUSTED_PROXY_HEADERS=x-forwarded-for`（让限流/订阅拿到真实客户端 IP）。可选：`S3_*`（对象存储）、`EMDASH_OAUTH_GITHUB_*`（GitHub 登录）、`SITE_THEME`。compose 变量：`DOCKER_DATA_PATH`（宿主数据根目录，默认 `./data`，生产建议绝对路径）、`APP_PORT`（默认 `4321`）、`DB_PORT`（默认 `5432`）、`TZ`（默认 `Asia/Shanghai`）。
 
 ### 2. 启动
 
@@ -81,7 +81,7 @@ cp .env.example .env
 npm run docker:up     # = docker compose up -d --build
 ```
 
-它会构建 `pulse-app`（插件 → Astro 构建）、起 `pulse-db` 与 `pulse-redis`，并在启动时自动跑迁移。`pulse-db` 首次初始化时会建 `pg_trgm` 扩展（`docker/initdb/00-extensions.sql`）。
+它会构建 `pulse-app`（插件 → Astro 构建）、起 `pulse-db` 与 `pulse-redis`，并在启动时自动跑迁移。`pulse-db` 首次初始化时会建 `pg_trgm` 扩展（`docker/initdb/00-extensions.sql`）。数据以绑定挂载落在 `DOCKER_DATA_PATH` 下的 `postgres/`、`app/`、`redis/`，可直接备份或迁移。
 
 ### 3. 反向代理
 
@@ -93,6 +93,12 @@ npm run docker:up     # = docker compose up -d --build
 2. 后台 → **Resend** 页 → 填 API key 与 From 地址。缺它时邮箱链接登录（magic link）返回 `503 EMAIL_NOT_CONFIGURED`，订阅邮件只能落库待发。
 3. *可选* —— 后台 → **AI 网关** 页 → 选 provider、填凭据、点「测试连接」。
 4. *可选* —— 配置 Resend Webhook 收投递回执（见 `docs/16-vps-deployment.md` §7）。
+
+### 持续部署（GitHub Actions）
+
+`.github/workflows/deploy.yml` 在 push 到 **`production`** 分支时部署（`main` 仅作开发、**不会**部署；也可手动 `workflow_dispatch`）。它先在 GitHub 侧跑 `verify`（`npm ci` → `plugin:build` → `typecheck:all` → `build`），再 SSH 到 VPS 执行 `git reset --hard origin/production`、写入 `.env`、`docker compose build --no-cache && docker compose up -d`。
+
+需配置的仓库 secrets：`VPS_HOST`、`VPS_USERNAME`、`VPS_SSH_KEY`、`VPS_PORT`（可选，默认 22）、`VPS_PROJECT_PATH`（VPS 上的仓库路径）、`VPS_ENV_FILE`（VPS 上真实 `.env` 的路径，部署时 `cp` 到仓库根）。
 
 ### 构建期 vs 运行期的分界
 
@@ -114,6 +120,8 @@ EmDash 会把 `database` / `storage` / `objectCache` 描述符序列化进构建
 | `EMDASH_ENCRYPTION_KEY` | 加密落库的插件密钥 | **必需** |
 | `EMDASH_SITE_URL` | 公开 origin（Passkey、CSRF、MCP 发现、sitemap、JSON-LD、图片白名单） | **生产必需** |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | 数据库凭据（compose 据此拼出 `DATABASE_URL` 与 `PG*`） | **必需** |
+| `DOCKER_DATA_PATH` | 绑定挂载的宿主数据目录（`postgres/`、`app/`、`redis/`）；默认 `./data` | 否 |
+| `APP_PORT` / `DB_PORT` | `pulse-app`（4321）/ `pulse-db`（5432）绑定的宿主回环端口 | 否 |
 | `DATABASE_URL` | `emdash` CLI / 迁移用的单条连接串 | 二选一 |
 | `PGHOST` / `PGPORT` / `PGDATABASE` / `PGUSER` / `PGPASSWORD` | 运行期连接池读的标准 libpq 变量 | 二选一 |
 | `REDIS_URL` | EmDash 对象缓存后端；未设置时缓存直通 | 否 |
