@@ -33,7 +33,7 @@ Resend 侧的回执（`email.delivered` / `bounced` / `complained` / `opened` / 
 | `unsubscribe` | POST | 公开 | — | 凭退订 token 转 unsubscribed，可带 `reason` |
 | `preferences` | POST | 公开 | — | 读者自助（token 即凭证）：`{token}` 只读返回 `{email,status,groups,available}`；带 `groups` 则写入 |
 | `groups/public` | POST | 公开 | — | 只读启用中的分组（前台订阅表单用）。**不加 IP 限流**——SSR 取不到真实 IP |
-| `resend/webhook` | POST | 公开 | — | Resend 投递回执（Svix 验签，`request: { body: "text" }`）。未配置 `resendWebhookSecret` → 503；验签失败 → 401 |
+| `resend/webhook` | POST | 公开 | — | 投递回执（当前 transport 验签，Resend 用 Svix，`request: { body: "text" }`）。未配置签名密钥 → 503；验签失败 → 401 |
 | `subscribers/list` | POST | 私有 | `plugins:manage` | 订阅者列表（`status` / `group` / `q` / `limit` 过滤）+ 各状态计数 |
 | `subscribers/update` | POST | 私有 | `plugins:manage` | 行级操作：`pause` / `resume` / `unsubscribe` / `set_groups` |
 | `subscribers/events` | POST | 私有 | `plugins:manage` | 某订阅者的事件时间线 |
@@ -70,6 +70,7 @@ manifest `admin.pages` 注册三个页面，共用同一个 `admin` 路由（宿
 
 `admin.settingsSchema`：`autoConfirm`（单确认，无邮件服务时可用）、`replyTo`、
 `confirmSubject`、`welcomeSubject`、`confirmPath`、`unsubscribePath`、
+`broadcastProvider`（群发投递通道，默认 `resend`）、
 `resendSyncEnabled`、`resendSegmentPrefix`、`resendWebhookSecret`。
 
 ## 邮件
@@ -77,10 +78,21 @@ manifest `admin.pages` 注册三个页面，共用同一个 `admin` 路由（宿
 走 `ctx.email`（需 `email:send` 能力 + 站点已配置 provider）。**未配置 provider 或投递失败时不报错**，
 而是把邮件快照落库为 `pendingEmail`（`subscribers/list` 的 `pending_email` 字段可见）。
 
-## Resend 集成（Segments / Contacts / Broadcasts）
+## 邮件投递（transport 抽象；当前实现为 Resend）
 
-订阅分组同步到 Resend 的 **Segments**，群发走 **Broadcasts** —— 收件人池由 Resend 按
-segment 展开，自动插入退订链接、跳过已退订联系人，本地不维护投递名单。
+分组同步、群发、投递回执都走一层 **transport 抽象**（`src/transport/`），订阅主流程只依赖
+`BroadcastTransport` 接口，不直接依赖任何具体邮件服务。当前唯一实现是 **Resend**
+（`src/transport/resend.ts`），底层 REST 客户端仍是 `src/resend.ts`。
+
+- **语义接口**：`isConfigured` / `fromAddress` / `ensureAudience`（分组 → 远端受众，幂等）/
+  `syncContact`（建改联系人 + 覆盖受众归属）/ `send`（创建并立即群发）/ `verifyWebhook` /
+  `mapWebhookEvent`。受众 id 对调用方是**不透明字符串**。
+- **怎么接新 provider**（如 Rilay / 其它服务）：① 新增 `src/transport/<provider>.ts` 实现接口；
+  ② 在 `src/transport/index.ts` 的 `TRANSPORT_LABELS` 与 `resolveTransport()` 登记；
+  ③ manifest 的 `broadcastProvider` 选项加一项、把该服务 host 加进 `allowedHosts`。
+- **选择 provider**：设置项 `broadcastProvider`（默认 `resend`），见 `resolveTransport()`。
+
+Resend 实现的具体约定：
 
 - **凭证复用**「Resend」插件（id `emdash-resend`）的 `apiKey` / `fromAddress`，本插件不重复配置。
   插件设置按 plugin id 隔离，跨插件读只能靠 `loadHost()`（动态 `import("emdash")` 拿
@@ -90,11 +102,13 @@ segment 展开，自动插入退订链接、跳过已退订联系人，本地不
   状态映射：`confirmed` → `unsubscribed:false` + 所属分组的 segment；`paused` / `unsubscribed`
   → `unsubscribed:true` 且清空分组；`pending` 跳过（邮箱未确认，不该进联系人表）。
 - **分组 ↔ segment**：首次同步按「前缀 + 分组名」找 segment，找不到就创建，id 缓存回组记录的
-  `resendSegmentId`（见 `src/segments.ts`）。
-- **Webhook**：`resend/webhook` 用 Svix 方案验签（`svix-id` / `svix-timestamp` / `svix-signature`
-  + `whsec_` 密钥，WebCrypto HMAC-SHA256）。必须声明 `request: { body: "text" }` —— 验签对象是
-  原始字节，先 `JSON.parse` 再 `stringify` 会改字节导致必失败。回执只留痕，**不自动改订阅状态**
-  （软退信 ≠ 用户不想收，处置交人工）。
+  `resendSegmentId`（字段名沿用历史，语义 = 当前 transport 的受众 id；见 `src/segments.ts`）。
+- **群发**：走 Resend Broadcasts，收件人池由 Resend 按 segment 展开，自动插入退订链接
+  （`{{{RESEND_UNSUBSCRIBE_URL}}}`）、跳过已退订联系人，本地不维护投递名单。
+- **Webhook**：`resend/webhook`（路由名沿用，已配置的 URL 不变）用 Svix 方案验签
+  （`svix-id` / `svix-timestamp` / `svix-signature` + `whsec_` 密钥，WebCrypto HMAC-SHA256）。
+  必须声明 `request: { body: "text" }` —— 验签对象是原始字节，先 `JSON.parse` 再 `stringify`
+  会改字节导致必失败。回执只留痕，**不自动改订阅状态**（软退信 ≠ 用户不想收，处置交人工）。
 
 ## 前台接线
 

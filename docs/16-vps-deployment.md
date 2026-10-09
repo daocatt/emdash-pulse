@@ -208,9 +208,13 @@ EmDash 的 FTS 只支持 SQLite。PG 上本站自建：
 ## 7. 邮件与订阅（Resend）
 
 - 传输层是 `emdash-plugin-resend`（独占 `email:deliver`），API key / From 在后台 **Resend** 页填写（加密存储）。
-- `pulse-subscriptions` 把**订阅分组同步为 Resend Segments**，**群发走 Resend Broadcasts**：
+- `pulse-subscriptions` 的**分组同步 / 群发 / 投递回执**走一层 **transport 抽象**
+  （`plugins/pulse-subscriptions/src/transport/`），当前实现是 Resend —— 分组同步为 Resend
+  **Segments**，群发走 **Broadcasts**：
   后台 **订阅群发** 页选分组 + 主题 + HTML → `POST /broadcasts`（`send: true`）。
   收件人池由 Resend 按 segment 展开，自动插入退订链接、跳过已退订联系人。
+  换 provider（如 Rilay）只需实现 `BroadcastTransport` 接口并在 `resolveTransport()` 登记；
+  后台「订阅」设置页的「群发投递通道」选择生效的 provider。
 - **投递回执**：在 Resend 后台配 Webhook，地址
   `https://<域名>/_emdash/api/plugins/pulse-subscriptions/resend/webhook`，
   事件勾选 `email.delivered` / `bounced` / `complained` / `opened` / `clicked`。

@@ -80,6 +80,13 @@
 				"type": "string",
 				"default": "/subscribe/unsubscribe"
 			},
+			"broadcastProvider": {
+				"label": "群发投递通道",
+				"description": "群发与分组同步使用的邮件服务（见 src/transport/）。目前支持 Resend（复用「Resend」页的 API Key）。",
+				"type": "select",
+				"options": [{ "value": "resend", "label": "Resend" }],
+				"default": "resend"
+			},
 			"resendSyncEnabled": {
 				"label": "同步订阅到 Resend",
 				"description": "开启后，订阅者状态变更会同步为 Resend 联系人（分组 → segment）。需先在「Resend」页配置 API Key。",

@@ -22,7 +22,6 @@ import {
 	setSubscriberGroups,
 	unsubscribeSubscriber,
 } from "./operations";
-import { loadResendConfig } from "./resend";
 import { readSyncSettings } from "./segments";
 import {
 	MAX_SCAN,
@@ -32,6 +31,7 @@ import {
 	type SubscriberRecord,
 	type SubscriberStatus,
 } from "./subscribers";
+import { resolveTransport } from "./transport";
 
 type Json = Record<string, unknown>;
 
@@ -577,25 +577,29 @@ async function renderBroadcastPage(ctx: PluginContext, input: AdminInput): Promi
 }
 
 async function broadcastBlocks(ctx: PluginContext, notice?: string): Promise<Json[]> {
-	const [groups, history, config, sync] = await Promise.all([
+	const [groups, history, sync, transport] = await Promise.all([
 		listGroups(ctx),
 		listBroadcastHistory(ctx, 20),
-		loadResendConfig(),
 		readSyncSettings(ctx),
+		resolveTransport(ctx),
 	]);
 
-	const configured = config !== null && config.fromAddress !== "";
+	// 当前投递通道（默认 Resend，见 src/transport/）。换 provider 时这里自动跟随。
+	const label = transport?.label ?? "邮件服务";
+	const from = transport ? await transport.fromAddress() : "";
+	const configured = transport !== null && from !== "" && (await transport.isConfigured());
+
 	const blocks: Json[] = [
 		{ type: "header", text: "订阅群发" },
 		{
 			type: "section",
-			text: "群发走 **Resend Broadcasts**：收件人是所选分组对应的 segment，Resend 负责展开收件人、插入退订链接、并跳过已退订联系人。",
+			text: `群发走当前投递通道（**${label}**）：收件人是所选分组对应的受众，服务侧负责展开收件人、插入退订链接、并跳过已退订联系人。`,
 		},
 		{
 			type: "context",
 			text: configured
-				? `Resend 已配置（From：${config?.fromAddress}）· 分组同步：${sync.enabled ? "开启" : "关闭"}`
-				: "⚠️ Resend 未配置：请先到「Resend」设置页填 API Key 与 From 地址。",
+				? `${label} 已配置（From：${from}）· 分组同步：${sync.enabled ? "开启" : "关闭"}`
+				: `⚠️ ${label} 未配置：请先到「Resend」设置页填 API Key 与 From 地址。`,
 		},
 	];
 	if (notice) blocks.push({ type: "section", text: notice });

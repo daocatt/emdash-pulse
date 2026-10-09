@@ -34,7 +34,6 @@ import { deleteGroup, listActiveGroups, listGroups, saveGroup, sanitizeGroupSlug
 import { buildConfirmEmail, buildWelcomeEmail, deliver, linkWithToken, type EmailSender } from "./mail";
 import { pauseSubscriber, resumeSubscriber, setSubscriberGroups, unsubscribeSubscriber } from "./operations";
 import { checkRateLimit, clientIp } from "./rate-limit";
-import { mapResendEvent, verifyResendSignature } from "./resend";
 import { syncSubscriber } from "./segments";
 import {
 	findSubscriberByEmailHash,
@@ -48,6 +47,7 @@ import {
 	type TokenPurpose,
 } from "./subscribers";
 import { generateToken, hashEmail, hashSecret, normalizeEmail, tokenPrefix } from "./token";
+import { resolveTransport } from "./transport";
 
 type Json = Record<string, unknown>;
 
@@ -183,8 +183,6 @@ interface SubscriptionSettings {
 	welcomeSubject: string;
 	confirmPath: string;
 	unsubscribePath: string;
-	/** Resend Webhook（Svix）签名密钥，`whsec_…`。留空即关闭 Webhook 处理。 */
-	resendWebhookSecret: string;
 }
 
 const DEFAULT_SETTINGS: SubscriptionSettings = {
@@ -194,7 +192,6 @@ const DEFAULT_SETTINGS: SubscriptionSettings = {
 	welcomeSubject: "欢迎订阅 Suda Pulse",
 	confirmPath: "/subscribe/confirm",
 	unsubscribePath: "/subscribe/unsubscribe",
-	resendWebhookSecret: "",
 };
 
 function str(value: unknown, fallback: string): string {
@@ -220,7 +217,6 @@ async function readSettings(ctx: PluginContext): Promise<SubscriptionSettings> {
 		welcomeSubject,
 		confirmPath,
 		unsubscribePath,
-		resendWebhookSecret,
 	] = await Promise.all([
 		get("autoConfirm"),
 		get("replyTo"),
@@ -228,7 +224,6 @@ async function readSettings(ctx: PluginContext): Promise<SubscriptionSettings> {
 		get("welcomeSubject"),
 		get("confirmPath"),
 		get("unsubscribePath"),
-		get("resendWebhookSecret"),
 	]);
 
 	return {
@@ -238,7 +233,6 @@ async function readSettings(ctx: PluginContext): Promise<SubscriptionSettings> {
 		welcomeSubject: str(welcomeSubject, DEFAULT_SETTINGS.welcomeSubject),
 		confirmPath: str(confirmPath, DEFAULT_SETTINGS.confirmPath),
 		unsubscribePath: str(unsubscribePath, DEFAULT_SETTINGS.unsubscribePath),
-		resendWebhookSecret: str(resendWebhookSecret, DEFAULT_SETTINGS.resendWebhookSecret),
 	};
 }
 
@@ -546,39 +540,40 @@ const plugin: SandboxedPlugin = {
 			}),
 		},
 
-		// ===== Resend Webhook（公开，Svix 验签） =====
+		// ===== 投递回执 Webhook（公开，验签） =====
 		//
 		// 收投递回执（delivered / bounced / complained / opened / clicked），按收件人
 		// 反查订阅者并落一条事件日志（后台「订阅记录」里可回放）。
 		//
+		// 路由名沿用 `resend/webhook`（已配置的 Webhook URL 不变），但**验签与载荷映射
+		// 交给当前 transport**（见 `src/transport/`）—— 换 provider 时这里不用改。
+		//
 		// **`request: { body: "text" }` 是必须的**：验签对象是原始请求体字节，
 		// 让宿主先 `JSON.parse` 再 `JSON.stringify` 会改变字节（键序 / 空白 / 转义），
-		// 验签必然失败。签名头是 Svix 的三件套，需显式声明才会透传给插件。
+		// 验签必然失败。签名头（Resend 是 Svix 三件套）需显式声明才会透传给插件。
 		//
-		// 未配置 `resendWebhookSecret` 时返回 503（而不是静默 200）—— 否则运营在
-		// Resend 后台看到「投递成功」，却永远等不到回执，无从排查。
+		// 未配置签名密钥时返回 503（而不是静默 200）—— 否则运营在服务后台看到
+		// 「投递成功」，却永远等不到回执，无从排查。
 		"resend/webhook": {
 			public: true,
 			response: "raw",
 			methods: ["POST"],
 			request: { body: "text", headers: ["svix-id", "svix-timestamp", "svix-signature"] },
 			handler: async (routeCtx, ctx): Promise<PluginResponse> => {
-				const settings = await readSettings(ctx);
-				if (settings.resendWebhookSecret === "") {
-					return json(503, { ok: false, error: "WEBHOOK_DISABLED" });
-				}
+				const transport = await resolveTransport(ctx);
+				if (!transport) return json(503, { ok: false, error: "WEBHOOK_DISABLED" });
 
 				const payload = typeof routeCtx.input === "string" ? routeCtx.input : "";
-				const verified = await verifyResendSignature({
+				const verdict = await transport.verifyWebhook({
 					payload,
 					headers: {
-						id: readHeader(routeCtx, "svix-id"),
-						timestamp: readHeader(routeCtx, "svix-timestamp"),
-						signature: readHeader(routeCtx, "svix-signature"),
+						"svix-id": readHeader(routeCtx, "svix-id"),
+						"svix-timestamp": readHeader(routeCtx, "svix-timestamp"),
+						"svix-signature": readHeader(routeCtx, "svix-signature"),
 					},
-					secret: settings.resendWebhookSecret,
 				});
-				if (!verified) return json(401, { ok: false, error: "INVALID_SIGNATURE" });
+				if (verdict === "disabled") return json(503, { ok: false, error: "WEBHOOK_DISABLED" });
+				if (verdict !== "ok") return json(401, { ok: false, error: "INVALID_SIGNATURE" });
 
 				let parsed: unknown;
 				try {
@@ -587,7 +582,7 @@ const plugin: SandboxedPlugin = {
 					return json(400, { ok: false, error: "INVALID_BODY" });
 				}
 
-				const event = mapResendEvent(parsed);
+				const event = transport.mapWebhookEvent(parsed);
 				const type = event ? WEBHOOK_EVENT_TYPES[event.type] : undefined;
 				if (!event || !type) return json(200, { ok: true, ignored: true });
 

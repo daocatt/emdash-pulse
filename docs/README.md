@@ -57,6 +57,7 @@
 - **Phase 7c（AI 网关插件）** ✅：新增 `pulse-ai`（provider / Cloudflare AI Gateway / 自定义 base URL / 模型 / 加密 API key / 超时 / max tokens + 后台「AI 网关」页含实时连通性自测）；`pulse-review` 的 AI 审核改为委托 `pulse-ai/client`，不再自带凭证设置（`allowedHosts` 覆盖 `pulse-ai` 可能指向的所有端点）。
 - **Phase 7d（Resend 分组同步 + 群发）** ✅：`pulse-subscriptions` 把**订阅分组同步为 Resend Segments**（segment id 缓存回组记录，避免每次同步都打列表接口），新增后台 **订阅群发** 页（走 Resend **Broadcasts**，`send: true`，Resend 负责展开收件人 / 插退订链接 / 跳过已退订），以及 `resend/webhook`（**Svix 验签**，`request: { body: "text" }` 用原始字节；回执只写事件日志，**不自动改订阅状态**）；manifest 新增 `network:request` + `allowedHosts` + `broadcasts` 集合，插件升 0.3.0。
 - **Phase 7e（持续部署）** ✅：`.github/workflows/deploy.yml` —— **仅 `production` 分支触发**（`main` 不部署），GitHub 侧先 verify（`plugin:build` → `typecheck:all` → `build`），再 SSH 到 VPS `git reset --hard origin/production` → `cp $VPS_ENV_FILE .env` → `docker compose build --no-cache` → `up -d`；`docker-compose.yml` 数据持久化改为**绑定挂载**（`DOCKER_DATA_PATH` 可在 `.env` 配置）。
+- **Phase 7f（邮件 transport 抽象）** ✅：`pulse-subscriptions` 抽出 `BroadcastTransport` 接口（`src/transport/`），分组同步 / 群发 / Webhook 回执只依赖接口，**不再直接耦合 Resend**；Resend 成为第一个实现（`src/transport/resend.ts`，底层 REST 客户端仍在 `src/resend.ts`），新增 `broadcastProvider` 设置项。为后续接入其它邮件服务（如 Rilay）预留了登记点。
 - 详见 [10-phase0-report.md](./10-phase0-report.md) 与 [11-phase3-comments-subscriptions.md](./11-phase3-comments-subscriptions.md)（含每阶段关键发现与踩坑）。
 
 ---
@@ -90,7 +91,7 @@ Reader agent ──MCP/HTTP JSON──▶ Agent Read API ─┘
 | RSS | `/rss.xml` + `/feed.json` + 分版块 `/sections/[slug]/rss.xml` | 自研 |
 | 邮件订阅 | **自研 `pulse-subscriptions`**（双确认 + 退订 + 订阅者管理） | 自研 |
 | 邮件传输 | **Resend**（`emdash-plugin-resend`，独占 `email:deliver`；未配置时落库待发） | 插件 |
-| 订阅分组同步 / 群发 | 分组 → Resend **Segments**；群发走 **Broadcasts**；投递回执走 **Webhook**（Svix 验签） | 自研 |
+| 订阅分组同步 / 群发 | 走 `pulse-subscriptions` 的 **transport 抽象**（当前实现 Resend）：分组 → **Segments**；群发走 **Broadcasts**；投递回执走 **Webhook**（Svix 验签） | 自研 |
 | 新闻分类 | taxonomy `section`（hierarchical） | 复用 |
 | 标签 | taxonomy `tag`（flat） | 复用 |
 | 评论 | 内置评论 + `pulse-review` 规则/AI 审核 + 报纸主题覆盖 | 复用 + 自研 |
