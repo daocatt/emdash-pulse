@@ -15,10 +15,3 @@ data.db*
 
 # Local tooling config
 .codebuddy/
-.wrangler/
-
-# 遗留的 Cloudflare 本地配置（部署已迁到 VPS，保留忽略以免误提交真实账号信息）
-wrangler.prod.jsonc
-wrangler.*.jsonc
-.dev.vars
-.dev.vars.*
