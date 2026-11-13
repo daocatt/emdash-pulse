@@ -8,7 +8,7 @@
 # S3_ENDPOINT（决定 storage 用 s3() 还是 local()）。
 
 # ---- deps：安装依赖（含 npm workspaces 插件链接）----
-FROM node:24.22.1-alpine AS deps
+FROM node:24.22.3-alpine AS deps
 WORKDIR /app
 # postinstall 会跑 scripts/patch-*.mjs 给上游插件打补丁，所以 scripts 要先就位。
 COPY package.json package-lock.json ./
@@ -29,7 +29,7 @@ COPY . .
 RUN npm run build
 
 # ---- runner：只带运行所需 ----
-FROM node:24.22.1-alpine AS runner
+FROM node:24.22.3-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
 	HOST=0.0.0.0 \
